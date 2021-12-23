@@ -1,11 +1,11 @@
 #!/bin/sh
 
-lastLogfile="/var/log/backup-last.log"
-lastMailLogfile="/var/log/mail-last.log"
-lastMicrosoftTeamsLogfile="/var/log/microsoft-teams-last.log"
+lastLogfile="/home/restic/backup-last.log"
+lastMailLogfile="/home/restic/mail-last.log"
+lastMicrosoftTeamsLogfile="/home/restic/microsoft-teams-last.log"
 
 copyErrorLog() {
-  cp ${lastLogfile} /var/log/backup-error-last.log
+  cp ${lastLogfile} /home/restic/backup-error-last.log
 }
 
 logLast() {
@@ -32,7 +32,7 @@ logLast "RESTIC_REPOSITORY: ${RESTIC_REPOSITORY}"
 logLast "AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}"
 
 # Do not save full backup log to logfile but to backup-last.log
-restic backup ${BACKUP_ROOT_DIR} ${RESTIC_JOB_ARGS} --tag=${RESTIC_TAG?"Missing environment variable RESTIC_TAG"} >> ${lastLogfile} 2>&1
+sudo -u restic /home/restic/bin/restic backup -r ${RESTIC_REPOSITORY} -p ${RESTIC_PASSWORD_FILE} ${BACKUP_ROOT_DIR} ${RESTIC_JOB_ARGS} --tag=${RESTIC_TAG?"Missing environment variable RESTIC_TAG"} >> ${lastLogfile} 2>&1
 backupRC=$?
 logLast "Finished backup at $(date)"
 if [[ $backupRC == 0 ]]; then
