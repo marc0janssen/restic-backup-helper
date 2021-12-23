@@ -32,7 +32,7 @@ logLast "RESTIC_REPOSITORY: ${RESTIC_REPOSITORY}"
 logLast "AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}"
 
 # Do not save full backup log to logfile but to backup-last.log
-sudo -u restic /home/restic/bin/restic backup -r ${RESTIC_REPOSITORY} -p ${RESTIC_PASSWORD_FILE} ${BACKUP_ROOT_DIR} ${RESTIC_JOB_ARGS} --tag=${RESTIC_TAG?"Missing environment variable RESTIC_TAG"} >> ${lastLogfile} 2>&1
+sudo -E -u restic /home/restic/bin/restic backup ${BACKUP_ROOT_DIR} ${RESTIC_JOB_ARGS} --tag=${RESTIC_TAG?"Missing environment variable RESTIC_TAG"} >> ${lastLogfile} 2>&1
 backupRC=$?
 logLast "Finished backup at $(date)"
 if [[ $backupRC == 0 ]]; then
