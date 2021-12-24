@@ -1,6 +1,6 @@
 # Restic Backup Helper
 
-**Notice: This image is a changed clone from "Restic Backup Docker" from lobaro/restic-backup-docker:1.2-0.9.4**
+**Notice: This image is a changed clone from [Restic Backup Docker:1.2-0.9.4]( https://github.com/lobaro/restic-backup-docker)**
 
 A docker container to automate [restic backups](https://restic.github.io/)
 
@@ -51,18 +51,20 @@ Please don't hesitate to report any issue you find. **Thanks.**
 
 Clone this repository
 
-```
+```shell
 git clone https://github.com/marc0janssen/restic-backup-helper.git
 cd restic-backup-helper
 ```
 
 Build the container. The container is named `backup-test`
-```
+
+```shell
 ./build.sh
 ```
 
 Run the container.
-```
+
+```shell
 ./run.sh
 ```
 
@@ -72,56 +74,63 @@ The container will backup `~/test-data` to a repository with password `test` at 
 
 To enter your container execute
 
-```
+```shell
 docker exec -ti backup-test /bin/sh
 ```
 
 Now you can use restic [as documented](https://restic.readthedocs.io/en/stable/), e.g. try to run `restic snapshots` to list all your snapshots.
 
 ## Logfiles
+
 Logfiles are inside the container. If needed you can create volumes for them.
 
+```shell
+docker logs <container>
 ```
-docker logs
-```
-Shows `/var/log/cron.log`
 
-Additionally you can see the the full log, including restic output, of the last execution in `/var/log/backup-last.log`. When the backup fails the log is copied to `/var/log/restic-error-last.log`. If configured, you can find the full output of the mail notification in `/var/log/mail-last.log`.
+Shows `/home/restic/cron.log`
 
-# Use the running container
+Additionally you can see the the full log, including restic output, of the last execution in `/home/restic/backup-last.log`. When the backup fails the log is copied to `/home/restic/restic-error-last.log`. If configured, you can find the full output of the mail notification in `/home/restic/mail-last.log`.
+
+## Use the running container
 
 Assuming the container name is `restic-backup-var`
 
-You can execute restic with ` docker exec -ti restic-backup-var restic`
+You can execute restic with `docker exec -ti restic-backup-var restic`
 
 ## Backup
 
 To execute a backup manually independent of the CRON run:
 
-    docker exec -ti restic-backup-var /bin/backup
-    
-    
+```shell
+docker exec -ti restic-backup-var /bin/backup
+```
+
 Backup a single file or directory
 
-    docker exec -ti restic-backup-var restic backup /data/path/to/dir --tag my-tag
+```shell
+docker exec -ti restic-backup-var restic backup /data/path/to/dir --tag my-tag
+```
 
 ## Restore
 
-You might want to mount a separate hostvolume at e.g. `/restore` to not override existing data while restoring. 
+You might want to mount a separate hostvolume at e.g. `/restore` to not override existing data while restoring.
 
 Get your snapshot ID with
 
-    docker exec -ti restic-backup-var restic snapshots
-    
+```shell
+docker exec -ti restic-backup-var restic snapshots
+```
+
 e.g. `abcdef12`
 
-     docker exec -ti restic-backup-var restic restore --include /data/path/to/files --target / abcdef12
+```shell
+docker exec -ti restic-backup-var restic restore --include /data/path/to/files --target / abcdef12
+```
 
 The target is `/` since all data backed up should be inside the host mounted `/data` dir. If you mount `/restore` you should set `--target /restore` and data will end up in `/restore/data/path/to/files`.
 
-
-
-# Customize the Container
+## Customize the Container
 
 The container is setup by setting [environment variables](https://docs.docker.com/engine/reference/run/#/env-environment-variables) and [volumes](https://docs.docker.com/engine/reference/run/#volume-shared-filesystems).
 
@@ -132,6 +141,7 @@ The container is setup by setting [environment variables](https://docs.docker.co
 * `RESTIC_TAG` - Optional. To tag the images created by the container.
 * `NFS_TARGET` - Optional. If set the given NFS is mounted, i.e. `mount -o nolock -v ${NFS_TARGET} /mnt/restic`. `RESTIC_REPOSITORY` must remain it's default value!
 * `BACKUP_CRON` - A cron expression to run the backup. Note: cron daemon uses UTC time zone. Default: `0 */6 * * *` aka every 6 hours.
+* `BACKUP_ROOT_DIR` - The source path you like to backup. If not specified '/data' is assumed.
 * `RESTIC_FORGET_ARGS` - Optional. Only if specified `restic forget` is run with the given arguments after each backup. Example value: `-e "RESTIC_FORGET_ARGS=--prune --keep-last 10 --keep-hourly 24 --keep-daily 7 --keep-weekly 52 --keep-monthly 120 --keep-yearly 100"`
 * `RESTIC_JOB_ARGS` - Optional. Allows to specify extra arguments to the back up job such as limiting bandwith with `--limit-upload` or excluding file masks with `--exclude`.
 * `AWS_ACCESS_KEY_ID` - Optional. When using restic with AWS S3 storage.
@@ -165,7 +175,7 @@ Since restic needs a **password less login** to the SFTP server make sure you ca
 
 Now you can simply specify the restic repository to be an [SFTP repository](https://restic.readthedocs.io/en/stable/Manual/#create-an-sftp-repository).
 
-```
+```shell
 -e "RESTIC_REPOSITORY=sftp:user@host:/tmp/backup"
 ```
 
@@ -174,7 +184,7 @@ Now you can simply specify the restic repository to be an [SFTP repository](http
 Restic can backup data to an OpenStack Swift container. Because Swift supports various authentication methods, credentials are passed through environment variables. In order to help integration with existing OpenStack installations, the naming convention of those variables follows the official Python Swift client.  
 Now you can simply specify the restic repository to be an [Swift repository](https://restic.readthedocs.io/en/latest/030_preparing_a_new_repo.html#openstack-swift).
 
-```
+```shell
 -e "RESTIC_REPOSITORY=swift:backup:/"
 -e "RESTIC_PASSWORD=password"
 -e "OS_AUTH_URL=https://auth.cloud.ovh.net/v3"
@@ -196,13 +206,13 @@ To use rclone as a backend for restic, simply add the rclone config file as a vo
 Note that for some backends (Among them Google Drive and Microsoft OneDrive), rclone writes data back to the `rclone.conf` file. In this case it needs to be writable by Docker.
 
 If the the container fails to write the new `rclone.conf` file with the error message `Failed to save config after 10 tries: Failed to move previous config to backup location`, add the entire `rclone` directory as volume: `-v /absolute/path/to/rclone-dir:/root/.config/rclone`.
- 
-# Versioning & Changelog
 
-Starting from v1.3.0 versioning follows [Semantic versioning](http://semver.org/)
+## Versioning & Changelog
+
+Starting from v1.0.0 versioning follows [Semantic versioning](http://semver.org/)
 
 Build metadata is used to declare the Restic version.
 
-**Example:** 1.3.0+0.9.5 (includes Restic 0.9.5)
+**Example:** 1.0.0+0.12.1 (includes Restic 0.12.1)
 
-For changelog see: https://github.com/lobaro/restic-backup-docker/releases
+For changelog see: [https://github.com/marc0janssen/restic-backup-helper/releases](https://github.com/marc0janssen/restic-backup-helper/releases)
