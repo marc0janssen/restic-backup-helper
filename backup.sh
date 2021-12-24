@@ -39,20 +39,20 @@ if [[ $backupRC == 0 ]]; then
     echo "Backup Successful"
 else
     echo "Backup Failed with Status ${backupRC}"
-    restic unlock
+    sudo -E -u restic /home/restic/bin/restic unlock
     copyErrorLog
 fi
 
 if [[ $backupRC == 0 ]] && [ -n "${RESTIC_FORGET_ARGS}" ]; then
     echo "Forget about old snapshots based on RESTIC_FORGET_ARGS = ${RESTIC_FORGET_ARGS}"
-    restic forget ${RESTIC_FORGET_ARGS} >> ${lastLogfile} 2>&1
+    sudo -E -u restic /home/restic/bin/restic forget ${RESTIC_FORGET_ARGS} >> ${lastLogfile} 2>&1
     rc=$?
     logLast "Finished forget at $(date)"
     if [[ $rc == 0 ]]; then
         echo "Forget Successful"
     else
         echo "Forget Failed with Status ${rc}"
-        restic unlock
+        sudo -E -u restic /home/restic/bin/restic unlock
         copyErrorLog
     fi
 fi
@@ -72,7 +72,7 @@ if [ -n "${TEAMS_WEBHOOK_URL}" ]; then
     fi
 fi
 
-if [ -n "${MAILX_ARGS}" ]; then
+if ([ -n "${MAILX_ARGS}" ] && [ -n "${MAILX_ON_ERROR}" ] && [[ $backupRC != 0 ]]) || ([ -n "${MAILX_ARGS}" ] && [ -z "${MAILX_ON_ERROR}" ]); then
     sh -c "mailx -v -S sendwait ${MAILX_ARGS} < ${lastLogfile} > ${lastMailLogfile} 2>&1"
     if [ $? == 0 ]; then
         echo "Mail notification successfully sent."

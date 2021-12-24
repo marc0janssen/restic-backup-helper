@@ -2,6 +2,21 @@
 
 ## Restic Backup Helper
 
+## 1.1.1 - 0.12.1
+
+New
+
+* Email only when the backup fails. Controlled by MAILX_ON_ERROR. if any value is given to MAILX_ON_ERROR, it will only email if the exitcode of backup is not equal zero. When MAILX_ON_ERROR is empty, the will also be mailed to you.
+
+Changed
+
+* Moved account creating and modified restic binary to the Dockerfile
+
+Fixed
+
+* Fixed typo in text
+* Fixed calling the altered restic binary
+
 ## 1.0.0 - 0.12.1
 
 * DOES NOT run as ROOT in the container so resulting backup is NOT OWNED by ROOT anymore

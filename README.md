@@ -1,7 +1,5 @@
 # Restic Backup Helper
 
-**Notice: This image is a changed clone from [Restic Backup Docker:1.2-0.9.4]( https://github.com/lobaro/restic-backup-docker)**
-
 A docker container to automate [restic backups](https://restic.github.io/)
 
 This container runs restic backups in regular intervals.
@@ -10,13 +8,16 @@ This container runs restic backups in regular intervals.
 * Support for different targets (tested with: Local, NFS, SFTP, AWS)
 * Support `restic mount` inside the container to browse the backup files
 
-Changed from original "Lobaro" image:
+Added Since original "Lobaro" image:
 
 * DOES NOT run as ROOT in the container so resulting backup is NOT OWNED by ROOT anymore
 * Backup source PATH can be set by environment var BACKUP_ROOT_DIR (will default to /data if not set)
-* Updated to Restic version 0.12.1
+* Updated to Restic latest version
+* Email the logs only if the backup is not successful if MAILX_ON_ERROR holds any value else the logs are emailed every time
 
-**Container**: [marc0janssen/restic-backup-helper](https://hub.docker.com/repository/docker/marc0janssen/restic-backup-helper/)
+**Docker Image**: [marc0janssen/restic-backup-helper](https://hub.docker.com/repository/docker/marc0janssen/restic-backup-helper/)
+
+**versions**: Codebase: 1.1.1 - Restic: 0.12.1
 
 Stable
 
@@ -25,7 +26,7 @@ docker pull marc0janssen/restic-backup-helper:stable
 ```
 
 ```shell
-docker pull marc0janssen/restic-backup-helper:1.0.0-0.12.1
+docker pull marc0janssen/restic-backup-helper:1.1.1-0.12.1
 ```
 
 Latest (experimental)
@@ -216,3 +217,5 @@ Build metadata is used to declare the Restic version.
 **Example:** 1.0.0+0.12.1 (includes Restic 0.12.1)
 
 For changelog see: [https://github.com/marc0janssen/restic-backup-helper/releases](https://github.com/marc0janssen/restic-backup-helper/releases)
+
+**Notice: This image is a changed clone from [Restic Backup Docker:1.2-0.9.4]( https://github.com/lobaro/restic-backup-docker)**

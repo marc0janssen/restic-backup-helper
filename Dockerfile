@@ -14,6 +14,20 @@ RUN \
     mkdir -p /mnt/restic /var/spool/cron/crontabs /var/log; \
     touch /var/log/cron.log;
 
+# Creating user for running restic non-root
+RUN adduser -G users -S -s /sbin/nologin restic && \
+    adduser restic wheel && \
+    echo '%wheel ALL=(ALL) ALL' > /etc/sudoers.d/wheel
+
+# Extended attribute to the restic binary
+RUN mkdir ~restic/bin && \
+    cp /usr/bin/restic ~restic/bin/ && \
+    chown root:wheel ~restic/bin/restic && \
+    chmod 750 ~restic/bin/restic && \
+    setcap cap_dac_read_search=+ep ~restic/bin/restic && \
+    apk del libcap && \
+    rm -f /var/cache/apk/*
+
 ENV RESTIC_REPOSITORY=/mnt/restic
 ENV RESTIC_PASSWORD=""
 ENV RESTIC_PASSWORD_FILE=""
@@ -24,6 +38,7 @@ ENV BACKUP_ROOT_DIR="/data"
 ENV RESTIC_FORGET_ARGS=""
 ENV RESTIC_JOB_ARGS=""
 ENV MAILX_ARGS=""
+ENV MAILX_ON_ERROR=""
 ENV OS_AUTH_URL=""
 ENV OS_PROJECT_ID=""
 ENV OS_PROJECT_NAME=""
