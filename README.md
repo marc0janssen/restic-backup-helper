@@ -25,7 +25,7 @@ docker pull marc0janssen/restic-backup-helper:stable
 ```
 
 ```shell
-docker pull marc0janssen/restic-backup-helper:1.0-0.12.1
+docker pull marc0janssen/restic-backup-helper:1.0.0-0.12.1
 ```
 
 Latest (experimental)
