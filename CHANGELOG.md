@@ -1,6 +1,6 @@
 # Changelog
 
-## Resti Backup Helper
+## Restic Backup Helper
 
 ## 1.0.0 - 0.12.1
 
