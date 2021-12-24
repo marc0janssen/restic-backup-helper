@@ -1,42 +1,59 @@
-# Restic Backup Docker Container
+# Restic Backup Helper
+
+**Notice: This image is a changed clone from "Restic Backup Docker" from lobaro/restic-backup-docker:1.2-0.9.4**
+
 A docker container to automate [restic backups](https://restic.github.io/)
 
-This container runs restic backups in regular intervals. 
+This container runs restic backups in regular intervals.
 
 * Easy setup and maintanance
 * Support for different targets (tested with: Local, NFS, SFTP, AWS)
 * Support `restic mount` inside the container to browse the backup files
 
-**Container**: [lobaro/restic-backup-docker](https://hub.docker.com/r/lobaro/restic-backup-docker/)
+Changed from original "Lobaro" image:
+
+* DOES NOT run as ROOT in the container so resulting backup is NOT OWNED by ROOT anymore
+* Backup source PATH can be set by environment var BACKUP_ROOT_DIR (will default to /data if not set)
+* Updated to Restic version 0.12.1
+
+**Container**: [marc0janssen/restic-backup-helper](https://hub.docker.com/repository/docker/marc0janssen/restic-backup-helper/)
 
 Stable
+
+```shell
+docker pull marc0janssen/restic-backup-helper:stable
 ```
-docker pull lobaro/restic-backup-docker:1.2-0.9.4
+
+```shell
+docker pull marc0janssen/restic-backup-helper:1.0-0.12.1
 ```
 
 Latest (experimental)
-```
-docker pull lobaro/restic-backup-docker:latest
+
+```shell
+docker pull marc0janssen/restic-backup-helper:latest
 ```
 
 ## Hooks
 
-If you need to execute a script before or after each backup, 
+If you need to execute a script before or after each backup,
 you need to add your hook script in the container folder `/hooks`:
-```
+
+```shell
 -v ~/home/user/hooks:/hooks
 ```
+
 Call your pre backup script `pre-backup.sh` and post backup script `post-backup.sh`
 
 Please don't hesitate to report any issue you find. **Thanks.**
 
-# Test the container
+## Test the container
 
 Clone this repository
 
 ```
-git clone https://github.com/Lobaro/restic-backup-docker.git
-cd restic-backup-docker
+git clone https://github.com/marc0janssen/restic-backup-helper.git
+cd restic-backup-helper
 ```
 
 Build the container. The container is named `backup-test`

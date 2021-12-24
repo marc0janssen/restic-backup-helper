@@ -11,4 +11,4 @@ docker run --privileged --name backup-test \
 -e "RESTIC_FORGET_ARGS=--keep-last 10" \
 -v ~/test-data:/data \
 -v ~/test-repo/:/mnt/restic \
--t marc0janssen/restic-backup-helper:latest
+-t restic-backup
