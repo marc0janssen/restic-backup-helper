@@ -6,7 +6,7 @@ RUN unzip rclone-current-linux-amd64.zip && mv rclone-*-linux-amd64/rclone /bin/
 
 FROM restic/restic:0.12.1
 
-RUN apk add --update --no-cache heirloom-mailx fuse curl libcap sudo
+RUN apk update && apk upgrade && apk add --update --no-cache heirloom-mailx fuse curl libcap sudo
 
 COPY --from=rclone /bin/rclone /bin/rclone
 
