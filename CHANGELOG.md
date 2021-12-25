@@ -6,7 +6,7 @@
 
 New
 
-* Email only when the backup fails. Controlled by MAILX_ON_ERROR. if any value is given to MAILX_ON_ERROR, it will only email if the exitcode of backup is not equal zero. When MAILX_ON_ERROR is empty, the will also be mailed to you.
+* Email only when the backup fails. Controlled by MAILX_ON_ERROR. If set to "ON" the MAILX_ON_ERROR will only email the backuplogs if the backup is unsuccessful, e.g. the exitcode of backup is not equal zero. When MAILX_ON_ERROR is set to any other value than "ON", the logs will always be mailed to you.
 
 Changed
 
