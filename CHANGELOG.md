@@ -15,7 +15,7 @@ Changed
 Fixed
 
 * Fixed typo in text
-* Fixed calling the altered restic binary
+* Fixed calling the restic binary with extra file capabilities
 
 ## 1.0.0 - 0.12.1
 
