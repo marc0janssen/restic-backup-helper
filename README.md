@@ -13,11 +13,11 @@ Added Since original "Lobaro" image:
 * DOES NOT run as ROOT in the container so resulting backup is NOT OWNED by ROOT anymore
 * Backup source PATH can be set by environment var BACKUP_ROOT_DIR (will default to /data if not set)
 * Updated to Restic latest version
-* Email the logs only if the backup is not successful if MAILX_ON_ERROR holds any value else the logs are emailed every time
+* Email the logs only if the backup is not successful if MAILX_ON_ERROR holds "ON" else the logs are emailed every time
 
 **Docker Image**: [marc0janssen/restic-backup-helper](https://hub.docker.com/repository/docker/marc0janssen/restic-backup-helper/)
 
-**versions**: Codebase: 1.0.0 - Restic: 0.12.1
+**versions**: Codebase: 1.1.2 - Restic: 0.12.1
 
 Stable
 
@@ -26,7 +26,7 @@ docker pull marc0janssen/restic-backup-helper:stable
 ```
 
 ```shell
-docker pull marc0janssen/restic-backup-helper:1.0.0-0.12.1
+docker pull marc0janssen/restic-backup-helper:1.1.2-0.12.1
 ```
 
 Latest (experimental)
