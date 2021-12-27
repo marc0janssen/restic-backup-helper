@@ -5,7 +5,6 @@ echo "*** Restic Backup Helper version 1.1.2-0.12.1 ***"
 echo "*************************************************"
 echo ""
 
-
 echo "Starting container Restic Backup Helper '${HOSTNAME}'..."
 echo ""
 
