@@ -32,6 +32,7 @@ else
     echo "Restic repository '${RESTIC_REPOSITORY}' attached and accessible."
 fi
 
+
 echo "Setup backup cron job with cron expression BACKUP_CRON: ${BACKUP_CRON}"
 echo "${BACKUP_CRON} /usr/bin/flock -n /home/restic/backup.lock /bin/backup >> /home/restic/cron.log 2>&1" > /var/spool/cron/crontabs/restic
 
