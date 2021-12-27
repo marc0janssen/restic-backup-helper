@@ -10,14 +10,16 @@ RUN apk update && apk upgrade && apk add --update --no-cache heirloom-mailx fuse
 
 COPY --from=rclone /bin/rclone /bin/rclone
 
-RUN \
-    mkdir -p /mnt/restic /var/spool/cron/crontabs /var/log; \
-    touch /var/log/cron.log;
-
 # Creating user for running restic non-root
 RUN adduser -G users -S -s /sbin/nologin restic && \
     adduser restic wheel && \
     echo '%wheel ALL=(ALL) ALL' > /etc/sudoers.d/wheel
+
+RUN \
+    mkdir -p /mnt/restic /var/spool/cron/crontabs /home/restic/log; \
+    touch /home/restic/log/cron.log; \
+    ln -s /home/restic/log; \
+    chown -R restic:users /log;
 
 # Extended attribute to the restic binary
 RUN mkdir ~restic/bin && \
@@ -58,11 +60,12 @@ RUN mkdir /.cache && \
     chmod -R g=u /mnt && \
     chgrp -R 0 /var/spool/cron/crontabs/root && \
     chmod -R g=u /var/spool/cron/crontabs/root && \
-    chgrp -R 0 /var/log/cron.log && \
-    chmod -R g=u /var/log/cron.log
+    chgrp -R 0 /home/restic/log/cron.log && \
+    chmod -R g=u /home/restic/log/cron.log
 
 # /data is the dir where you have to put the data to be backed up
 VOLUME /data
+VOLUME /log
 
 COPY backup.sh /bin/backup
 COPY entry.sh /entry.sh
@@ -70,4 +73,4 @@ COPY entry.sh /entry.sh
 WORKDIR "/"
 
 ENTRYPOINT ["/entry.sh"]
-CMD ["tail","-fn0","/home/restic/cron.log"]
+CMD ["tail","-fn0","/home/restic/log/cron.log"]

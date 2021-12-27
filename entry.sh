@@ -1,7 +1,7 @@
 #!bin/sh
 
 echo "*************************************************"
-echo "*** Restic Backup Helper version 1.1.2-0.12.1 ***"
+echo "*** Restic Backup Helper version 1.2.0-0.12.1 ***"
 echo "*************************************************"
 echo ""
 
@@ -33,11 +33,10 @@ else
 fi
 
 echo "Setup backup cron job with cron expression BACKUP_CRON: ${BACKUP_CRON}"
-echo "${BACKUP_CRON} /usr/bin/flock -n /home/restic/backup.lock /bin/backup >> /home/restic/cron.log 2>&1" > /var/spool/cron/crontabs/restic
+echo "${BACKUP_CRON} /usr/bin/flock -n /home/restic/backup.lock /bin/backup >> /home/restic/log/cron.log 2>&1" > /var/spool/cron/crontabs/restic
 
 # Make sure the file exists before we start tail
-touch /home/restic/cron.log
-chown restic:users /home/restic/cron.log
+touch /home/restic/log/cron.log
 
 # start the cron deamon
 crond

@@ -2,6 +2,10 @@
 
 ## Restic Backup Helper
 
+## 1.2.0-0.12.1
+
+Changed: Log directory is now a volume and logs are exposed
+
 ## 1.1.2 - 0.12.1
 
 New
