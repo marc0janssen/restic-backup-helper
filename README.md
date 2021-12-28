@@ -33,6 +33,10 @@ Latest (experimental)
 docker pull marc0janssen/restic-backup-helper:latest
 ```
 
+## Changelog
+
+See changelog at [Github](https://github.com/marc0janssen/restic-backup-helper/blob/master/CHANGELOG.md)
+
 ## Example container init
 
 This init backups up to directory "/docker/" as set with BACKUP_ROOT_DIR and "-v /docker/:/docker \".
