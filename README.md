@@ -7,13 +7,11 @@ This container runs restic backups in regular intervals.
 * Easy setup and maintanance
 * Support for different targets (tested with: Local, NFS, SFTP, AWS)
 * Support `restic mount` inside the container to browse the backup files
-
-Added Since original "Lobaro" image:
-
 * DOES NOT run as ROOT in the container so resulting backup is NOT OWNED by ROOT anymore
 * Backup source PATH can be set by environment var BACKUP_ROOT_DIR (will default to /data if not set)
 * Updated to Restic latest version
-* Email the logs only if the backup is not successful if MAILX_ON_ERROR holds "ON" else the logs are emailed every time
+* Only email the logs if the backup is not successful if MAILX_ON_ERROR holds "ON" else the logs are emailed every time
+* Logs are exposed in /log, setup your container accordingly
 
 **Docker Image**: [marc0janssen/restic-backup-helper](https://hub.docker.com/repository/docker/marc0janssen/restic-backup-helper/)
 
@@ -33,6 +31,37 @@ Latest (experimental)
 
 ```shell
 docker pull marc0janssen/restic-backup-helper:latest
+```
+
+## Example container init
+
+```shell
+#!/bin/sh
+
+hostname="sumer"
+repository="sumer"
+
+docker run -d --cap-add DAC_READ_SEARCH \
+    --hostname=${hostname} \
+    --name=restic-local \
+    --restart=always \
+    -e RESTIC_PASSWORD="<your repository password>" \
+    -e RESTIC_TAG="${hostname}" \
+    -e BACKUP_CRON="20 0-1,7-23 * * *" \
+    -e RESTIC_FORGET_ARGS="--prune --keep-hourly 24 --keep-daily 7 --keep-weekly 5 --keep-monthly 12 --keep-yearly 10" \
+    -e RESTIC_REPOSITORY="/backup/${repository}" \
+    -e BACKUP_ROOT_DIR="/docker/" \
+    -e RESTIC_JOB_ARGS="--exclude-file /config/exclude_files.txt" \
+    -e MAILX_ARGS="-r 'from@mail.tld' -s 'Result of the last ${hostname} backup run on ${repository}' -S smtp='mail.server.tld:587' -S smtp-use-starttls -S smtp-auth=login -S smtp-auth-user='login@mail.tld' -S smtp-auth-password='<password>' 'to@mail.tld'" \
+    -e MAILX_ON_ERROR="ON" \
+    -v /etc/localtime:/etc/localtime:ro \
+    -v /docker/restic-backup-helper/hooks:/hooks \
+    -v /docker/restic-backup-helper/data:/data \
+    -v /docker/restic-backup-helper/log:/log \
+    -v /docker/restic-backup-helper/config/:/config \
+    -v /mnt/backup/:/backup \
+    -v /docker/:/docker \
+    marc0janssen/restic-backup-helper:latest
 ```
 
 ## Hooks

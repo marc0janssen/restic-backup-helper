@@ -15,6 +15,7 @@ RUN adduser -G users -S -s /sbin/nologin restic && \
     adduser restic wheel && \
     echo '%wheel ALL=(ALL) ALL' > /etc/sudoers.d/wheel
 
+# Setup crontabs, cronlogging and expose log dirextory
 RUN \
     mkdir -p /mnt/restic /var/spool/cron/crontabs /home/restic/log; \
     touch /home/restic/log/cron.log; \
