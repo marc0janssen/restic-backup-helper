@@ -193,6 +193,7 @@ The container is setup by setting [environment variables](https://docs.docker.co
 ## Volumes
 
 * `/data` - This is the data that gets backed up. Just [mount](https://docs.docker.com/engine/reference/run/#volume-shared-filesystems) it to wherever you want.
+* `/log` - This holds the logfiles of the ran backups. Just [mount](https://docs.docker.com/engine/reference/run/#volume-shared-filesystems) it to wherever you want.
 
 ## Set the hostname
 
