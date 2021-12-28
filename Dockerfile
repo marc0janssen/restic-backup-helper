@@ -19,7 +19,7 @@ RUN adduser -G users -S -s /sbin/nologin restic && \
 RUN \
     mkdir -p /mnt/restic /var/spool/cron/crontabs /home/restic/log; \
     touch /home/restic/log/cron.log; \
-    ln -s /home/restic/log; \
+    ln -s /home/restic/log /; \
     chown -R restic:users /log;
 
 # Extended attribute to the restic binary
