@@ -126,9 +126,9 @@ Logfiles are inside the container. If needed you can create volumes for them.
 docker logs <container>
 ```
 
-Shows `/home/restic/cron.log`
+Shows `/home/restic/log/cron.log`
 
-Additionally you can see the the full log, including restic output, of the last execution in `/home/restic/backup-last.log`. When the backup fails the log is copied to `/home/restic/restic-error-last.log`. If configured, you can find the full output of the mail notification in `/home/restic/mail-last.log`.
+Additionally you can see the the full log, including restic output, of the last execution in `/home/restic/log/backup-last.log`. When the backup fails the log is copied to `/home/restic/log/restic-error-last.log`. If configured, you can find the full output of the mail notification in `/home/restic/log/mail-last.log`.
 
 ## Use the running container
 
