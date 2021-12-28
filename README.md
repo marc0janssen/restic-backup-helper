@@ -35,6 +35,10 @@ docker pull marc0janssen/restic-backup-helper:latest
 
 ## Example container init
 
+This init backups up to directory "/docker/" as set with BACKUP_ROOT_DIR and "-v /docker/:/docker \".
+The point of BACKUP_ROOT_DIR is the attach your own directory and not only "/data".
+Now your repository will not only have "/data" entries but meaningful name like in the example "/docker".
+
 ```shell
 #!/bin/sh
 
