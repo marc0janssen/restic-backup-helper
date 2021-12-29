@@ -1,7 +1,7 @@
 #!bin/sh
 
 echo "*************************************************"
-echo "*** Restic Backup Helper version 1.2.1-0.12.1 ***"
+echo "*** Restic Backup Helper version 1.2.2-0.12.1 ***"
 echo "*************************************************"
 echo ""
 
@@ -37,6 +37,8 @@ echo "${BACKUP_CRON} /usr/bin/flock -n /home/restic/backup.lock /bin/backup >> /
 
 # Make sure the file exists before we start tail
 touch /home/restic/log/cron.log
+chmod -R a+rwx,u-x,g-x,o-wx /log/*
+chown -R restic:users /log/*
 
 # start the cron deamon
 crond

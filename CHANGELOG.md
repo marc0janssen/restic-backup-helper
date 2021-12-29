@@ -2,9 +2,17 @@
 
 ## Restic Backup Helper
 
+## 1.2.2-0.12.1
+
+Change
+
+* Changed filepermission on /log directory
+
 ## 1.2.1-0.12.1
 
-* Bugfix: fixed Dockerfile
+Bugfix
+
+* fixed Dockerfile
 
 ## 1.2.0-0.12.1
 

@@ -126,6 +126,13 @@ Logfiles are inside the container. If needed you can create volumes for them.
 docker logs <container>
 ```
 
+Since Restic runs not under root, you need to set the access-rights to the directory on the host accordingly. This mean +w on the group and the group should be set to "users" or "wheel". If you don't want every user to access them, choose "wheel".
+
+```shell
+chmod -R g+w ./log/
+chgrp =R wheel ./log/
+```
+
 Shows `/home/restic/log/cron.log`
 
 Additionally you can see the the full log, including restic output, of the last execution in `/home/restic/log/backup-last.log`. When the backup fails the log is copied to `/home/restic/log/restic-error-last.log`. If configured, you can find the full output of the mail notification in `/home/restic/log/mail-last.log`.

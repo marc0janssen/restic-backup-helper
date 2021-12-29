@@ -19,16 +19,15 @@ RUN adduser -G users -S -s /sbin/nologin restic && \
 RUN \
     mkdir -p /mnt/restic /var/spool/cron/crontabs /home/restic/log; \
     touch /home/restic/log/cron.log; \
-    ln -s /home/restic/log /; \
-    chown -R restic:users /log;
+    ln -s /home/restic/log /
 
 # Extended attribute to the restic binary
-RUN mkdir ~restic/bin && \
-    cp /usr/bin/restic ~restic/bin/ && \
-    chown root:wheel ~restic/bin/restic && \
-    chmod 750 ~restic/bin/restic && \
-    setcap cap_dac_read_search=+ep ~restic/bin/restic && \
-    apk del libcap && \
+RUN mkdir ~restic/bin; \
+    cp /usr/bin/restic ~restic/bin/; \
+    chown root:wheel ~restic/bin/restic; \
+    chmod 750 ~restic/bin/restic; \
+    setcap cap_dac_read_search=+ep ~restic/bin/restic; \
+    apk del libcap; \
     rm -f /var/cache/apk/*
 
 ENV RESTIC_REPOSITORY=/mnt/restic
