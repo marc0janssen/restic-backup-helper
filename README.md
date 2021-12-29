@@ -130,7 +130,7 @@ Since Restic runs not under root, you need to set the access-rights to the direc
 
 ```shell
 chmod -R g+w ./log/
-chgrp =R wheel ./log/
+chgrp -R wheel ./log/
 ```
 
 Shows `/home/restic/log/cron.log`
@@ -174,6 +174,10 @@ docker exec -ti restic-backup-var restic restore --include /data/path/to/files -
 ```
 
 The target is `/` since all data backed up should be inside the host mounted `/data` dir. If you mount `/restore` you should set `--target /restore` and data will end up in `/restore/data/path/to/files`.
+
+## Mount
+
+In order to use `restic mount /mnt/restic` add `--privileged --cap-add=SYS_ADMIN --device /dev/fuse` to your container init.
 
 ## Customize the Container
 
