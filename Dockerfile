@@ -71,6 +71,7 @@ VOLUME /log
 
 COPY backup.sh /bin/backup
 COPY entry.sh /entry.sh
+COPY check.sh /bin/check
 
 WORKDIR "/"
 
