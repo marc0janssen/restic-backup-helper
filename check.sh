@@ -4,18 +4,18 @@ lastcheckLogfile="/home/restic/log/check-last.log"
 lastMailLogfile="/home/restic/log/mail-last.log"
 
 copyErrorLog() {
-  cp ${lastLogfile} /home/restic/log/check-error-last.log
+  cp ${lastcheckLogfile} /home/restic/log/check-error-last.log
 }
 
 logLast() {
-  echo "$1" >> ${lastLogfile}
+  echo "$1" >> ${lastcheckLogfile}
 }
 
 start=`date +%s`
 rm -f ${lastcheckLogfile} ${lastMailLogfile}
 
 echo "Starting Check at $(date +"%Y-%m-%d %H:%M:%S")"
-echo "Starting Check at $(date)" >> ${lastLogfile}
+echo "Starting Check at $(date)" >> ${lastcheckLogfile}
 logLast "CHECK_CRON: ${CHECK_CRON}"
 logLast "RESTIC_CHECK_ARGS: ${RESTIC_CHECK_ARGS}"
 logLast "RESTIC_REPOSITORY: ${RESTIC_REPOSITORY}"
