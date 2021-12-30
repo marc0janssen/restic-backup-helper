@@ -190,9 +190,11 @@ The container is setup by setting [environment variables](https://docs.docker.co
 * `RESTIC_TAG` - Optional. To tag the images created by the container.
 * `NFS_TARGET` - Optional. If set the given NFS is mounted, i.e. `mount -o nolock -v ${NFS_TARGET} /mnt/restic`. `RESTIC_REPOSITORY` must remain it's default value!
 * `BACKUP_CRON` - A cron expression to run the backup. Note: cron daemon uses UTC time zone. Default: `0 */6 * * *` aka every 6 hours.
+* `CHECK_CRON` - A cron expression to run the repository check. Note: cron daemon uses UTC time zone. Default: `0 */6 * * *` aka every 6 hours.
 * `BACKUP_ROOT_DIR` - The source path you like to backup. If not specified '/data' is assumed.
 * `RESTIC_FORGET_ARGS` - Optional. Only if specified `restic forget` is run with the given arguments after each backup. Example value: `-e "RESTIC_FORGET_ARGS=--prune --keep-last 10 --keep-hourly 24 --keep-daily 7 --keep-weekly 52 --keep-monthly 120 --keep-yearly 100"`
-* `RESTIC_JOB_ARGS` - Optional. Allows to specify extra arguments to the back up job such as limiting bandwith with `--limit-upload` or excluding file masks with `--exclude`.
+* `RESTIC_JOB_ARGS` - Optional. Allows to specify extra arguments to the backup job such as limiting bandwith with `--limit-upload` or excluding file masks with `--exclude`.
+* `RESTIC_CHECK_ARGS` - Optional. Allows to specify extra arguments to the check job such as --check-unused, --read-data, --read-data-subset
 * `AWS_ACCESS_KEY_ID` - Optional. When using restic with AWS S3 storage.
 * `AWS_SECRET_ACCESS_KEY` - Optional. When using restic with AWS S3 storage.
 * `TEAMS_WEBHOOK_URL` - Optional. If specified, the content of `/var/log/backup-last.log` is sent to your Microsoft Teams channel after each backup.
