@@ -39,7 +39,7 @@ if [[ $backupRC == 0 ]]; then
     echo "Backup Successful"
 else
     echo "Backup Failed with Status ${backupRC}"
-    sudo -E -u restic /home/restic/bin/restic unlock
+    restic unlock
     copyErrorLog
 fi
 
@@ -52,7 +52,7 @@ if [[ $backupRC == 0 ]] && [ -n "${RESTIC_FORGET_ARGS}" ]; then
         echo "Forget Successful"
     else
         echo "Forget Failed with Status ${rc}"
-        sudo -E -u restic /home/restic/bin/restic unlock
+        restic unlock
         copyErrorLog
     fi
 fi

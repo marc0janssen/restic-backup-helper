@@ -27,7 +27,7 @@ if [ $status != 0 ]; then
     if [ $init_status != 0 ]; then
         echo "Failed to init the repository: '${RESTIC_REPOSITORY}'"
         echo "Unlocking the repository: '${RESTIC_REPOSITORY}'"
-        sudo -E -u restic /home/restic/bin/restic unlock
+        restic unlock --remove-all
         exit 1
     fi
 else
@@ -41,8 +41,8 @@ echo "${CHECK_CRON} /usr/bin/flock -n /home/restic/cron.lock /bin/check >> /home
 
 # Make sure the file exists before we start tail
 touch /home/restic/log/cron.log
-chmod -R a+rwx,u-x,g-x,o-wx /log/*
-chown -R restic:users /log/*
+chmod -R a+rwx,o-w /log/
+chown -R restic:users /log/
 
 # start the cron deamon
 crond

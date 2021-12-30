@@ -18,8 +18,8 @@ RUN adduser -G users -S -s /sbin/nologin restic && \
 # Setup crontabs, cronlogging and expose log dirextory
 RUN \
     mkdir -p /mnt/restic /var/spool/cron/crontabs /home/restic/log /home/restic/.cache/restic; \
-    chmod -R a+rwx,u-x,g-x,o-wx /home/restic/.cache/*; \
-    chown -R restic:users /home/restic/.cache/* ; \
+    chmod -R a+rwx,o-w /home/restic/.cache/; \
+    chown -R restic:users /home/restic/.cache/; \
     touch /home/restic/log/cron.log; \
     ln -s /home/restic/log /
 
