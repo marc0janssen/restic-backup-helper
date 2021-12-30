@@ -26,6 +26,7 @@ if [ $status != 0 ]; then
 
     if [ $init_status != 0 ]; then
         echo "Failed to init the repository: '${RESTIC_REPOSITORY}'"
+        echo "Unlocking the repository: '${RESTIC_REPOSITORY}'"
         sudo -E -u restic /home/restic/bin/restic unlock
         exit 1
     fi
