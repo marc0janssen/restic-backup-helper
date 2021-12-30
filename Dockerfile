@@ -17,7 +17,7 @@ RUN adduser -G users -S -s /sbin/nologin restic && \
 
 # Setup crontabs, cronlogging and expose log dirextory
 RUN \
-    mkdir -p /mnt/restic /var/spool/cron/crontabs /home/restic/log; \
+    mkdir -p /mnt/restic /var/spool/cron/crontabs /home/restic/log /home/restic/.cache/restic; \
     touch /home/restic/log/cron.log; \
     ln -s /home/restic/log /
 
@@ -53,6 +53,7 @@ ENV OS_PASSWORD=""
 ENV OS_REGION_NAME=""
 ENV OS_INTERFACE=""
 ENV OS_IDENTITY_API_VERSION=3
+ENV RESTIC_CACHE_DIR="/home/restic/.cache/restic"
 
 # openshift fix
 RUN mkdir /.cache && \
