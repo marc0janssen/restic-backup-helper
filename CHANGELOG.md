@@ -2,6 +2,16 @@
 
 ## Restic Backup Helper
 
+## 1.3.1-0.12.1
+
+New
+
+* Check for repo setup CHECK_CRON and RESTIC_CHECK_ARGS
+
+Fix
+
+* .cache drectory now within the context of user 'restic:users'
+
 ## 1.2.2-0.12.1
 
 Change
