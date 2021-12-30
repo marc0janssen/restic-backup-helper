@@ -1,7 +1,7 @@
 #!bin/sh
 
 echo "*************************************************"
-echo "*** Restic Backup Helper version 1.3.1-0.12.1 ***"
+echo "*** Restic Backup Helper version 1.3.2-0.12.1 ***"
 echo "*************************************************"
 echo ""
 
@@ -43,6 +43,7 @@ echo "${CHECK_CRON} /usr/bin/flock -n /home/restic/cron.lock /bin/check >> /home
 touch /home/restic/log/cron.log
 chmod -R a+rwx,o-w /log/
 chown -R restic:users /log/
+chown -R restic:users /.cache/
 
 # start the cron deamon
 crond
