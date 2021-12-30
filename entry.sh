@@ -43,8 +43,6 @@ echo "${CHECK_CRON} /usr/bin/flock -n /home/restic/cron.lock /bin/check >> /home
 touch /home/restic/log/cron.log
 chmod -R a+rwx,u-x,g-x,o-wx /log/*
 chown -R restic:users /log/*
-chmod -R a+rwx,u-x,g-x,o-wx /home/restic/.cache/*
-chown -R restic:users /home/restic/.cache/*
 
 # start the cron deamon
 crond
