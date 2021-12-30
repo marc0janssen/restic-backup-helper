@@ -73,6 +73,8 @@ COPY backup.sh /bin/backup
 COPY entry.sh /entry.sh
 COPY check.sh /bin/check
 
+RUN chmod 755 /bin/backup /entry.sh /bin/check
+
 WORKDIR "/"
 
 ENTRYPOINT ["/entry.sh"]

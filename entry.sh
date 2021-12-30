@@ -33,7 +33,9 @@ else
 fi
 
 echo "Setup backup cron job with cron expression BACKUP_CRON: ${BACKUP_CRON}"
-echo "${BACKUP_CRON} 3 2>&1" > /var/spool/cron/crontabs/restic
+echo "${BACKUP_CRON} /usr/bin/flock -n /home/restic/backup.lock /bin/backup >> /home/restic/log/cron.log 2>&1" > /var/spool/cron/crontabs/restic
+echo "Setup check cron job with cron expression CHECK_CRON: ${CHECK_CRON}"
+echo "${CHECK_CRON} /usr/bin/flock -n /home/restic/check.lock /bin/check >> /home/restic/log/cron.log 2>&1" >> /var/spool/cron/crontabs/restic
 
 # Make sure the file exists before we start tail
 touch /home/restic/log/cron.log
