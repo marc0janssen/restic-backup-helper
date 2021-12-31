@@ -6,7 +6,7 @@
 
 New
 
-* Check for repo setup CHECK_CRON and RESTIC_CHECK_ARGS
+* ' restic check' for repo can be setup now with CHECK_CRON and RESTIC_CHECK_ARGS
 
 Change
 
@@ -14,7 +14,7 @@ Change
 
 Fix
 
-* .cache drectory now within the context of user 'restic:users'
+* .cache directory now within the context of user 'restic:users'
 
 ## 1.2.2-0.12.1
 
