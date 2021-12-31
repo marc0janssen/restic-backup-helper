@@ -12,6 +12,7 @@ This container runs restic backups in regular intervals.
 * Updated to Restic latest version
 * Only email the logs if the backup is not successful if MAILX_ON_ERROR holds "ON" else the logs are emailed every time
 * Logs are exposed in /log, setup your container accordingly
+* `restic check` CRON available
 
 **Docker Image**: [marc0janssen/restic-backup-helper](https://hub.docker.com/repository/docker/marc0janssen/restic-backup-helper/)
 
