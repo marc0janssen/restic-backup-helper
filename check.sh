@@ -48,7 +48,7 @@ if [ -n "${TEAMS_WEBHOOK_URL}" ]; then
 fi
 
 if ([ -n "${MAILX_ARGS}" ] && [ "${MAILX_ON_ERROR}" == "ON" ] && [[ $checkRC != 0 ]]) || ([ -n "${MAILX_ARGS}" ] && [ "${MAILX_ON_ERROR}" != "ON" ]); then
-    sh -c "mailx -v -S sendwait ${MAILX_ARGS} < ${lastcheckLogfile} > ${lastMailLogfile} 2>&1"
+    sh -c "mailx -v -S sendwait ${MAILX_ARGS} -s 'Result of the last ${HOSTNAME} check run on ${RESTIC_REPOSITORY}' < ${lastcheckLogfile} > ${lastMailLogfile} 2>&1"
     if [ $? == 0 ]; then
         echo "Mail notification successfully sent."
     else

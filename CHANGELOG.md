@@ -11,6 +11,7 @@ New
 Change
 
 * Removed Openshift "Fix"
+* mailsubject is a fixed text in backup and check script
 
 Fix
 
