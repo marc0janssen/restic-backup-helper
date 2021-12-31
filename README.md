@@ -60,7 +60,7 @@ docker run -d --cap-add DAC_READ_SEARCH \
     -e RESTIC_REPOSITORY="/backup/${repository}" \
     -e BACKUP_ROOT_DIR="/docker/" \
     -e RESTIC_JOB_ARGS="--exclude-file /config/exclude_files.txt" \
-    -e MAILX_ARGS="-r 'from@mail.tld' -s 'Result of the last ${hostname} backup run on ${repository}' -S smtp='mail.server.tld:587' -S smtp-use-starttls -S smtp-auth=login -S smtp-auth-user='login@mail.tld' -S smtp-auth-password='<password>' 'to@mail.tld'" \
+    -e MAILX_ARGS="-r 'from@mail.tld' -S smtp='mail.server.tld:587' -S smtp-use-starttls -S smtp-auth=login -S smtp-auth-user='login@mail.tld' -S smtp-auth-password='<password>' 'to@mail.tld'" \
     -e MAILX_ON_ERROR="ON" \
     -v /etc/localtime:/etc/localtime:ro \
     -v /docker/restic-backup-helper/hooks:/hooks \
