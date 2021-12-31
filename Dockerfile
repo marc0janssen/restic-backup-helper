@@ -17,9 +17,13 @@ RUN adduser -G users -S -s /sbin/nologin restic && \
 
 # Setup crontabs, cronlogging and expose log dirextory
 RUN \
-    mkdir -p /mnt/restic /var/spool/cron/crontabs /home/restic/log; \
+    mkdir -p /mnt/restic /var/spool/cron/crontabs /home/restic/log /.cache/restic; \
     touch /home/restic/log/cron.log; \
-    ln -s /home/restic/log /
+    ln -s /home/restic/log /; \
+    chmod -R a+rwx,o-w /log/; \
+    chown -R restic:users /log/; \
+    chown -R restic:users /.cache/
+
 
 # Extended attribute to the restic binary
 RUN mkdir ~restic/bin; \
@@ -55,21 +59,11 @@ ENV OS_INTERFACE=""
 ENV OS_IDENTITY_API_VERSION=3
 ENV RESTIC_CACHE_DIR="/.cache/restic"
 
-# openshift fix
-RUN mkdir -p /.cache/restic && \
-    chgrp -R 0 /.cache && \
-    chmod -R g=u /.cache && \
-    chgrp -R 0 /mnt && \
-    chmod -R g=u /mnt && \
-    chgrp -R 0 /var/spool/cron/crontabs/root && \
-    chmod -R g=u /var/spool/cron/crontabs/root && \
-    chgrp -R 0 /home/restic/log/cron.log && \
-    chmod -R g=u /home/restic/log/cron.log
-
 # /data is the dir where you have to put the data to be backed up
 VOLUME /data
 VOLUME /log
 
+# Copy the worker files
 COPY backup.sh /bin/backup
 COPY entry.sh /entry.sh
 COPY check.sh /bin/check

@@ -1,7 +1,7 @@
 #!bin/sh
 
 echo "*************************************************"
-echo "*** Restic Backup Helper version 1.3.2-0.12.1 ***"
+echo "*** Restic Backup Helper version 1.3.3-0.12.1 ***"
 echo "*************************************************"
 echo ""
 
@@ -13,7 +13,7 @@ if [ -n "${NFS_TARGET}" ]; then
     mount -o nolock -v ${NFS_TARGET} /mnt/restic
 fi
 
-restic snapshots &>/dev/null
+sudo -E -u restic /home/restic/bin/restic snapshots &>/dev/null
 status=$?
 echo "Check Repo status $status"
 
@@ -27,7 +27,7 @@ if [ $status != 0 ]; then
     if [ $init_status != 0 ]; then
         echo "Failed to init the repository: '${RESTIC_REPOSITORY}'"
         echo "Unlocking the repository: '${RESTIC_REPOSITORY}'"
-        restic unlock --remove-all
+        sudo -E -u restic /home/restic/bin/restic unlock --remove-all
         exit 1
     fi
 else
@@ -38,12 +38,6 @@ echo "Setup backup cron job with cron expression BACKUP_CRON: ${BACKUP_CRON}"
 echo "${BACKUP_CRON} /usr/bin/flock -n /home/restic/cron.lock /bin/backup >> /home/restic/log/cron.log 2>&1" > /var/spool/cron/crontabs/restic
 echo "Setup check cron job with cron expression CHECK_CRON: ${CHECK_CRON}"
 echo "${CHECK_CRON} /usr/bin/flock -n /home/restic/cron.lock /bin/check >> /home/restic/log/cron.log 2>&1" >> /var/spool/cron/crontabs/restic
-
-# Make sure the file exists before we start tail
-touch /home/restic/log/cron.log
-chmod -R a+rwx,o-w /log/
-chown -R restic:users /log/
-chown -R restic:users /.cache/
 
 # start the cron deamon
 crond

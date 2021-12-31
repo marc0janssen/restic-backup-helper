@@ -2,11 +2,15 @@
 
 ## Restic Backup Helper
 
-## 1.3.2-0.12.1
+## 1.3.3-0.12.1
 
 New
 
 * Check for repo setup CHECK_CRON and RESTIC_CHECK_ARGS
+
+Change
+
+* Removed Openshift "Fix"
 
 Fix
 
