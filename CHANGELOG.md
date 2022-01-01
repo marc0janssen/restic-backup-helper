@@ -2,6 +2,12 @@
 
 ## Restic Backup Helper
 
+## 1.3.4-0.12.1
+
+Bugfix
+
+* fixed arguments for mail
+
 ## 1.3.3-0.12.1
 
 New
