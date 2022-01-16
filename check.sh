@@ -1,10 +1,11 @@
 #!/bin/sh
 
 lastcheckLogfile="/home/restic/log/check-last.log"
+lasterrorchecklogfile="/home/restic/log/check-error-last.log"
 lastMailLogfile="/home/restic/log/mail-last.log"
 
 copyErrorLog() {
-  cp ${lastcheckLogfile} /home/restic/log/check-error-last.log
+  cp ${lastcheckLogfile} ${lasterrorchecklogfile}
 }
 
 logLast() {

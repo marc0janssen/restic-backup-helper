@@ -1,11 +1,12 @@
 #!/bin/sh
 
 lastLogfile="/home/restic/log/backup-last.log"
+lasterrorlogfile="/home/restic/log/backup-error-last.log"
 lastMailLogfile="/home/restic/log/mail-last.log"
 lastMicrosoftTeamsLogfile="/home/restic/log/microsoft-teams-last.log"
 
 copyErrorLog() {
-  cp ${lastLogfile} /home/restic/log/backup-error-last.log
+  cp ${lastLogfile} ${lasterrorlogfile}
 }
 
 logLast() {

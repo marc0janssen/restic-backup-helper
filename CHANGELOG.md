@@ -2,6 +2,12 @@
 
 ## Restic Backup Helper
 
+## 1.3.5-0.12.1
+
+Change
+
+* Changed logpaths
+
 ## 1.3.4-0.12.1
 
 Bugfix
@@ -12,7 +18,7 @@ Bugfix
 
 New
 
-* ' restic check' for repo can be setup now with CHECK_CRON and RESTIC_CHECK_ARGS
+* 'restic check' for repo can be setup now with CHECK_CRON and RESTIC_CHECK_ARGS
 
 Change
 
