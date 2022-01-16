@@ -28,7 +28,7 @@ logLast "Finished check at $(date)"
 if [[ $checkRC == 0 ]]; then
     echo "Check Successful"
 else
-    echo "Check Failed with Status ${backupRC}"
+    echo "Check Failed with Status ${checkRC}"
     sudo -E -u restic /home/restic/bin/restic unlock
     copyErrorLog
 fi
