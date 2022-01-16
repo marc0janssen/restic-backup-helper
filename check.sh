@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 lastcheckLogfile="/home/restic/log/check-last.log"
 lasterrorchecklogfile="/home/restic/log/check-error-last.log"
@@ -12,7 +12,7 @@ logLast() {
   echo "$1" >> ${lastcheckLogfile}
 }
 
-start=`date +%s`
+start=$(date +%s)
 rm -f ${lastcheckLogfile} ${lastMailLogfile}
 
 echo "Starting Check at $(date +"%Y-%m-%d %H:%M:%S")"
@@ -33,24 +33,12 @@ else
     copyErrorLog
 fi
 
-end=`date +%s`
+end=$(date +%s)
 echo "Finished check at $(date +"%Y-%m-%d %H:%M:%S") after $((end-start)) seconds"
 
-if [ -n "${TEAMS_WEBHOOK_URL}" ]; then
-    teamsTitle="Restic Last Check Log"
-    teamsMessage=$( cat ${lastcheckLogfile} | sed 's/"/\"/g' | sed "s/'/\'/g" | sed ':a;N;$!ba;s/\n/\n\n/g' )
-    teamsReqBody="{\"title\": \"${teamsTitle}\", \"text\": \"${teamsMessage}\" }"
-    sh -c "curl -H 'Content-Type: application/json' -d '${teamsReqBody}' '${TEAMS_WEBHOOK_URL}' > ${lastMicrosoftTeamsLogfile} 2>&1"
-    if [ $? == 0 ]; then
-        echo "Microsoft Teams notification successfully sent."
-    else
-        echo "Sending Microsoft Teams notification FAILED. Check ${lastMicrosoftTeamsLogfile} for further information."
-    fi
-fi
 
-if ([ -n "${MAILX_ARGS}" ] && [ "${MAILX_ON_ERROR}" == "ON" ] && [[ $checkRC != 0 ]]) || ([ -n "${MAILX_ARGS}" ] && [ "${MAILX_ON_ERROR}" != "ON" ]); then
-    sh -c "mailx -v -S sendwait -s 'Result of the last ${HOSTNAME} check run on ${RESTIC_REPOSITORY}' ${MAILX_ARGS} < ${lastcheckLogfile} > ${lastMailLogfile} 2>&1"
-    if [ $? == 0 ]; then
+if { [ -n "${MAILX_ARGS}" ] && [ "${MAILX_ON_ERROR}" == "ON" ] && [[ $checkRC != 0 ]]; } || { [ -n "${MAILX_ARGS}" ] && [ "${MAILX_ON_ERROR}" != "ON" ]; }; then
+    if sh -c "mailx -v -S sendwait -s 'Result of the last ${HOSTNAME} check run on ${RESTIC_REPOSITORY}' ${MAILX_ARGS} < ${lastcheckLogfile} > ${lastMailLogfile} 2>&1" == 0; then
         echo "Mail notification successfully sent."
     else
         echo "Sending mail notification FAILED. Check ${lastMailLogfile} for further information."

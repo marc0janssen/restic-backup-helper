@@ -54,14 +54,14 @@ docker run -d --cap-add DAC_READ_SEARCH \
     --hostname=${hostname} \
     --name=restic-local \
     --restart=always \
-    -e RESTIC_PASSWORD="<your repository password>" \
+    -e RESTIC_PASSWORD="[your repository password]" \
     -e RESTIC_TAG="${hostname}" \
     -e BACKUP_CRON="20 0-1,7-23 * * *" \
     -e RESTIC_FORGET_ARGS="--prune --keep-hourly 24 --keep-daily 7 --keep-weekly 5 --keep-monthly 12 --keep-yearly 10" \
     -e RESTIC_REPOSITORY="/backup/${repository}" \
     -e BACKUP_ROOT_DIR="/docker/" \
     -e RESTIC_JOB_ARGS="--exclude-file /config/exclude_files.txt" \
-    -e MAILX_ARGS="-r 'from@mail.tld' -S smtp='mail.server.tld:587' -S smtp-use-starttls -S smtp-auth=login -S smtp-auth-user='login@mail.tld' -S smtp-auth-password='<password>' 'to@mail.tld'" \
+    -e MAILX_ARGS="-r 'from@mail.tld' -S smtp='mail.server.tld:587' -S smtp-use-starttls -S smtp-auth=login -S smtp-auth-user='login@mail.tld' -S smtp-auth-password='[password]' 'to@mail.tld'" \
     -e MAILX_ON_ERROR="ON" \
     -v /etc/localtime:/etc/localtime:ro \
     -v /docker/restic-backup-helper/hooks:/hooks \
@@ -124,7 +124,7 @@ Now you can use restic [as documented](https://restic.readthedocs.io/en/stable/)
 Logfiles are inside the container. If needed you can create volumes for them.
 
 ```shell
-docker logs <container>
+docker logs [container]
 ```
 
 Since Restic runs not under root, you need to set the access-rights to the directory on the host accordingly. This mean +w on the group and the group should be set to "users" or "wheel". If you don't want every user to access them, choose "wheel".
@@ -198,7 +198,6 @@ The container is setup by setting [environment variables](https://docs.docker.co
 * `RESTIC_CHECK_ARGS` - Optional. Allows to specify extra arguments to the check job such as --check-unused, --read-data, --read-data-subset
 * `AWS_ACCESS_KEY_ID` - Optional. When using restic with AWS S3 storage.
 * `AWS_SECRET_ACCESS_KEY` - Optional. When using restic with AWS S3 storage.
-* `TEAMS_WEBHOOK_URL` - Optional. If specified, the content of `/var/log/backup-last.log` is sent to your Microsoft Teams channel after each backup.
 * `MAILX_ARGS` - Optional. If specified, the content of `/var/log/backup-last.log` is sent via mail after each backup using an *external SMTP*. To have maximum flexibility, you have to specify the mail/smtp parameters by your own. Have a look at the [mailx manpage](https://linux.die.net/man/1/mailx) for further information. Example value: `-e "MAILX_ARGS=-r 'from@example.de' -S smtp='smtp.example.com:587' -S smtp-use-starttls -S smtp-auth=login -S smtp-auth-user='username' -S smtp-auth-password='password' 'to@example.com'"`.
 * `MAILX_ON_ERROR` - Optional. If set to "ON" the MAILX_ON_ERROR will only email the backuplogs if the backup is unsuccessful, e.g. the exitcode of backup is not equal zero. When MAILX_ON_ERROR is set to any other value than "ON", the logs will always be mailed to you.
 * `OS_AUTH_URL` - Optional. When using restic with OpenStack Swift container.

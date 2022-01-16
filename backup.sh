@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 lastLogfile="/home/restic/log/backup-last.log"
 lasterrorlogfile="/home/restic/log/backup-error-last.log"
@@ -20,7 +20,7 @@ else
     echo "Pre-backup script not found ..."
 fi
 
-start=`date +%s`
+start=$(date +%s)
 rm -f ${lastLogfile} ${lastMailLogfile}
 echo "Starting Backup at $(date +"%Y-%m-%d %H:%M:%S")"
 echo "Starting Backup at $(date)" >> ${lastLogfile}
@@ -58,24 +58,11 @@ if [[ $backupRC == 0 ]] && [ -n "${RESTIC_FORGET_ARGS}" ]; then
     fi
 fi
 
-end=`date +%s`
+end=$(date +%s)
 echo "Finished Backup at $(date +"%Y-%m-%d %H:%M:%S") after $((end-start)) seconds"
 
-if [ -n "${TEAMS_WEBHOOK_URL}" ]; then
-    teamsTitle="Restic Last Backup Log"
-    teamsMessage=$( cat ${lastLogfile} | sed 's/"/\"/g' | sed "s/'/\'/g" | sed ':a;N;$!ba;s/\n/\n\n/g' )
-    teamsReqBody="{\"title\": \"${teamsTitle}\", \"text\": \"${teamsMessage}\" }"
-    sh -c "curl -H 'Content-Type: application/json' -d '${teamsReqBody}' '${TEAMS_WEBHOOK_URL}' > ${lastMicrosoftTeamsLogfile} 2>&1"
-    if [ $? == 0 ]; then
-        echo "Microsoft Teams notification successfully sent."
-    else
-        echo "Sending Microsoft Teams notification FAILED. Check ${lastMicrosoftTeamsLogfile} for further information."
-    fi
-fi
-
-if ([ -n "${MAILX_ARGS}" ] && [ "${MAILX_ON_ERROR}" == "ON" ] && [[ $backupRC != 0 ]]) || ([ -n "${MAILX_ARGS}" ] && [ "${MAILX_ON_ERROR}" != "ON" ]); then
-    sh -c "mailx -v -S sendwait -s 'Result of the last ${HOSTNAME} backup run on ${RESTIC_REPOSITORY}' ${MAILX_ARGS} < ${lastLogfile} > ${lastMailLogfile} 2>&1"
-    if [ $? == 0 ]; then
+if { [ -n "${MAILX_ARGS}" ] && [ "${MAILX_ON_ERROR}" == "ON" ] && [[ $backupRC != 0 ]]; } || { [ -n "${MAILX_ARGS}" ] && [ "${MAILX_ON_ERROR}" != "ON" ]; }; then
+    if sh -c "mailx -v -S sendwait -s 'Result of the last ${HOSTNAME} backup run on ${RESTIC_REPOSITORY}' ${MAILX_ARGS} < ${lastLogfile} > ${lastMailLogfile} 2>&1" == 0; then
         echo "Mail notification successfully sent."
     else
         echo "Sending mail notification FAILED. Check ${lastMailLogfile} for further information."

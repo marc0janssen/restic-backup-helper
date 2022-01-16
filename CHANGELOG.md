@@ -2,13 +2,18 @@
 
 ## Restic Backup Helper
 
-## 1.3.5-0.12.1
+## 1.4.1-0.12.1
+
+New
+
+* Added "bash" as shell
 
 Change
 
 * Changed logpaths
+* Removed the Microsoft Teams WEBHOOKS
 
-Bugfic
+Bugfix
 
 * checkRC missing
 

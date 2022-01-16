@@ -1,7 +1,7 @@
-#!bin/sh
+#!/bin/bash
 
 echo "*************************************************"
-echo "*** Restic Backup Helper version 1.3.5-0.12.1 ***"
+echo "*** Restic Backup Helper version 1.4.1-0.12.1 ***"
 echo "*************************************************"
 echo ""
 
@@ -10,7 +10,7 @@ echo ""
 
 if [ -n "${NFS_TARGET}" ]; then
     echo "Mounting NFS based on NFS_TARGET: ${NFS_TARGET}"
-    mount -o nolock -v ${NFS_TARGET} /mnt/restic
+    mount -o nolock -v "${NFS_TARGET}" /mnt/restic
 fi
 
 sudo -E -u restic /home/restic/bin/restic snapshots &>/dev/null
