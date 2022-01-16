@@ -8,6 +8,10 @@ Change
 
 * Changed logpaths
 
+Bugfic
+
+* checkRC missing
+
 ## 1.3.4-0.12.1
 
 Bugfix
