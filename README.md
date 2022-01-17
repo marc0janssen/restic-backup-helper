@@ -16,7 +16,7 @@ This container runs restic backups in regular intervals.
 
 **Docker Image**: [marc0janssen/restic-backup-helper](https://hub.docker.com/repository/docker/marc0janssen/restic-backup-helper/)
 
-**versions**: Codebase: 1.3.4 - Restic: 0.12.1
+**versions**: Codebase: 1.4.1 - Restic: 0.12.1
 
 Stable
 
@@ -25,7 +25,7 @@ docker pull marc0janssen/restic-backup-helper:stable
 ```
 
 ```shell
-docker pull marc0janssen/restic-backup-helper:1.3.4-0.12.1
+docker pull marc0janssen/restic-backup-helper:1.4.1-0.12.1
 ```
 
 Latest (experimental)
