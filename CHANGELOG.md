@@ -2,6 +2,12 @@
 
 ## Restic Backup Helper
 
+## 1.4.2-0.12.1
+
+Change
+
+* EXITCODE check MAILX
+
 ## 1.4.1-0.12.1
 
 New

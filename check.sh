@@ -38,7 +38,7 @@ echo "Finished check at $(date +"%Y-%m-%d %H:%M:%S") after $((end-start)) second
 
 
 if { [ -n "${MAILX_ARGS}" ] && [ "${MAILX_ON_ERROR}" == "ON" ] && [[ $checkRC != 0 ]]; } || { [ -n "${MAILX_ARGS}" ] && [ "${MAILX_ON_ERROR}" != "ON" ]; }; then
-    if sh -c "mailx -v -S sendwait -s 'Result of the last ${HOSTNAME} check run on ${RESTIC_REPOSITORY}' ${MAILX_ARGS} < ${lastcheckLogfile} > ${lastMailLogfile} 2>&1" == 0; then
+    if sh -c "mailx -v -S sendwait -s 'Result of the last ${HOSTNAME} check run on ${RESTIC_REPOSITORY}' ${MAILX_ARGS} < ${lastcheckLogfile} > ${lastMailLogfile} 2>&1"; then
         echo "Mail notification successfully sent."
     else
         echo "Sending mail notification FAILED. Check ${lastMailLogfile} for further information."
