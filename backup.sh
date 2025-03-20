@@ -62,7 +62,7 @@ end=$(date +%s)
 echo "Finished Backup at $(date +"%Y-%m-%d %H:%M:%S") after $((end-start)) seconds"
 
 if { [ -n "${MAILX_ARGS}" ] && [ "${MAILX_ON_ERROR}" == "ON" ] && [[ $backupRC != 0 ]]; } || { [ -n "${MAILX_ARGS}" ] && [ "${MAILX_ON_ERROR}" != "ON" ]; }; then
-    if sh -c "mailx -v -S sendwait -s 'Result of the last ${HOSTNAME} backup run on ${RESTIC_REPOSITORY}' ${MAILX_ARGS} < ${lastLogfile} > ${lastMailLogfile} 2>&1"; then
+    if sh -c "mail -v -S sendwait -s 'Result of the last ${HOSTNAME} backup run on ${RESTIC_REPOSITORY}' ${MAILX_ARGS} < ${lastLogfile} > ${lastMailLogfile} 2>&1"; then
         echo "Mail notification successfully sent."
     else
         echo "Sending mail notification FAILED. Check ${lastMailLogfile} for further information."

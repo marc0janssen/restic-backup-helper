@@ -12,6 +12,13 @@ logLast() {
   echo "$1" >> ${lastcheckLogfile}
 }
 
+if [ -f "/hooks/pre-check.sh" ]; then
+    echo "Starting pre-check script ..."
+    /hooks/pre-check.sh
+else
+    echo "Pre-check script not found ..."
+fi
+
 start=$(date +%s)
 rm -f ${lastcheckLogfile} ${lastMailLogfile}
 
@@ -38,10 +45,16 @@ echo "Finished check at $(date +"%Y-%m-%d %H:%M:%S") after $((end-start)) second
 
 
 if { [ -n "${MAILX_ARGS}" ] && [ "${MAILX_ON_ERROR}" == "ON" ] && [[ $checkRC != 0 ]]; } || { [ -n "${MAILX_ARGS}" ] && [ "${MAILX_ON_ERROR}" != "ON" ]; }; then
-    if sh -c "mailx -v -S sendwait -s 'Result of the last ${HOSTNAME} check run on ${RESTIC_REPOSITORY}' ${MAILX_ARGS} < ${lastcheckLogfile} > ${lastMailLogfile} 2>&1"; then
+    if sh -c "mail -v -S sendwait -s 'Result of the last ${HOSTNAME} check run on ${RESTIC_REPOSITORY}' ${MAILX_ARGS} < ${lastcheckLogfile} > ${lastMailLogfile} 2>&1"; then
         echo "Mail notification successfully sent."
     else
         echo "Sending mail notification FAILED. Check ${lastMailLogfile} for further information."
     fi
 fi
 
+if [ -f "/hooks/post-check.sh" ]; then
+    echo "Starting post-check script ..."
+    /hooks/post-check.sh $checkRC
+else
+    echo "Post-check script not found ..."
+fi
