@@ -1,42 +1,8 @@
-##FROM alpine:latest as rclone
-
-# Get rclone executable
-##ADD https://downloads.rclone.org/rclone-current-linux-amd64.zip /
-##RUN unzip rclone-current-linux-amd64.zip && mv rclone-*-linux-amd64/rclone /bin/rclone && chmod +x /bin/rclone
-
 FROM restic/restic:0.17.3
 
 RUN apk update && apk upgrade && apk add --update --no-cache mailx fuse curl libcap sudo bash rclone tzdata msmtp
 
-##COPY --from=rclone /bin/rclone /bin/rclone
-
-# Creating user for running restic non-root
-#RUN adduser -G users -S -s /sbin/nologin restic && \
-#    adduser restic wheel && \
-#    echo '%wheel ALL=(ALL) ALL' > /etc/sudoers.d/wheel
-
-# Setup crontabs, cronlogging and expose log dirextory
-#RUN \
-#    mkdir -p /mnt/restic /var/spool/cron/crontabs /home/restic/log /.cache/restic; \
-#    touch /home/restic/log/cron.log; \
-#    ln -s /home/restic/log /; \
-#    chmod -R a+rwx,o-w /log/; \
-#    chown -R restic:users /log/; \
-#    chown -R restic:users /.cache/
-
-RUN \
-    mkdir -p /mnt/restic /var/spool/cron/crontabs /var/log; \
-    touch /var/log/cron.log;
-
-
-# Extended attribute to the restic binary
-#RUN mkdir ~restic/bin; \
-#    cp /usr/bin/restic ~restic/bin/; \
-#    chown root:wheel ~restic/bin/restic; \
-#    chmod 750 ~restic/bin/restic; \
-#    setcap cap_dac_read_search=+ep ~restic/bin/restic; \
-#    apk del libcap; \
-#    rm -f /var/cache/apk/*
+RUN mkdir -p /mnt/restic /var/spool/cron/crontabs /var/log
 
 ENV RESTIC_REPOSITORY=/mnt/restic
 ENV RESTIC_PASSWORD=""
@@ -76,6 +42,7 @@ RUN chmod 755 /bin/backup /entry.sh /bin/check
 
 # set sendmail-path
 RUN rm -rf /usr/sbin/sendmail && ln -s /usr/bin/msmtp /usr/sbin/sendmail
+RUN touch /var/log/cron.log
 
 WORKDIR "/"
 
