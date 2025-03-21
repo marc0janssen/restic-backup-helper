@@ -1,7 +1,7 @@
 #!/bin/bash
 
 echo "*************************************************"
-echo "*** Restic Backup Helper version 1.5.1-0.17.3 ***"
+echo "*** Restic Backup Helper version 1.5.2-0.17.3 ***"
 echo "*************************************************"
 echo ""
 
