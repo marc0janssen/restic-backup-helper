@@ -46,7 +46,7 @@ end=$(date +%s)
 echo "Finished check at $(date +"%Y-%m-%d %H:%M:%S") after $((end-start)) seconds"
 
 if [ -n "${MAILX_RCPT}" ] && (
-    [ "${MAILX_ON_ERROR}" == "ON" ] && [ $backupRC -ne 0 ] ||
+    [ "${MAILX_ON_ERROR}" == "ON" ] && [ $checkRC != 0 ] ||
     [ "${MAILX_ON_ERROR}" != "ON" ]
 ); then
     if sh -c "mail -v -s 'Result of the last ${HOSTNAME} check run on ${RESTIC_REPOSITORY}' ${MAILX_RCPT} < ${lastcheckLogfile} > ${lastMailLogfile} 2>&1"; then
