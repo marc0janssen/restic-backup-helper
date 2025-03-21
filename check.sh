@@ -29,7 +29,6 @@ logLast "RESTIC_CHECK_ARGS: ${RESTIC_CHECK_ARGS}"
 logLast "RESTIC_REPOSITORY: ${RESTIC_REPOSITORY}"
 logLast "AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}"
 
-#sudo -E -u restic /home/restic/bin/restic check ${RESTIC_CHECK_ARGS} >> ${lastcheckLogfile} 2>&1
 restic check ${RESTIC_CHECK_ARGS} >> ${lastcheckLogfile} 2>&1
 checkRC=$?
 logLast "Finished check at $(date)"
@@ -37,7 +36,6 @@ if [[ $checkRC == 0 ]]; then
     echo "Check Successful"
 else
     echo "Check Failed with Status ${checkRC}"
-#    sudo -E -u restic /home/restic/bin/restic unlock
     restic unlock
     copyErrorLog
 fi
