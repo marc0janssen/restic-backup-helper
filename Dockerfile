@@ -1,38 +1,42 @@
-FROM alpine:latest as rclone
+##FROM alpine:latest as rclone
 
 # Get rclone executable
-ADD https://downloads.rclone.org/rclone-current-linux-amd64.zip /
-RUN unzip rclone-current-linux-amd64.zip && mv rclone-*-linux-amd64/rclone /bin/rclone && chmod +x /bin/rclone
+##ADD https://downloads.rclone.org/rclone-current-linux-amd64.zip /
+##RUN unzip rclone-current-linux-amd64.zip && mv rclone-*-linux-amd64/rclone /bin/rclone && chmod +x /bin/rclone
 
-FROM restic/restic:0.16.0
+FROM restic/restic:0.17.3
 
-RUN apk update && apk upgrade && apk add --update --no-cache mailx fuse curl libcap sudo bash
+RUN apk update && apk upgrade && apk add --update --no-cache mailx fuse curl libcap sudo bash rclone tzdata msmtp
 
-COPY --from=rclone /bin/rclone /bin/rclone
+##COPY --from=rclone /bin/rclone /bin/rclone
 
 # Creating user for running restic non-root
-RUN adduser -G users -S -s /sbin/nologin restic && \
-    adduser restic wheel && \
-    echo '%wheel ALL=(ALL) ALL' > /etc/sudoers.d/wheel
+#RUN adduser -G users -S -s /sbin/nologin restic && \
+#    adduser restic wheel && \
+#    echo '%wheel ALL=(ALL) ALL' > /etc/sudoers.d/wheel
 
 # Setup crontabs, cronlogging and expose log dirextory
+#RUN \
+#    mkdir -p /mnt/restic /var/spool/cron/crontabs /home/restic/log /.cache/restic; \
+#    touch /home/restic/log/cron.log; \
+#    ln -s /home/restic/log /; \
+#    chmod -R a+rwx,o-w /log/; \
+#    chown -R restic:users /log/; \
+#    chown -R restic:users /.cache/
+
 RUN \
-    mkdir -p /mnt/restic /var/spool/cron/crontabs /home/restic/log /.cache/restic; \
-    touch /home/restic/log/cron.log; \
-    ln -s /home/restic/log /; \
-    chmod -R a+rwx,o-w /log/; \
-    chown -R restic:users /log/; \
-    chown -R restic:users /.cache/
+    mkdir -p /mnt/restic /var/spool/cron/crontabs /var/log; \
+    touch /var/log/cron.log;
 
 
 # Extended attribute to the restic binary
-RUN mkdir ~restic/bin; \
-    cp /usr/bin/restic ~restic/bin/; \
-    chown root:wheel ~restic/bin/restic; \
-    chmod 750 ~restic/bin/restic; \
-    setcap cap_dac_read_search=+ep ~restic/bin/restic; \
-    apk del libcap; \
-    rm -f /var/cache/apk/*
+#RUN mkdir ~restic/bin; \
+#    cp /usr/bin/restic ~restic/bin/; \
+#    chown root:wheel ~restic/bin/restic; \
+#    chmod 750 ~restic/bin/restic; \
+#    setcap cap_dac_read_search=+ep ~restic/bin/restic; \
+#    apk del libcap; \
+#    rm -f /var/cache/apk/*
 
 ENV RESTIC_REPOSITORY=/mnt/restic
 ENV RESTIC_PASSWORD=""
@@ -45,8 +49,8 @@ ENV CHECK_CRON="37 0 1 * *"
 ENV RESTIC_FORGET_ARGS=""
 ENV RESTIC_JOB_ARGS=""
 ENV RESTIC_CHECK_ARGS=""
-ENV MAILX_ARGS=""
-ENV MAILX_ON_ERROR=""
+ENV MAILX_RCPT=""
+ENV MAILX_ON_ERROR="OFF"
 ENV OS_AUTH_URL=""
 ENV OS_PROJECT_ID=""
 ENV OS_PROJECT_NAME=""
@@ -58,10 +62,10 @@ ENV OS_REGION_NAME=""
 ENV OS_INTERFACE=""
 ENV OS_IDENTITY_API_VERSION=3
 ENV RESTIC_CACHE_DIR="/.cache/restic"
+ENV TZ Europe/Amsterdam
 
 # /data is the dir where you have to put the data to be backed up
 VOLUME /data
-VOLUME /log
 
 # Copy the worker files
 COPY backup.sh /bin/backup
@@ -70,7 +74,10 @@ COPY check.sh /bin/check
 
 RUN chmod 755 /bin/backup /entry.sh /bin/check
 
+# set sendmail-path
+RUN rm -rf /usr/sbin/sendmail && ln -s /usr/bin/msmtp /usr/sbin/sendmail
+
 WORKDIR "/"
 
 ENTRYPOINT ["/entry.sh"]
-CMD ["tail","-fn0","/home/restic/log/cron.log"]
+CMD ["tail","-fn0","/var/log/cron.log"]

@@ -1,9 +1,9 @@
 #!/bin/bash
 
-lastLogfile="/home/restic/log/backup-last.log"
-lasterrorlogfile="/home/restic/log/backup-error-last.log"
-lastMailLogfile="/home/restic/log/mail-last.log"
-lastMicrosoftTeamsLogfile="/home/restic/log/microsoft-teams-last.log"
+lastLogfile="/var/log/backup-last.log"
+lasterrorlogfile="/var/log/backup-error-last.log"
+lastMailLogfile="/var/log/mail-last.log"
+lastMicrosoftTeamsLogfile="/var/log/microsoft-teams-last.log"
 
 copyErrorLog() {
   cp ${lastLogfile} ${lasterrorlogfile}
@@ -33,36 +33,43 @@ logLast "RESTIC_REPOSITORY: ${RESTIC_REPOSITORY}"
 logLast "AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}"
 
 # Do not save full backup log to logfile but to backup-last.log
-sudo -E -u restic /home/restic/bin/restic backup ${BACKUP_ROOT_DIR} ${RESTIC_JOB_ARGS} --tag=${RESTIC_TAG?"Missing environment variable RESTIC_TAG"} >> ${lastLogfile} 2>&1
+#sudo -E -u restic /home/restic/bin/restic backup ${BACKUP_ROOT_DIR} ${RESTIC_JOB_ARGS} --tag=${RESTIC_TAG?"Missing environment variable RESTIC_TAG"} >> ${lastLogfile} 2>&1
+restic backup ${BACKUP_ROOT_DIR} ${RESTIC_JOB_ARGS} --tag=${RESTIC_TAG?"Missing environment variable RESTIC_TAG"} >> ${lastLogfile} 2>&1
 backupRC=$?
 logLast "Finished backup at $(date)"
 if [[ $backupRC == 0 ]]; then
     echo "Backup Successful"
 else
     echo "Backup Failed with Status ${backupRC}"
-    sudo -E -u restic /home/restic/bin/restic unlock
+#    sudo -E -u restic /home/restic/bin/restic unlock
+    restic unlock
     copyErrorLog
 fi
 
 if [[ $backupRC == 0 ]] && [ -n "${RESTIC_FORGET_ARGS}" ]; then
     echo "Forget about old snapshots based on RESTIC_FORGET_ARGS = ${RESTIC_FORGET_ARGS}"
-    sudo -E -u restic /home/restic/bin/restic forget ${RESTIC_FORGET_ARGS} >> ${lastLogfile} 2>&1
+#    sudo -E -u restic /home/restic/bin/restic forget ${RESTIC_FORGET_ARGS} >> ${lastLogfile} 2>&1
+    restic forget ${RESTIC_FORGET_ARGS} >> ${lastLogfile} 2>&1
     rc=$?
     logLast "Finished forget at $(date)"
     if [[ $rc == 0 ]]; then
         echo "Forget Successful"
     else
         echo "Forget Failed with Status ${rc}"
-        sudo -E -u restic /home/restic/bin/restic unlock
+#        sudo -E -u restic /home/restic/bin/restic unlock
+        restic unlock
         copyErrorLog
     fi
 fi
 
 end=$(date +%s)
-echo "Finished Backup at $(date +"%Y-%m-%d %H:%M:%S") after $((end-start)) seconds"
+echo "Finished backup at $(date +"%Y-%m-%d %H:%M:%S") after $((end-start)) seconds"
 
-if { [ -n "${MAILX_ARGS}" ] && [ "${MAILX_ON_ERROR}" == "ON" ] && [[ $backupRC != 0 ]]; } || { [ -n "${MAILX_ARGS}" ] && [ "${MAILX_ON_ERROR}" != "ON" ]; }; then
-    if sh -c "mail -v -S sendwait -s 'Result of the last ${HOSTNAME} backup run on ${RESTIC_REPOSITORY}' ${MAILX_ARGS} < ${lastLogfile} > ${lastMailLogfile} 2>&1"; then
+if [ -n "${MAILX_RCPT}" ] && (
+    [ "${MAILX_ON_ERROR}" == "ON" ] && [ $backupRC -ne 0 ] ||
+    [ "${MAILX_ON_ERROR}" != "ON" ]
+); then
+    if sh -c "mail -v -s 'Result of the last ${HOSTNAME} backup run on ${RESTIC_REPOSITORY}' ${MAILX_RCPT} < ${lastLogfile} > ${lastMailLogfile} 2>&1"; then
         echo "Mail notification successfully sent."
     else
         echo "Sending mail notification FAILED. Check ${lastMailLogfile} for further information."
@@ -75,3 +82,5 @@ if [ -f "/hooks/post-backup.sh" ]; then
 else
     echo "Post-backup script not found ..."
 fi
+
+# -s 'Result of the last ${HOSTNAME} backup run on ${RESTIC_REPOSITORY}' 

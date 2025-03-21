@@ -1,8 +1,8 @@
 #!/bin/bash
 
-lastcheckLogfile="/home/restic/log/check-last.log"
-lasterrorchecklogfile="/home/restic/log/check-error-last.log"
-lastMailLogfile="/home/restic/log/mail-last.log"
+lastcheckLogfile="/var/log/check-last.log"
+lasterrorchecklogfile="/var/log/check-error-last.log"
+lastMailLogfile="/var/log/mail-last.log"
 
 copyErrorLog() {
   cp ${lastcheckLogfile} ${lasterrorchecklogfile}
@@ -29,23 +29,27 @@ logLast "RESTIC_CHECK_ARGS: ${RESTIC_CHECK_ARGS}"
 logLast "RESTIC_REPOSITORY: ${RESTIC_REPOSITORY}"
 logLast "AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}"
 
-sudo -E -u restic /home/restic/bin/restic check ${RESTIC_CHECK_ARGS} >> ${lastcheckLogfile} 2>&1
+#sudo -E -u restic /home/restic/bin/restic check ${RESTIC_CHECK_ARGS} >> ${lastcheckLogfile} 2>&1
+restic check ${RESTIC_CHECK_ARGS} >> ${lastcheckLogfile} 2>&1
 checkRC=$?
 logLast "Finished check at $(date)"
 if [[ $checkRC == 0 ]]; then
     echo "Check Successful"
 else
     echo "Check Failed with Status ${checkRC}"
-    sudo -E -u restic /home/restic/bin/restic unlock
+#    sudo -E -u restic /home/restic/bin/restic unlock
+    restic unlock
     copyErrorLog
 fi
 
 end=$(date +%s)
 echo "Finished check at $(date +"%Y-%m-%d %H:%M:%S") after $((end-start)) seconds"
 
-
-if { [ -n "${MAILX_ARGS}" ] && [ "${MAILX_ON_ERROR}" == "ON" ] && [[ $checkRC != 0 ]]; } || { [ -n "${MAILX_ARGS}" ] && [ "${MAILX_ON_ERROR}" != "ON" ]; }; then
-    if sh -c "mail -v -S sendwait -s 'Result of the last ${HOSTNAME} check run on ${RESTIC_REPOSITORY}' ${MAILX_ARGS} < ${lastcheckLogfile} > ${lastMailLogfile} 2>&1"; then
+if [ -n "${MAILX_RCPT}" ] && (
+    [ "${MAILX_ON_ERROR}" == "ON" ] && [ $backupRC -ne 0 ] ||
+    [ "${MAILX_ON_ERROR}" != "ON" ]
+); then
+    if sh -c "mail -v -s 'Result of the last ${HOSTNAME} check run on ${RESTIC_REPOSITORY}' ${MAILX_RCPT} < ${lastcheckLogfile} > ${lastMailLogfile} 2>&1"; then
         echo "Mail notification successfully sent."
     else
         echo "Sending mail notification FAILED. Check ${lastMailLogfile} for further information."
