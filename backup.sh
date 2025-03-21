@@ -33,7 +33,6 @@ logLast "RESTIC_REPOSITORY: ${RESTIC_REPOSITORY}"
 logLast "AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}"
 
 # Do not save full backup log to logfile but to backup-last.log
-#sudo -E -u restic /home/restic/bin/restic backup ${BACKUP_ROOT_DIR} ${RESTIC_JOB_ARGS} --tag=${RESTIC_TAG?"Missing environment variable RESTIC_TAG"} >> ${lastLogfile} 2>&1
 restic backup ${BACKUP_ROOT_DIR} ${RESTIC_JOB_ARGS} --tag=${RESTIC_TAG?"Missing environment variable RESTIC_TAG"} >> ${lastLogfile} 2>&1
 backupRC=$?
 logLast "Finished backup at $(date)"
@@ -41,14 +40,12 @@ if [[ $backupRC == 0 ]]; then
     echo "Backup Successful"
 else
     echo "Backup Failed with Status ${backupRC}"
-#    sudo -E -u restic /home/restic/bin/restic unlock
     restic unlock
     copyErrorLog
 fi
 
 if [[ $backupRC == 0 ]] && [ -n "${RESTIC_FORGET_ARGS}" ]; then
     echo "Forget about old snapshots based on RESTIC_FORGET_ARGS = ${RESTIC_FORGET_ARGS}"
-#    sudo -E -u restic /home/restic/bin/restic forget ${RESTIC_FORGET_ARGS} >> ${lastLogfile} 2>&1
     restic forget ${RESTIC_FORGET_ARGS} >> ${lastLogfile} 2>&1
     rc=$?
     logLast "Finished forget at $(date)"
@@ -56,7 +53,6 @@ if [[ $backupRC == 0 ]] && [ -n "${RESTIC_FORGET_ARGS}" ]; then
         echo "Forget Successful"
     else
         echo "Forget Failed with Status ${rc}"
-#        sudo -E -u restic /home/restic/bin/restic unlock
         restic unlock
         copyErrorLog
     fi
