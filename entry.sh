@@ -43,7 +43,9 @@ echo "${BACKUP_CRON} /usr/bin/flock -n /var/run/cron.lock /bin/backup >> /var/lo
 echo "Setup check cron job with cron expression CHECK_CRON: ${CHECK_CRON}"
 echo "${CHECK_CRON} /usr/bin/flock -n /var/run/cron.lock /bin/check >> /var/log/cron.log 2>&1" >> /var/spool/cron/crontabs/root
 
+
 # start the cron deamon
+touch /var/log/cron.log
 crond
 
 echo "Container started."

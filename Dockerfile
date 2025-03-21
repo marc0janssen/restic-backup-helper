@@ -42,7 +42,6 @@ RUN chmod 755 /bin/backup /entry.sh /bin/check
 
 # set sendmail-path
 RUN rm -rf /usr/sbin/sendmail && ln -s /usr/bin/msmtp /usr/sbin/sendmail
-RUN touch /var/log/cron.log
 
 WORKDIR "/"
 
