@@ -39,9 +39,9 @@ else
 fi
 
 echo "Setup backup cron job with cron expression BACKUP_CRON: ${BACKUP_CRON}"
-echo "${BACKUP_CRON} /usr/bin/flock -n /home/restic/cron.lock /bin/backup >> /var/log/cron.log 2>&1" > /var/spool/cron/crontabs/root
+echo "${BACKUP_CRON} /usr/bin/flock -n /var/run/cron.lock /bin/backup >> /var/log/cron.log 2>&1" > /var/spool/cron/crontabs/root
 echo "Setup check cron job with cron expression CHECK_CRON: ${CHECK_CRON}"
-echo "${CHECK_CRON} /usr/bin/flock -n /home/restic/cron.lock /bin/check >> /var/log/cron.log 2>&1" >> /var/spool/cron/crontabs/root
+echo "${CHECK_CRON} /usr/bin/flock -n /var/run/cron.lock /bin/check >> /var/log/cron.log 2>&1" >> /var/spool/cron/crontabs/root
 
 # start the cron deamon
 crond
