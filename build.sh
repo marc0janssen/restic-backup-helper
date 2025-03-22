@@ -5,7 +5,7 @@
 # date: 2021-11-28 14:24:26
 # update: 2021-11-28 14:24:32
 
-VERSION="1.5.3-0.17.3"
+VERSION="1.5.6-0.17.3"
 
 docker image rm marc0janssen/restic-backup-helper:latest
 docker image rm marc0janssen/restic-backup-helper:${VERSION}

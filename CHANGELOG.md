@@ -2,127 +2,116 @@
 
 ## Restic Backup Helper
 
-## 1.4.2-0.12.1
+### 1.5.6-0.17.3 (2025-03-21)
 
-Change
+#### Changed
+- Updated Restic to version 0.17.3
+- Revamped the code
+- Restic running as root again
+- Fixed mail with msmtp
+- Reduced number of layers in Docker image
+- switched to Rclone from Alpine Linux Repository
 
-* EXITCODE check MAILX
+### 1.4.2-0.12.1 (2022-01-17)
 
-## 1.4.1-0.12.1
+#### Changed
+- EXITCODE check MAILX
 
-New
+### 1.4.1-0.12.1
 
-* Added "bash" as shell
+#### Added
+- "bash" as shell
 
-Change
+#### Changed
+- Changed logpaths
+- Removed the Microsoft Teams WEBHOOKS
 
-* Changed logpaths
-* Removed the Microsoft Teams WEBHOOKS
+#### Fixed
+- checkRC missing
 
-Bugfix
+### 1.3.4-0.12.1
 
-* checkRC missing
+#### Fixed
+- Fixed arguments for mail
 
-## 1.3.4-0.12.1
+### 1.3.3-0.12.1 (2021-12-31)
 
-Bugfix
+#### Added
+- 'restic check' for repo can be setup now with CHECK_CRON and RESTIC_CHECK_ARGS
 
-* fixed arguments for mail
+#### Changed
+- Removed Openshift "Fix"
+- mailsubject is a fixed text in backup and check script
 
-## 1.3.3-0.12.1
+#### Fixed
+- .cache directory now within the context of user 'restic:users'
 
-New
+### 1.2.2-0.12.1
 
-* 'restic check' for repo can be setup now with CHECK_CRON and RESTIC_CHECK_ARGS
+#### Changed
+- Changed filepermission on /log directory
 
-Change
+### 1.2.1-0.12.1
 
-* Removed Openshift "Fix"
-* mailsubject is a fixed text in backup and check script
+#### Fixed
+- Fixed Dockerfile
 
-Fix
+### 1.2.0-0.12.1
 
-* .cache directory now within the context of user 'restic:users'
+#### Changed
+- Log directory is now a volume and logs are exposed
 
-## 1.2.2-0.12.1
+### 1.1.2-0.12.1
 
-Change
+#### Added
+- Email only when the backup fails. Controlled by MAILX_ON_ERROR.
 
-* Changed filepermission on /log directory
+#### Changed
+- Moved account creating and modified restic binary to the Dockerfile
 
-## 1.2.1-0.12.1
+#### Fixed
+- Fixed typo in text
+- Fixed calling the restic binary with extra file capabilities
 
-Bugfix
+### 1.0.0-0.12.1
 
-* fixed Dockerfile
-
-## 1.2.0-0.12.1
-
-Changed
-
-* Log directory is now a volume and logs are exposed
-
-## 1.1.2 - 0.12.1
-
-New
-
-* Email only when the backup fails. Controlled by MAILX_ON_ERROR. If set to "ON" the MAILX_ON_ERROR will only email the backuplogs if the backup is unsuccessful, e.g. the exitcode of backup is not equal zero. When MAILX_ON_ERROR is set to any other value than "ON", the logs will always be mailed to you.
-
-Changed
-
-* Moved account creating and modified restic binary to the Dockerfile
-
-Fixed
-
-* Fixed typo in text
-* Fixed calling the restic binary with extra file capabilities
-
-## 1.0.0 - 0.12.1
-
-* DOES NOT run as ROOT in the container so resulting backup is NOT OWNED by ROOT anymore
-* Backup source PATH can be set by environment var BACKUP_ROOT_DIR (will default to /data if not set)
-* Updated to Restic version 0.12.1
-
-------
+#### Changed
+- DOES NOT run as ROOT in the container so resulting backup is NOT OWNED by ROOT anymore
+- Backup source PATH can be set by environment var BACKUP_ROOT_DIR (will default to /data if not set)
+- Updated to Restic version 0.12.1
 
 ## Restic Backup Docker
 
-## 1.3.1-0.9.6
+### 1.3.1-0.9.6
 
-Changed
+#### Changed
+- Update to Restic v0.9.5
+- Reduced the number of layers in the Docker image
 
-* Update to Restic v0.9.5
-* Reduced the number of layers in the Docker image
+#### Fixed
+- Check if a repo already exists works now for all repository types
 
-Fixed
+#### Added
+- ssh added to container
+- fuse added to container
+- support to send mails using external SMTP server after backups
 
-* Check if a repo already exists works now for all repository types
+### 1.2-0.9.4
 
-Added
+#### Added
+- AWS Support
 
-* shh added to container
-* fuse added to container
-* support to send mails using external SMTP server after backups
+### 1.1
 
-## 1.2-0.9.4
+#### Fixed
+- `--prune` must be passed to `RESTIC_FORGET_ARGS` to execute prune after forget.
 
-Added
+#### Changed
+- Switch to base Docker container to `golang:1.7-alpine` to support latest restic build.
 
-* AWS Support
-
-## 1.1
-
-Fixed
-
-* `--prune` must be passed to `RESTIC_FORGET_ARGS` to execute prune after forget.
-
-Changed
-
-* Switch to base Docker container to `golang:1.7-alpine` to support latest restic build.
-
-## 1.0
+### 1.0
 
 Initial release.
 
-The container has proper logs now and was running for over a month in production.
-There are still some features missing. Sticking to semantic versioning we do not expect any breaking changes in the 1.x releases.
+- The container has proper logs now and was running for over a month in production.
+- There are still some features missing. Sticking to semantic versioning we do not expect any breaking changes in the 1.x releases.

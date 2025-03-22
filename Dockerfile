@@ -34,11 +34,14 @@ ENV TZ Europe/Amsterdam
 VOLUME /data
 
 # Copy the worker files
-COPY backup.sh /bin/backup
-COPY entry.sh /entry.sh
-COPY check.sh /bin/check
+COPY /app/entry.sh /entry.sh
+COPY /app/backup.sh /bin/backup
+COPY /app/check.sh /bin/check
+COPY /old/backup_old.sh /bin/backup_old
+COPY /old/check_old.sh /bin/check_old
 
-RUN chmod 755 /bin/backup /entry.sh /bin/check
+RUN chmod 755 /entry.sh /bin/backup /bin/check
+RUN chmod 755 /bin/backup_old /bin/check_old
 
 # set sendmail-path
 RUN rm -rf /usr/sbin/sendmail && ln -s /usr/bin/msmtp /usr/sbin/sendmail
