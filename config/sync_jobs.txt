@@ -1,0 +1,5 @@
+# SYNC JOBS
+# SOURCE;DESTINATION
+
+/volume1/inbox;jottasync:/inbox
+/volume1/photo;jottasync:/photo

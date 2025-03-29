@@ -1,0 +1,43 @@
+version: '3'
+
+services:
+  restic-remote:
+    container_name: restic-remote
+    image: marc0janssen/restic-backup-helper:latest
+    healthcheck:
+      test: ["CMD", "restic", "-r", "rclone:jottacloud:backups", "cat", "config"]
+      interval: 15m
+      timeout: 10s
+      start_period: 1m
+      start_interval: 10s
+    restart: always
+    hostname: supernode
+    cap_add:
+      - DAC_READ_SEARCH
+      - SYS_ADMIN
+    devices:
+      - /dev/fuse
+    environment:
+      - RESTIC_PASSWORD=Pa55w0rd
+      - RESTIC_TAG=your_tags_here
+      - RESTIC_FORGET_ARGS=--prune --keep-hourly 24 --keep-daily 7 --keep-weekly 5 --keep-monthly 12 --keep-yearly 10
+      - RESTIC_REPOSITORY=rclone:jottacloud:backups
+      - RESTIC_JOB_ARGS=--exclude-file /config/exclude_files.txt
+      - BACKUP_CRON=0 1,13 * * *
+      - BACKUP_ROOT_DIR=/volume1/data
+      - MAILX_RCPT=your_mail@here.tld
+      - MAILX_ON_ERROR=OFF
+      - CHECK_CRON=37 1 1 * *
+      - RCLONE_CONFIG=/config/rclone.conf
+      - SYNC_JOB_FILE=/config/sync_jobs.txt
+      - SYNC_JOB_ARGS=--exclude-from exclude_sync.txt
+      - SYNC_CRON=*/10 * * * *
+      - TZ=Europe/Amsterdam
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - /path/to/your/hooks:/hooks
+      - /path/to/your/log:/var/log
+      - /path/to/your/restore:/restore
+      - /path/to/your/config/:/config
+      - /path/to/your/config/msmtprc:/etc/msmtprc
+      - /volume1/data:/volume1/data

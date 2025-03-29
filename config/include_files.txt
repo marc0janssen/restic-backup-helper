@@ -1,0 +1,11 @@
+
+/volume1/content
+/volume1/docker
+/volume1/documents
+/volume1/homes
+/volume1/homevideo
+/volume1/inbox
+/volume1/logging
+/volume1/photo
+/volume1/programming
+/volume1/software

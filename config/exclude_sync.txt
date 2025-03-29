@@ -1,0 +1,41 @@
+# This is a comment
+
+# Exclude specific file extensions
+*.bak
+*.tmp
+*.log
+
+# Exclude a specific file
+file_to_exclude.txt
+
+# Exclude a specific directory
+/directory_to_exclude/
+
+# Exclude everything in a directory except one file
++ /important_directory/important_file.txt
+- /important_directory/**
+
+# Exclude files starting with a dot (hidden files)
+.*
+
+# Exclude files ending with a number
+*[0-9]
+
+# Use curly braces to combine multiple patterns
+*.{jpg,png,gif}
+
+# Use an exclamation mark to negate a rule
+!important.log
+
+# Use double asterisks to exclude recursively
+/temporary_files/**
+
+# Use question marks for wildcard characters
+file?.txt
+
+# Exclude files larger than a certain size (e.g., 1M)
+- *.iso
++ *.iso size < 1M
+
+# Exclude files older than a certain date
+- *.* older 30d
