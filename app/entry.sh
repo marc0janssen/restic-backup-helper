@@ -9,11 +9,6 @@
 # Get releasenumber from file
 RELEASE=$(cat /.release)
 
-# Check if state of container is "DEVELOPMENT"
-if grep -q "^dev$" "/.state"; then
-    RELEASE="${RELEASE}-dev"
-fi
-
 echo "🌟 *************************************************"
 echo "🌟 ***           Restic Backup Helper            ***"
 echo "🌟 *************************************************"
@@ -52,7 +47,6 @@ else
     echo "✅ Restic repository '${RESTIC_REPOSITORY}' attached and accessible."
 fi
 
-# Setup backup cron job if specified
 echo "⏰ Setting up backup cron job with expression: ${BACKUP_CRON}"
 echo "${BACKUP_CRON} /usr/bin/flock -n /var/run/cron.lock /bin/backup >> /var/log/cron.log 2>&1" > /var/spool/cron/crontabs/root
 

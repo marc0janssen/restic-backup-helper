@@ -1,4 +1,4 @@
-FROM restic/restic:0.17.3
+FROM restic/restic:0.18.0
 
 RUN apk update && apk upgrade && apk add --update --no-cache mailx fuse curl libcap sudo bash rclone tzdata msmtp
 
@@ -47,7 +47,6 @@ COPY /app/check.sh /bin/check
 COPY /app/bisync.sh /bin/bisync
 COPY /app/rotate_log.sh /bin/rotate_log
 COPY ./.release /.release
-COPY ./.state /.state
 
 RUN chmod 755 /entry.sh /bin/backup /bin/check /bin/bisync /bin/rotate_log
 

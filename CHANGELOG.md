@@ -2,12 +2,12 @@
 
 ## Restic Backup Helper
 
-### 1.7.x-0.17.3 ()
-
-#### Added
+### 1.7.71-0.18.0 (2025-04-01)
 
 #### Changed
 - CRON backup is always started
+- Revised build scripts
+- Change Restic to version 0.18.0
 
 ### 1.7.68-0.17.3 (2025-03-27)
 
