@@ -23,18 +23,18 @@ Available at [marc0janssen/restic-backup-helper](https://hub.docker.com/reposito
 
 ### Release
 
-release: 1.7.71-0.18.0
+release: 1.7.76-0.18.0
 
 **Stable**
 ```shell
 docker pull marc0janssen/restic-backup-helper:latest
-docker pull marc0janssen/restic-backup-helper:1.7.71-0.18.0
+docker pull marc0janssen/restic-backup-helper:1.7.76-0.18.0
 ```
 
 **Development (Experimental)**
 ```shell
 docker pull marc0janssen/restic-backup-helper:develop
-docker pull marc0janssen/restic-backup-helper:1.7.70-0.18.0-dev
+docker pull marc0janssen/restic-backup-helper:1.7.75-0.18.0-dev
 ```
 
 ## Changelog
@@ -239,13 +239,15 @@ To use `restic mount /mnt/restic`, add these parameters when starting the contai
 
 * `MAILX_ON_ERROR` - Optional. If set to "ON" the MAILX_ON_ERROR will only email the backuplogs if the backup is unsuccessful, e.g. the exitcode of backup is not equal zero. When MAILX_ON_ERROR is set to any other value than "ON", the logs will always be mailed to you.
 
-* `RCLONE_CONFIG - Optional. Needed when useing RCLONE to access your repository. `/config/rclone.conf` is needed to be setup with `rclone config`. 
+* `RCLONE_CONFIG` - Optional. Needed when useing RCLONE to access your repository. `/config/rclone.conf` is needed to be setup with `rclone config`. 
 
 * `SYNC_JOB_FILE` - Optional. Needed when setting up a sync folder from your local device to a remote location.  An example is shown below.
 
 * `SYNC_JOB_ARGS` - Optional.  Arguments needed for bisyncing with Rclone. For example `--exclude-from exclude_sync.txt`
 
 * `SYNC_CRON` - Optional.  A cron expression to run the sync. Note: cron daemon uses UTC time zone. Default: `*/5 * * * *` aka every 5 minutes.
+
+* `SYNC_VERBOSE` - Optinal. Determines if the sync logs all in the cron.log. Default: `ON`
 
 * `ROTATE_LOG_CRON` - A cron expression to run the cron.log rotation. Note: cron daemon uses UTC time zone. Default: `0 */6 * * *` aka every 6 hours.
 

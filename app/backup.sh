@@ -30,10 +30,10 @@ log() {
 
 # Check if pre-backup script exists and execute it
 if [ -f "/hooks/pre-backup.sh" ]; then
-  echo "🚀 Starting pre-backup script..."
+  log "🚀 Starting pre-backup script..."
   /hooks/pre-backup.sh
 else
-  echo "ℹ️ Pre-backup script not found..."
+  log "ℹ️ Pre-backup script not found..."
 fi
 
 # Record start time
@@ -44,7 +44,6 @@ rm -f "${LAST_LOGFILE}" "${LAST_MAIL_LOGFILE}"
 
 # Note backup start
 log "🔄 Starting Backup at $(date +"%Y-%m-%d %a %H:%M:%S")"
-# log "Starting Backup at $(date)" >> "${LAST_LOGFILE}"
 
 # Log environment variables
 logLast "BACKUP_CRON: ${BACKUP_CRON}"
@@ -53,7 +52,6 @@ logLast "RESTIC_TAG: ${RESTIC_TAG}"
 logLast "RESTIC_FORGET_ARGS: ${RESTIC_FORGET_ARGS}"
 logLast "RESTIC_JOB_ARGS: ${RESTIC_JOB_ARGS}"
 logLast "RESTIC_REPOSITORY: ${RESTIC_REPOSITORY}"
-logLast "AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}"
 
 # Perform backup
 if [ -n "${BACKUP_ROOT_DIR}" ]; then
@@ -103,8 +101,8 @@ log "🏁 Finished backup at $(date +"%Y-%m-%d %a %H:%M:%S") after ${minutes}m $
 
 # Send mail notification
 if [ -n "${MAILX_RCPT}" ] && (
-  [ "${MAILX_ON_ERROR}" == "ON" ] && [ $backupRC -ne 0 ] ||
-  [ "${MAILX_ON_ERROR}" != "ON" ]
+  [ "${MAILX_ON_ERROR^^}" == "ON" ] && [ $backupRC -ne 0 ] ||
+  [ "${MAILX_ON_ERROR^^}" != "ON" ]
 ); then
   log "📧 Sending email notification to ${MAILX_RCPT}..."
   if sh -c "mail -v -s 'Result of the last ${HOSTNAME} backup run on ${RESTIC_REPOSITORY}' ${MAILX_RCPT} < ${LAST_LOGFILE} > ${LAST_MAIL_LOGFILE} 2>&1"; then
@@ -116,10 +114,10 @@ fi
 
 # Check if post-backup script exists and execute it
 if [ -f "/hooks/post-backup.sh" ]; then
-  echo "🚀 Starting post-backup script..."
+  log "🚀 Starting post-backup script..."
   /hooks/post-backup.sh $backupRC
 else
-  echo "ℹ️ Post-backup script not found..."
+  log "ℹ️ Post-backup script not found..."
 fi
 
 exit $backupRC

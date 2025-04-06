@@ -30,10 +30,10 @@ log() {
 
 # Check if pre-check script exists and execute it
 if [ -f "/hooks/pre-check.sh" ]; then
-  echo "🚀 Starting pre-check script..."
+  log "🚀 Starting pre-check script..."
   /hooks/pre-check.sh
 else
-  echo "ℹ️ Pre-check script not found..."
+  log "ℹ️ Pre-check script not found..."
 fi
 
 # Record start time
@@ -50,7 +50,6 @@ log "🔍 Starting Check at $(date +"%Y-%m-%d %a %H:%M:%S")"
 logLast "CHECK_CRON: ${CHECK_CRON}"
 logLast "RESTIC_CHECK_ARGS: ${RESTIC_CHECK_ARGS}"
 logLast "RESTIC_REPOSITORY: ${RESTIC_REPOSITORY}"
-logLast "AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}"
 
 # Perform repository check
 log "🔍 Verifying repository integrity..."
@@ -78,8 +77,8 @@ log "🏁 Finished check at $(date +"%Y-%m-%d %a %H:%M:%S") after ${minutes}m ${
 
 # Send mail notification
 if [ -n "${MAILX_RCPT}" ] && (
-  [ "${MAILX_ON_ERROR}" == "ON" ] && [ $checkRC -ne 0 ] ||
-  [ "${MAILX_ON_ERROR}" != "ON" ]
+  [ "${MAILX_ON_ERROR^^}" == "ON" ] && [ $checkRC -ne 0 ] ||
+  [ "${MAILX_ON_ERROR^^}" != "ON" ]
 ); then
   log "📧 Sending email notification to ${MAILX_RCPT}..."
   if sh -c "mail -v -s 'Result of the last ${HOSTNAME} check run on ${RESTIC_REPOSITORY}' ${MAILX_RCPT} < ${LAST_CHECK_LOGFILE} > ${LAST_MAIL_LOGFILE} 2>&1"; then
@@ -91,10 +90,10 @@ fi
 
 # Check if post-check script exists and execute it
 if [ -f "/hooks/post-check.sh" ]; then
-  echo "🚀 Starting post-check script..."
+  log "🚀 Starting post-check script..."
   /hooks/post-check.sh $checkRC
 else
-  echo "ℹ️ Post-check script not found..."
+  log "ℹ️ Post-check script not found..."
 fi
 
 exit $checkRC

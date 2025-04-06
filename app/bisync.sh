@@ -24,28 +24,35 @@ logLast() {
 # Function to log messages to both console and log file
 log() {
   local message="$1"
+  [[ "${SYNC_VERBOSE^^}" == "ON" ]] && echo "${message}"
+  logLast "${message}"
+}
+
+# Function to log errors to both console and log file
+errorlog() {
+  local message="$1"
   echo "${message}"
   logLast "${message}"
 }
 
 # Check if the file exists and is not empty
 if [ ! -s ${SYNC_JOB_FILE} ]; then
-  echo "❌ The sync job file is empty or does not exist"
+  errorlog "❌ The sync job file is empty or does not exist"
   exit 1
 fi
 
 # Check if the file contains at least one line with a semicolon
 if ! grep -q ".*;" ${SYNC_JOB_FILE}; then
-  echo "❌ The sync job file does not contain semicolons for separation"
+  errorlog "❌ The sync job file does not contain semicolons for separation"
   exit 1
 fi
 
 # Check if pre-sync script exists and execute it
 if [ -f "/hooks/pre-sync.sh" ]; then
-  echo "🚀 Starting pre-sync script..."
+  log "🚀 Starting pre-sync script..."
   /hooks/pre-sync.sh
 else
-  echo "ℹ️ Pre-sync script not found..."
+  log "ℹ️ Pre-sync script not found..."
 fi
 
 # Record start time
@@ -56,7 +63,6 @@ rm -f "${LAST_LOGFILE}" "${LAST_MAIL_LOGFILE}"
 
 # Note sync start
 log "🔄 Starting Sync at $(date +"%Y-%m-%d %a %H:%M:%S")"
-#log "Starting Sync at $(date)" >> "${LAST_LOGFILE}"
 
 # Log environment variables
 logLast "SYNC_CRON: ${SYNC_CRON}"
@@ -73,7 +79,7 @@ while IFS= read -r line; do
 
   # Check if both variables have values
   if [ -z "$SYNC_SOURCE" ] || [ -z "$SYNC_DESTINATION" ]; then
-    log "⚠️ Invalid line: ${line}"
+    errorlog "⚠️ Invalid line: ${line}"
     continue
   fi
   
@@ -87,11 +93,11 @@ while IFS= read -r line; do
   if [ $syncRC -eq 0 ]; then
     log "✅ Sync Successful"
   else
-    log "❌ Sync Failed with Status ${syncRC}"
+    errorlog "❌ Sync Failed with Status ${syncRC}"
     copyErrorLog
     
     # Recovery procedure
-    log "🚨 Starting recovery procedure..."
+    errorlog "🚨 Starting recovery procedure for ${SYNC_SOURCE}..."
     
     # Step 1: Update destination from source
     log "🔄 Step 1: Updating from ${SYNC_SOURCE} to ${SYNC_DESTINATION}"
@@ -110,18 +116,18 @@ while IFS= read -r line; do
       syncRC=$?
       
       if [ $syncRC -eq 0 ]; then
-        log "✅ Recovery Successful - All steps completed"
+        errorlog "✅ Recovery Successful - All steps completed"
       else
-        log "❌ Recovery Failed - Resync failed with status ${syncRC}"
+        errorlog "❌ Recovery Failed - Resync failed with status ${syncRC}"
       fi
     else
       # Detailed error reporting
       if [ $copy1RC -ne 0 ] && [ $copy2RC -ne 0 ]; then
-        log "❌ Recovery Failed - Both update operations failed"
+        errorlog "❌ Recovery Failed - Both update operations failed"
       elif [ $copy1RC -ne 0 ]; then
-        log "❌ Recovery Failed - Source to destination update failed with status ${copy1RC}"
+        errorlog "❌ Recovery Failed - Source to destination update failed with status ${copy1RC}"
       else
-        log "❌ Recovery Failed - Destination to source update failed with status ${copy2RC}"
+        errorlog "❌ Recovery Failed - Destination to source update failed with status ${copy2RC}"
       fi
     fi
     
@@ -143,7 +149,7 @@ while IFS= read -r line; do
     if sh -c "mail -v -s 'Result of the last ${HOSTNAME} sync' ${MAILX_RCPT} < ${LAST_LOGFILE} > ${LAST_MAIL_LOGFILE} 2>&1"; then
       log "✅ Mail notification successfully sent"
     else
-      log "❌ Sending mail notification FAILED. Check ${LAST_MAIL_LOGFILE} for further information."
+      errorlog "❌ Sending mail notification FAILED. Check ${LAST_MAIL_LOGFILE} for further information."
     fi
   fi
 
@@ -151,10 +157,10 @@ done < ${SYNC_JOB_FILE}
 
 # Check if post-sync script exists and execute it
 if [ -f "/hooks/post-sync.sh" ]; then
-  echo "🚀 Starting post-sync script..."
+  log "🚀 Starting post-sync script..."
   /hooks/post-sync.sh $syncRC
 else
-  echo "ℹ️ Post-sync script not found..."
+  log "ℹ️ Post-sync script not found..."
 fi
 
 exit $syncRC

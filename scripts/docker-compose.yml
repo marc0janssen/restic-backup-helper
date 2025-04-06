@@ -32,6 +32,7 @@ services:
       - SYNC_JOB_FILE=/config/sync_jobs.txt
       - SYNC_JOB_ARGS=--exclude-from exclude_sync.txt
       - SYNC_CRON=*/10 * * * *
+      - SYNC_VERBOSE=ON
       - TZ=Europe/Amsterdam
     volumes:
       - /etc/localtime:/etc/localtime:ro
