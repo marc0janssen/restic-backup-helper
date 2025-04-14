@@ -34,7 +34,7 @@ docker pull marc0janssen/restic-backup-helper:1.7.76-0.18.0
 **Development (Experimental)**
 ```shell
 docker pull marc0janssen/restic-backup-helper:develop
-docker pull marc0janssen/restic-backup-helper:1.7.75-0.18.0-dev
+docker pull marc0janssen/restic-backup-helper:1.7.77-0.18.0-dev
 ```
 
 ## Changelog
