@@ -28,6 +28,9 @@ log() {
   logLast "${message}"
 }
 
+# Clear log files
+rm -f "${LAST_LOGFILE}" "${LAST_MAIL_LOGFILE}"
+
 # Check if pre-backup script exists and execute it
 if [ -f "/hooks/pre-backup.sh" ]; then
   log "🚀 Starting pre-backup script..."
@@ -38,9 +41,6 @@ fi
 
 # Record start time
 start=$(date +%s)
-
-# Clear log files
-rm -f "${LAST_LOGFILE}" "${LAST_MAIL_LOGFILE}"
 
 # Note backup start
 log "🔄 Starting Backup at $(date +"%Y-%m-%d %a %H:%M:%S")"
@@ -99,6 +99,14 @@ seconds=$((duration % 60))
 
 log "🏁 Finished backup at $(date +"%Y-%m-%d %a %H:%M:%S") after ${minutes}m ${seconds}s"
 
+# Check if post-backup script exists and execute it
+if [ -f "/hooks/post-backup.sh" ]; then
+  log "🚀 Starting post-backup script..."
+  /hooks/post-backup.sh $backupRC
+else
+  log "ℹ️ Post-backup script not found..."
+fi
+
 # Send mail notification
 if [ -n "${MAILX_RCPT}" ] && (
   [ "${MAILX_ON_ERROR^^}" == "ON" ] && [ $backupRC -ne 0 ] ||
@@ -110,14 +118,6 @@ if [ -n "${MAILX_RCPT}" ] && (
   else
     log "❌ Sending mail notification FAILED. Check ${LAST_MAIL_LOGFILE} for further information."
   fi
-fi
-
-# Check if post-backup script exists and execute it
-if [ -f "/hooks/post-backup.sh" ]; then
-  log "🚀 Starting post-backup script..."
-  /hooks/post-backup.sh $backupRC
-else
-  log "ℹ️ Post-backup script not found..."
 fi
 
 exit $backupRC

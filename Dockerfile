@@ -1,6 +1,6 @@
 FROM restic/restic:0.18.0
 
-RUN apk update && apk upgrade && apk add --update --no-cache mailx fuse curl libcap sudo bash rclone tzdata msmtp
+RUN apk update && apk upgrade && apk add --update --no-cache mailx fuse curl libcap sudo bash rclone tzdata msmtp sshpass
 
 RUN mkdir -p /mnt/restic /var/spool/cron/crontabs /var/log
 

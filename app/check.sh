@@ -28,6 +28,9 @@ log() {
   logLast "${message}"
 }
 
+# Clear log files
+rm -f "${LAST_CHECK_LOGFILE}" "${LAST_MAIL_LOGFILE}"
+
 # Check if pre-check script exists and execute it
 if [ -f "/hooks/pre-check.sh" ]; then
   log "🚀 Starting pre-check script..."
@@ -38,9 +41,6 @@ fi
 
 # Record start time
 start=$(date +%s)
-
-# Clear log files
-rm -f "${LAST_CHECK_LOGFILE}" "${LAST_MAIL_LOGFILE}"
 
 # Note check start
 log "🔍 Starting Check at $(date +"%Y-%m-%d %a %H:%M:%S")"
@@ -75,6 +75,14 @@ seconds=$((duration % 60))
 
 log "🏁 Finished check at $(date +"%Y-%m-%d %a %H:%M:%S") after ${minutes}m ${seconds}s"
 
+# Check if post-check script exists and execute it
+if [ -f "/hooks/post-check.sh" ]; then
+  log "🚀 Starting post-check script..."
+  /hooks/post-check.sh $checkRC
+else
+  log "ℹ️ Post-check script not found..."
+fi
+
 # Send mail notification
 if [ -n "${MAILX_RCPT}" ] && (
   [ "${MAILX_ON_ERROR^^}" == "ON" ] && [ $checkRC -ne 0 ] ||
@@ -86,14 +94,6 @@ if [ -n "${MAILX_RCPT}" ] && (
   else
     log "❌ Sending mail notification FAILED. Check ${LAST_MAIL_LOGFILE} for further information."
   fi
-fi
-
-# Check if post-check script exists and execute it
-if [ -f "/hooks/post-check.sh" ]; then
-  log "🚀 Starting post-check script..."
-  /hooks/post-check.sh $checkRC
-else
-  log "ℹ️ Post-check script not found..."
 fi
 
 exit $checkRC

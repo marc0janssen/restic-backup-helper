@@ -2,6 +2,13 @@
 
 ## Restic Backup Helper
 
+### 1.X.XX-0.18.0 (2025-04-14)
+
+#### Changed
+- Changed mail in backup script
+- Changed mail in check script
+- Changed mail in bisync script
+
 ### 1.7.76-0.18.0 (2025-04-06)
 
 #### Changed

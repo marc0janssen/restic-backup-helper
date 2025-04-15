@@ -47,6 +47,9 @@ if ! grep -q ".*;" ${SYNC_JOB_FILE}; then
   exit 1
 fi
 
+# Clear log files
+rm -f "${LAST_LOGFILE}" "${LAST_MAIL_LOGFILE}"
+
 # Check if pre-sync script exists and execute it
 if [ -f "/hooks/pre-sync.sh" ]; then
   log "🚀 Starting pre-sync script..."
@@ -58,9 +61,6 @@ fi
 # Record start time
 start=$(date +%s)
 
-# Clear log files
-rm -f "${LAST_LOGFILE}" "${LAST_MAIL_LOGFILE}"
-
 # Note sync start
 log "🔄 Starting Sync at $(date +"%Y-%m-%d %a %H:%M:%S")"
 
@@ -68,6 +68,9 @@ log "🔄 Starting Sync at $(date +"%Y-%m-%d %a %H:%M:%S")"
 logLast "SYNC_CRON: ${SYNC_CRON}"
 logLast "SYNC_JOB_FILE: ${SYNC_JOB_FILE}"
 logLast "SYNC_JOB_ARGS: ${SYNC_JOB_ARGS}"
+
+# Set possible sync errors to no errors
+syncHasNoError=0
 
 # Perform sync
 while IFS= read -r line; do
@@ -119,6 +122,7 @@ while IFS= read -r line; do
         errorlog "✅ Recovery Successful - All steps completed"
       else
         errorlog "❌ Recovery Failed - Resync failed with status ${syncRC}"
+        syncHasNoError=1
       fi
     else
       # Detailed error reporting
@@ -142,17 +146,7 @@ while IFS= read -r line; do
   seconds=$((duration % 60))
 
   log "🏁 Finished sync at $(date +"%Y-%m-%d %a %H:%M:%S") after ${minutes}m ${seconds}s"
-
-  # Send mail notification
-  if [ -n "${MAILX_RCPT}" ] && [ $syncRC -ne 0 ]; then
-    log "📧 Sending email notification to ${MAILX_RCPT}..."
-    if sh -c "mail -v -s 'Result of the last ${HOSTNAME} sync' ${MAILX_RCPT} < ${LAST_LOGFILE} > ${LAST_MAIL_LOGFILE} 2>&1"; then
-      log "✅ Mail notification successfully sent"
-    else
-      errorlog "❌ Sending mail notification FAILED. Check ${LAST_MAIL_LOGFILE} for further information."
-    fi
-  fi
-
+  
 done < ${SYNC_JOB_FILE}
 
 # Check if post-sync script exists and execute it
@@ -161,6 +155,16 @@ if [ -f "/hooks/post-sync.sh" ]; then
   /hooks/post-sync.sh $syncRC
 else
   log "ℹ️ Post-sync script not found..."
+fi
+
+# Send mail notification
+if [ -n "${MAILX_RCPT}" ] && [ $syncHasNoError -ne 0 ]; then
+  log "📧 Sending email notification to ${MAILX_RCPT}..."
+  if sh -c "mail -v -s 'Result of the last ${HOSTNAME} sync' ${MAILX_RCPT} < ${LAST_LOGFILE} > ${LAST_MAIL_LOGFILE} 2>&1"; then
+    log "✅ Mail notification successfully sent"
+  else
+    errorlog "❌ Sending mail notification FAILED. Check ${LAST_MAIL_LOGFILE} for further information."
+  fi
 fi
 
 exit $syncRC
