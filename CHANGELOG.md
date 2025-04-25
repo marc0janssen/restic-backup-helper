@@ -2,7 +2,7 @@
 
 ## Restic Backup Helper
 
-### 1.8.89-0.18.0 (2025-04-14)
+### 1.8.89-0.18.0 (2025-04-25)
 
 #### Added
 - `RESTIC_CHECK_REPOSITORY_STATUS` - Optional. Check if repository is online on container startup. Default: `ON`
