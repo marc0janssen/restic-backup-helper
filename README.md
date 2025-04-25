@@ -23,18 +23,18 @@ Available at [marc0janssen/restic-backup-helper](https://hub.docker.com/reposito
 
 ### Release
 
-release: 1.7.76-0.18.0
+release: 1.8.89-0.18.0
 
 **Stable**
 ```shell
 docker pull marc0janssen/restic-backup-helper:latest
-docker pull marc0janssen/restic-backup-helper:1.7.76-0.18.0
+docker pull marc0janssen/restic-backup-helper:1.8.89-0.18.0
 ```
 
 **Development (Experimental)**
 ```shell
 docker pull marc0janssen/restic-backup-helper:develop
-docker pull marc0janssen/restic-backup-helper:1.7.79-0.18.0-dev
+docker pull marc0janssen/restic-backup-helper:1.8.88-0.18.0-dev
 ```
 
 ## Changelog
@@ -230,6 +230,8 @@ To use `restic mount /mnt/restic`, add these parameters when starting the contai
 * `RESTIC_JOB_ARGS` - Optional. Allows to specify extra arguments to the backup job such as limiting bandwith with `--limit-upload` or excluding file masks with `--exclude`.
 
 * `RESTIC_CHECK_ARGS` - Optional. Allows to specify extra arguments to the check job such as --check-unused, --read-data, --read-data-subset
+
+* `RESTIC_CHECK_REPOSITORY_STATUS` - Optional. Check if repository is online on container startup. Default: `ON`
 
 * `AWS_ACCESS_KEY_ID` - Optional. When using restic with AWS S3 storage.
 

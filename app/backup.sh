@@ -11,6 +11,9 @@ LAST_LOGFILE="/var/log/backup-last.log"
 LAST_ERROR_LOGFILE="/var/log/backup-error-last.log"
 LAST_MAIL_LOGFILE="/var/log/backup-mail-last.log"
 
+# Masked variables
+MASKED_REPO=$(echo "${RESTIC_REPOSITORY}" | sed -E 's#(https://[^:]+:)[^@]+(@)#\1***\2#')
+
 # Function to copy error log
 copyErrorLog() {
   cp "${LAST_LOGFILE}" "${LAST_ERROR_LOGFILE}"
@@ -27,6 +30,9 @@ log() {
   echo "${message}"
   logLast "${message}"
 }
+
+# If the RESTIC_PUBLICKEY variable is set, add the --cacert option with its value; otherwise, leave it empty.
+#[ -n "${RESTIC_PUBLICKEY}" ] && CACERT_OPTION="--cacert ${RESTIC_PUBLICKEY}" || CACERT_OPTION=""
 
 # Clear log files
 rm -f "${LAST_LOGFILE}" "${LAST_MAIL_LOGFILE}"
@@ -51,7 +57,7 @@ logLast "BACKUP_ROOT_DIR: ${BACKUP_ROOT_DIR}"
 logLast "RESTIC_TAG: ${RESTIC_TAG}"
 logLast "RESTIC_FORGET_ARGS: ${RESTIC_FORGET_ARGS}"
 logLast "RESTIC_JOB_ARGS: ${RESTIC_JOB_ARGS}"
-logLast "RESTIC_REPOSITORY: ${RESTIC_REPOSITORY}"
+logLast "RESTIC_REPOSITORY: ${MASKED_REPO}" 
 
 # Perform backup
 if [ -n "${BACKUP_ROOT_DIR}" ]; then
@@ -99,25 +105,25 @@ seconds=$((duration % 60))
 
 log "🏁 Finished backup at $(date +"%Y-%m-%d %a %H:%M:%S") after ${minutes}m ${seconds}s"
 
-# Check if post-backup script exists and execute it
-if [ -f "/hooks/post-backup.sh" ]; then
-  log "🚀 Starting post-backup script..."
-  /hooks/post-backup.sh $backupRC
-else
-  log "ℹ️ Post-backup script not found..."
-fi
-
 # Send mail notification
 if [ -n "${MAILX_RCPT}" ] && (
   [ "${MAILX_ON_ERROR^^}" == "ON" ] && [ $backupRC -ne 0 ] ||
   [ "${MAILX_ON_ERROR^^}" != "ON" ]
 ); then
   log "📧 Sending email notification to ${MAILX_RCPT}..."
-  if sh -c "mail -v -s 'Result of the last ${HOSTNAME} backup run on ${RESTIC_REPOSITORY}' ${MAILX_RCPT} < ${LAST_LOGFILE} > ${LAST_MAIL_LOGFILE} 2>&1"; then
+  if sh -c "mail -v -s 'Result of the last ${HOSTNAME} backup run on ${MASKED_REPO}' ${MAILX_RCPT} < ${LAST_LOGFILE} > ${LAST_MAIL_LOGFILE} 2>&1"; then
     log "✅ Mail notification successfully sent"
   else
     log "❌ Sending mail notification FAILED. Check ${LAST_MAIL_LOGFILE} for further information."
   fi
+fi
+
+# Check if post-backup script exists and execute it
+if [ -f "/hooks/post-backup.sh" ]; then
+  log "🚀 Starting post-backup script..."
+  /hooks/post-backup.sh $backupRC
+else
+  log "ℹ️ Post-backup script not found..."
 fi
 
 exit $backupRC

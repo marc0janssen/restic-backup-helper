@@ -2,12 +2,16 @@
 
 ## Restic Backup Helper
 
-### 1.X.XX-0.18.0 (2025-04-14)
+### 1.8.89-0.18.0 (2025-04-14)
+
+#### Added
+- `RESTIC_CHECK_REPOSITORY_STATUS` - Optional. Check if repository is online on container startup. Default: `ON`
 
 #### Changed
 - Changed mail in backup script
 - Changed mail in check script
 - Changed mail in bisync script
+- Masked the password in a REPO URL
 
 ### 1.7.76-0.18.0 (2025-04-06)
 

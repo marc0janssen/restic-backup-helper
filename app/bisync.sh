@@ -149,14 +149,6 @@ while IFS= read -r line; do
   
 done < ${SYNC_JOB_FILE}
 
-# Check if post-sync script exists and execute it
-if [ -f "/hooks/post-sync.sh" ]; then
-  log "🚀 Starting post-sync script..."
-  /hooks/post-sync.sh $syncRC
-else
-  log "ℹ️ Post-sync script not found..."
-fi
-
 # Send mail notification
 if [ -n "${MAILX_RCPT}" ] && [ $syncHasNoError -ne 0 ]; then
   log "📧 Sending email notification to ${MAILX_RCPT}..."
@@ -165,6 +157,14 @@ if [ -n "${MAILX_RCPT}" ] && [ $syncHasNoError -ne 0 ]; then
   else
     errorlog "❌ Sending mail notification FAILED. Check ${LAST_MAIL_LOGFILE} for further information."
   fi
+fi
+
+# Check if post-sync script exists and execute it
+if [ -f "/hooks/post-sync.sh" ]; then
+  log "🚀 Starting post-sync script..."
+  /hooks/post-sync.sh $syncRC
+else
+  log "ℹ️ Post-sync script not found..."
 fi
 
 exit $syncRC

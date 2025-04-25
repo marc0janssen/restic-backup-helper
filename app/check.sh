@@ -11,6 +11,9 @@ LAST_CHECK_LOGFILE="/var/log/check-last.log"
 LAST_ERROR_CHECK_LOGFILE="/var/log/check-error-last.log"
 LAST_MAIL_LOGFILE="/var/log/check-mail-last.log"
 
+# Masked variables
+MASKED_REPO=$(echo "${RESTIC_REPOSITORY}" | sed -E 's#(https://[^:]+:)[^@]+(@)#\1***\2#')
+
 # Function to copy error log
 copyErrorLog() {
   cp "${LAST_CHECK_LOGFILE}" "${LAST_ERROR_CHECK_LOGFILE}"
@@ -27,6 +30,9 @@ log() {
   echo "${message}"
   logLast "${message}"
 }
+
+# If the RESTIC_PUBLICKEY variable is set, add the --cacert option with its value; otherwise, leave it empty.
+#[ -n "${RESTIC_PUBLICKEY}" ] && CACERT_OPTION="--cacert ${RESTIC_PUBLICKEY}" || CACERT_OPTION=""
 
 # Clear log files
 rm -f "${LAST_CHECK_LOGFILE}" "${LAST_MAIL_LOGFILE}"
@@ -49,7 +55,7 @@ log "🔍 Starting Check at $(date +"%Y-%m-%d %a %H:%M:%S")"
 # Log environment variables
 logLast "CHECK_CRON: ${CHECK_CRON}"
 logLast "RESTIC_CHECK_ARGS: ${RESTIC_CHECK_ARGS}"
-logLast "RESTIC_REPOSITORY: ${RESTIC_REPOSITORY}"
+logLast "RESTIC_REPOSITORY: ${MASKED_REPO}"
 
 # Perform repository check
 log "🔍 Verifying repository integrity..."
@@ -75,25 +81,25 @@ seconds=$((duration % 60))
 
 log "🏁 Finished check at $(date +"%Y-%m-%d %a %H:%M:%S") after ${minutes}m ${seconds}s"
 
-# Check if post-check script exists and execute it
-if [ -f "/hooks/post-check.sh" ]; then
-  log "🚀 Starting post-check script..."
-  /hooks/post-check.sh $checkRC
-else
-  log "ℹ️ Post-check script not found..."
-fi
-
 # Send mail notification
 if [ -n "${MAILX_RCPT}" ] && (
   [ "${MAILX_ON_ERROR^^}" == "ON" ] && [ $checkRC -ne 0 ] ||
   [ "${MAILX_ON_ERROR^^}" != "ON" ]
 ); then
   log "📧 Sending email notification to ${MAILX_RCPT}..."
-  if sh -c "mail -v -s 'Result of the last ${HOSTNAME} check run on ${RESTIC_REPOSITORY}' ${MAILX_RCPT} < ${LAST_CHECK_LOGFILE} > ${LAST_MAIL_LOGFILE} 2>&1"; then
+  if sh -c "mail -v -s 'Result of the last ${HOSTNAME} check run on ${MASKED_REPO}' ${MAILX_RCPT} < ${LAST_CHECK_LOGFILE} > ${LAST_MAIL_LOGFILE} 2>&1"; then
     log "✅ Mail notification successfully sent"
   else
     log "❌ Sending mail notification FAILED. Check ${LAST_MAIL_LOGFILE} for further information."
   fi
+fi
+
+# Check if post-check script exists and execute it
+if [ -f "/hooks/post-check.sh" ]; then
+  log "🚀 Starting post-check script..."
+  /hooks/post-check.sh $checkRC
+else
+  log "ℹ️ Post-check script not found..."
 fi
 
 exit $checkRC

@@ -6,6 +6,9 @@
 # Description: Container startup script for Restic Backup Helper
 # =========================================================
 
+# Masked variables
+MASKED_REPO=$(echo "${RESTIC_REPOSITORY}" | sed -E 's#(https://[^:]+:)[^@]+(@)#\1***\2#')
+
 # Get releasenumber from file
 RELEASE=$(cat /.release)
 
@@ -18,6 +21,9 @@ echo "🚀 Starting container Restic Backup Helper '${HOSTNAME}' on: $(date '+%Y
 echo "📦 Release: ${RELEASE}"
 echo ""
 
+# If the RESTIC_PUBLICKEY variable is set, add the --cacert option with its value; otherwise, leave it empty.
+#[ -n "${RESTIC_PUBLICKEY}" ] && CACERT_OPTION="--cacert ${RESTIC_PUBLICKEY}" || CACERT_OPTION=""
+
 # Mount NFS if target is specified
 if [ -n "${NFS_TARGET}" ]; then
     echo "📂 Mounting NFS based on NFS_TARGET: ${NFS_TARGET}"
@@ -25,26 +31,32 @@ if [ -n "${NFS_TARGET}" ]; then
 fi
 
 # Check if repository exists
-echo "🔍 Checking repository status..."
-restic snapshots &>/dev/null
-status=$?
-echo "ℹ️ Repository check status: $status"
 
-# Initialize repository if it doesn't exist
-if [ $status -ne 0 ]; then
-    echo "🆕 Restic repository '${RESTIC_REPOSITORY}' does not exist. Running restic init."
-    restic init
-    init_status=$?
-    echo "ℹ️ Repository initialization status: $init_status"
+if [ "${RESTIC_CHECK_REPOSITORY_STATUS}" == "ON" ]; then
+    echo "🔍 Checking repository status..."
 
-    if [ $init_status -ne 0 ]; then
-        echo "❌ Failed to initialize the repository: '${RESTIC_REPOSITORY}'"
-        echo "🔓 Unlocking the repository: '${RESTIC_REPOSITORY}'"
-        restic unlock --remove-all
-        exit 1
+    restic snapshots &>/dev/null
+    status=$?
+    echo "ℹ️ Repository check status: $status"
+
+    # Initialize repository if it doesn't exist
+    if [ $status -ne 0 ]; then
+        echo "🆕 Restic repository '${MASKED_REPO}' does not exist. Running restic init."
+        restic init
+        init_status=$?
+        echo "ℹ️ Repository initialization status: $init_status"
+
+        if [ $init_status -ne 0 ]; then
+            echo "❌ Failed to initialize the repository: '${MASKED_REPO}'"
+            echo "🔓 Unlocking the repository: '${MASKED_REPO}'"
+            restic unlock --remove-all
+            exit 1
+        fi
+    else
+        echo "✅ Restic repository '${MASKED_REPO}' attached and accessible."
     fi
 else
-    echo "✅ Restic repository '${RESTIC_REPOSITORY}' attached and accessible."
+    echo "✅ Assuming repository '${MASKED_REPO}' is online..."
 fi
 
 echo "⏰ Setting up backup cron job with expression: ${BACKUP_CRON}"
