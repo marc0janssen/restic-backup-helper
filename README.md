@@ -91,8 +91,10 @@ services:
       - RESTIC_FORGET_ARGS=--prune --keep-hourly 24 --keep-daily 7 --keep-weekly 5 --keep-monthly 12 --keep-yearly 10
       - RESTIC_REPOSITORY=rclone:jottacloud:backups
       - RESTIC_JOB_ARGS=--exclude-file /config/exclude_files.txt
+      - RESTIC_CACHE_DIR=/tmp/cache_dir
+      - TMPDIR=/tmp/restic/
       - BACKUP_CRON=0 1,13 * * *
-      - BACKUP_ROOT_DIR=/volume1/data
+      - BACKUP_ROOT_DIR=/data
       - MAILX_RCPT=your_email@example.com
       - MAILX_ON_ERROR=OFF
       - CHECK_CRON=37 1 1 * *
@@ -108,7 +110,10 @@ services:
       - /path/to/your/data:/data
       - /path/to/your/config/:/config
       - /path/to/your/config/msmtprc:/etc/msmtprc
-      - /volume1/data:/volume1/data
+      - /path/to/your/data:/data
+      - /path/to/your/tmp/:/tmp/restic/
+      - /path/to/your/cache_dir/:/tmp/cache_dir/
+
 ```
 
 To access the container shell:
