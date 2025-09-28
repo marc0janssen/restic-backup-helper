@@ -11,6 +11,9 @@ LAST_LOGFILE="/var/log/sync-last.log"
 LAST_ERROR_LOGFILE="/var/log/sync-error-last.log"
 LAST_MAIL_LOGFILE="/var/log/sync-mail-last.log"
 
+# Get releasenumber from file
+RELEASE=$(cat /.release)
+
 # Function to copy error log
 copyErrorLog() {
   cp "${LAST_LOGFILE}" "${LAST_ERROR_LOGFILE}"
@@ -65,6 +68,7 @@ start=$(date +%s)
 log "🔄 Starting Sync at $(date +"%Y-%m-%d %a %H:%M:%S")"
 
 # Log environment variables
+logLast "RELEASE: ${RELEASE}"
 logLast "SYNC_CRON: ${SYNC_CRON}"
 logLast "SYNC_JOB_FILE: ${SYNC_JOB_FILE}"
 logLast "SYNC_JOB_ARGS: ${SYNC_JOB_ARGS}"

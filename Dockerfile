@@ -1,4 +1,4 @@
-FROM restic/restic:0.18.0
+FROM restic/restic:0.18.1
 
 RUN apk update && apk upgrade && apk add --update --no-cache mailx fuse curl libcap sudo bash rclone tzdata msmtp sshpass
 

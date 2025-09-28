@@ -14,6 +14,9 @@ LAST_MAIL_LOGFILE="/var/log/check-mail-last.log"
 # Masked variables
 MASKED_REPO=$(echo "${RESTIC_REPOSITORY}" | sed -E 's#(https://[^:]+:)[^@]+(@)#\1***\2#')
 
+# Get releasenumber from file
+RELEASE=$(cat /.release)
+
 # Function to copy error log
 copyErrorLog() {
   cp "${LAST_CHECK_LOGFILE}" "${LAST_ERROR_CHECK_LOGFILE}"
@@ -53,6 +56,7 @@ log "🔍 Starting Check at $(date +"%Y-%m-%d %a %H:%M:%S")"
 #log "Starting Check at $(date)" >> "${LAST_CHECK_LOGFILE}"
 
 # Log environment variables
+logLast "RELEASE: ${RELEASE}"
 logLast "CHECK_CRON: ${CHECK_CRON}"
 logLast "RESTIC_CHECK_ARGS: ${RESTIC_CHECK_ARGS}"
 logLast "RESTIC_REPOSITORY: ${MASKED_REPO}"

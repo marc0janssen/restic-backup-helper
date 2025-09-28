@@ -5,7 +5,7 @@
 # Coder: Marco Janssen (micro.blog @marc0janssen https://micro.mjanssen.nl)
 # =========================================================
 
-VERSION_RESTIC="0.18.0"
+VERSION_RESTIC="0.18.1"
 VERSION_FILE=".version"
 RELEASE_FILE=".release"
 

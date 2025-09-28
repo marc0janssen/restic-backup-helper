@@ -6,7 +6,7 @@
 # Description: Container startup script for Restic Backup Helper
 # =========================================================
 
-# Masked variables
+# Masked variables with ******
 MASKED_REPO=$(echo "${RESTIC_REPOSITORY}" | sed -E 's#(https://[^:]+:)[^@]+(@)#\1***\2#')
 
 # Get releasenumber from file

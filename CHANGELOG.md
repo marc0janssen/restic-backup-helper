@@ -2,6 +2,12 @@
 
 ## Restic Backup Helper
 
+### 1.9.97-0.18.1 (2025-09-28)
+
+#### Changed
+- Changed show RELEASE in LOGs
+- Update Restic to version 0.18.1
+
 ### 1.8.89-0.18.0 (2025-04-25)
 
 #### Added

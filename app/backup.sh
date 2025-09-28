@@ -14,6 +14,9 @@ LAST_MAIL_LOGFILE="/var/log/backup-mail-last.log"
 # Masked variables
 MASKED_REPO=$(echo "${RESTIC_REPOSITORY}" | sed -E 's#(https://[^:]+:)[^@]+(@)#\1***\2#')
 
+# Get releasenumber from file
+RELEASE=$(cat /.release)
+
 # Function to copy error log
 copyErrorLog() {
   cp "${LAST_LOGFILE}" "${LAST_ERROR_LOGFILE}"
@@ -52,6 +55,7 @@ start=$(date +%s)
 log "🔄 Starting Backup at $(date +"%Y-%m-%d %a %H:%M:%S")"
 
 # Log environment variables
+logLast "RELEASE: ${RELEASE}"
 logLast "BACKUP_CRON: ${BACKUP_CRON}"
 logLast "BACKUP_ROOT_DIR: ${BACKUP_ROOT_DIR}"
 logLast "RESTIC_TAG: ${RESTIC_TAG}"
