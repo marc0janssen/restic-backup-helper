@@ -38,8 +38,8 @@ sed -i '' '/restic-backup-helper:[0-9.]*-[0-9.]*$/s/restic-backup-helper:[0-9.]*
 # Set restic version in Dockerfile
 sed -i '' "s/restic\/restic:.*/restic\/restic:${VERSION_RESTIC}/" ./Dockerfile
 
-docker buildx build --no-cache --platform linux/amd64,linux/arm64 --push -t marc0janssen/restic-backup-helper:latest -f ./Dockerfile .
-docker buildx build --no-cache --platform linux/amd64,linux/arm64 --push -t marc0janssen/restic-backup-helper:${NEW_RELEASE} -f ./Dockerfile .
+docker buildx build --no-cache --platform linux/amd64,linux/arm64 --push -t marc0janssen/restic-backup-helper:${NEW_RELEASE} -t marc0janssen/restic-backup-helper:latest -f ./Dockerfile .
+#docker buildx build --no-cache --platform linux/amd64,linux/arm64 --push -t marc0janssen/restic-backup-helper:${NEW_RELEASE} -f ./Dockerfile .
 
 # Update documentation of Docker
 docker pushrm marc0janssen/restic-backup-helper:latest

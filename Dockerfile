@@ -2,6 +2,9 @@ FROM restic/restic:0.18.1
 
 RUN apk update && apk upgrade && apk add --update --no-cache mailx fuse curl libcap sudo bash rclone tzdata msmtp sshpass
 
+COPY /app/install_rclone.sh /install_rclone.sh
+RUN bash /install_rclone.sh && rm -rf /install_rclone.sh
+
 RUN mkdir -p /mnt/restic /var/spool/cron/crontabs /var/log
 
 ENV RESTIC_REPOSITORY="/mnt/restic"
@@ -50,7 +53,6 @@ COPY /app/check.sh /bin/check
 COPY /app/bisync.sh /bin/bisync
 COPY /app/rotate_log.sh /bin/rotate_log
 COPY ./.release /.release
-
 RUN chmod 755 /entry.sh /bin/backup /bin/check /bin/bisync /bin/rotate_log
 
 # set sendmail-path
