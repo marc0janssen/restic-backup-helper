@@ -1,5 +1,8 @@
 # Restic Backup Helper
 
+## If you like to tip me.
+[Thanks for the tip!!](https://ko-fi.com/marc0janssen)
+
 A Docker container designed to automate [Restic backups](https://restic.net).
 
 For a more detailed configuration guide, check [📟 Escaping USA Tech, Bye Bye Dropbox, Hello! Jottacloud](https://micro.mjanssen.nl/2025/03/25/escaping-usa-tech-bye-bye.html)
