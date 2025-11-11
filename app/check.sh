@@ -62,8 +62,20 @@ logLast "RESTIC_CHECK_ARGS: ${RESTIC_CHECK_ARGS}"
 logLast "RESTIC_REPOSITORY: ${MASKED_REPO}"
 
 # Perform repository check
-log "🔍 Verifying repository integrity..."
-restic check ${RESTIC_CHECK_ARGS} >> "${LAST_CHECK_LOGFILE}" 2>&1
+if [ -n "${RESTIC_CHECK_ARGS}" ]; then
+  log "🔍 Verifying repository integrity using RESTIC_CHECK_ARGS..."
+else
+  log "🔍 Verifying repository integrity with restic defaults..."
+fi
+
+check_cmd=(check)
+
+if [ -n "${RESTIC_CHECK_ARGS}" ]; then
+  read -r -a restic_check_args <<< "${RESTIC_CHECK_ARGS}"
+  check_cmd+=("${restic_check_args[@]}")
+fi
+
+restic "${check_cmd[@]}" >> "${LAST_CHECK_LOGFILE}" 2>&1
 checkRC=$?
 logLast "Finished check at $(date +"%Y-%m-%d %a %H:%M:%S")"
 
