@@ -1,364 +1,446 @@
 # Restic Backup Helper
 
-## If you like to tip me.
-[Thanks for the tip!!](https://ko-fi.com/marc0janssen)
+[![Quality Checks](https://github.com/marc0janssen/restic-backup-helper/actions/workflows/quality-checks.yml/badge.svg)](https://github.com/marc0janssen/restic-backup-helper/actions/workflows/quality-checks.yml)
+[![Smoke Test](https://github.com/marc0janssen/restic-backup-helper/actions/workflows/smoke-test.yml/badge.svg)](https://github.com/marc0janssen/restic-backup-helper/actions/workflows/smoke-test.yml)
+[![Security Scan](https://github.com/marc0janssen/restic-backup-helper/actions/workflows/security-scan.yml/badge.svg)](https://github.com/marc0janssen/restic-backup-helper/actions/workflows/security-scan.yml)
 
-A Docker container designed to automate [Restic backups](https://restic.net).
+Docker image for scheduled [Restic](https://restic.net) backups, optional scheduled `restic check`, optional [Rclone](https://rclone.org) bidirectional sync (`bisync`), cron-driven automation, structured logs under `/var/log`, and optional mail notifications via `mailx` and [msmtp](https://marlam.de/msmtp/).
 
-For a more detailed configuration guide, check [📟 Escaping USA Tech, Bye Bye Dropbox, Hello! Jottacloud](https://micro.mjanssen.nl/2025/03/25/escaping-usa-tech-bye-bye.html)
+**Docker Hub:** [marc0janssen/restic-backup-helper](https://hub.docker.com/r/marc0janssen/restic-backup-helper) · **Source:** [github.com/marc0janssen/restic-backup-helper](https://github.com/marc0janssen/restic-backup-helper)
 
-This solution offers scheduled Restic backups with extensive configuration options. Additionally, it provides a seamless syncing solution for cloud provider folders, enhancing data protection and integration.
+---
 
-## Key Features
+## Support this project
 
-- **Simple Setup & Maintenance**: Streamlined configuration for quick deployment
-- **Versatile Target Support**: Compatible with Local, NFS, SFTP, AWS S3, and Rclone repositories
-- **Built-in Mounting**: Support for `restic mount` within the container to browse backup archives
-- **Flexible Source Configuration**: Define backup sources via `BACKUP_ROOT_DIR` (defaults to `/data`)
-- **Selective Email Notifications**: Option to receive logs only when backups fail
-- **Comprehensive Logging**: All logs exposed in `/var/log` for external monitoring
-- **Repository Integrity Checks**: Scheduled `restic check` operations via cron
-- **Bidirectional Sync**: Support for synchronising between local directories and remote targets
+If this image saves you time, you can [leave a tip on Ko-fi](https://ko-fi.com/marc0janssen).
 
-## Docker Image
+**Walkthrough (Jottacloud example):** [Escaping USA Tech, Bye Bye Dropbox, Hello! Jottacloud](https://micro.mjanssen.nl/2025/03/25/escaping-usa-tech-bye-bye.html)
 
-Available at [marc0janssen/restic-backup-helper](https://hub.docker.com/repository/docker/marc0janssen/restic-backup-helper/)
+---
 
-### Release
+## Table of contents
 
-release: 1.9.105-0.18.1
+1. [What you get](#what-you-get)
+2. [Image tags and release](#image-tags-and-release)
+3. [Quick start](#quick-start)
+4. [How it works](#how-it-works)
+5. [Volumes and filesystem layout](#volumes-and-filesystem-layout)
+6. [Environment variables](#environment-variables)
+7. [Cron and time zones](#cron-and-time-zones)
+8. [Hooks](#hooks)
+9. [Examples: Docker Compose](#examples-docker-compose)
+10. [Backup backends](#backup-backends)
+11. [Optional Rclone sync jobs](#optional-rclone-sync-jobs)
+12. [Mail notifications](#mail-notifications)
+13. [Log rotation](#log-rotation)
+14. [Manual operations](#manual-operations)
+15. [Security](#security)
+16. [Troubleshooting](#troubleshooting)
+17. [Further reading](#further-reading)
 
-**Stable**
+---
+
+## What you get
+
+- **Scheduled backup** via `/bin/backup` (cron expression `BACKUP_CRON`), with optional **snapshot policy** (`RESTIC_FORGET_ARGS` runs `restic forget` after a successful backup).
+- **Scheduled integrity check** via `/bin/check` when `CHECK_CRON` is non-empty.
+- **Scheduled Rclone bisync** via `/bin/bisync` when `SYNC_CRON` and a valid `SYNC_JOB_FILE` are configured.
+- **Repository probe on startup**: when `RESTIC_CHECK_REPOSITORY_STATUS=ON`, the entrypoint runs `restic snapshots`; if the repo is missing it attempts `restic init` (requires a valid `RESTIC_PASSWORD` / `RESTIC_PASSWORD_FILE`).
+- **Configuration check**: run `docker run … config-check` with the same env as production to validate credentials and backup paths without starting cron (CI-friendly).
+- **Concurrency**: each job uses `flock` on a dedicated lock file so overlapping runs do not corrupt state.
+- **Based on** [`restic/restic`](https://hub.docker.com/r/restic/restic) Alpine image; Restic version follows the `FROM restic/restic:<tag>` line in this repo’s `Dockerfile`.
+
+---
+
+## Image tags and release
+
+release: 1.11.9-0.18.1
+
+| Train | When to use | Example pull |
+| --- | --- | --- |
+| **Stable** | Production | `docker pull marc0janssen/restic-backup-helper:latest` or pinned `marc0janssen/restic-backup-helper:1.11.9-0.18.1` |
+| **Testing** | Pre-release / CI | `docker pull marc0janssen/restic-backup-helper:develop` or `marc0janssen/restic-backup-helper:1.11.9-0.18.1-dev` |
+
+Pinned tags let you lock both **helper semver** and **Restic base** (`<semver>-<restic>`).
+
+---
+
+## Quick start
+
+Minimal ingredients:
+
+1. Set `RESTIC_REPOSITORY` and authentication (`RESTIC_PASSWORD` or `RESTIC_PASSWORD_FILE`).
+2. Set **`RESTIC_TAG`** (required by the backup script; default image value is `automated`).
+3. Mount data to back up (commonly `/data`) and a writable `/config` if you use `rclone.conf`, exclude lists, or msmtp.
+4. Provide `BACKUP_CRON`.
+
+Example (adjust paths and secrets; do not commit real passwords):
+
 ```shell
-docker pull marc0janssen/restic-backup-helper:latest
-docker pull marc0janssen/restic-backup-helper:1.9.105-0.18.1
+docker run -d \
+  --name restic-backup-helper \
+  -e RESTIC_REPOSITORY='s3:https://s3.amazonaws.com/my-bucket/restic' \
+  -e RESTIC_PASSWORD='use-a-strong-secret' \
+  -e RESTIC_TAG='daily' \
+  -e BACKUP_CRON='0 2 * * *' \
+  -e BACKUP_ROOT_DIR='/data' \
+  -v /srv/backup-src:/data:ro \
+  -v restic-config:/config \
+  marc0janssen/restic-backup-helper:latest
 ```
 
-**Development (Experimental)**
-```shell
-docker pull marc0janssen/restic-backup-helper:develop
-docker pull marc0janssen/restic-backup-helper:1.9.106-0.18.1-dev
-```
+For **FUSE / `restic mount`**, add capabilities and device (see [Manual operations](#manual-operations)).
 
-## Changelog
+---
 
-For the latest updates, please see the [Changelog on GitHub](https://github.com/marc0janssen/restic-backup-helper/blob/master/CHANGELOG.md)
+## How it works
+
+1. **`/entry.sh`** starts at container boot, prints release metadata (`RESTIC_BACKUP_HELPER_RELEASE`), optionally mounts NFS (`NFS_TARGET`), validates or initializes the repository, then writes **root’s crontab** under `/var/spool/cron/crontabs/root` and runs **`crond`**.
+2. **Backup line** (always present): `BACKUP_CRON … flock … /bin/backup >> /var/log/cron.log`.
+3. **Check line** (optional): appended only if `CHECK_CRON` is non-empty.
+4. **Sync line** (optional): appended only if `SYNC_CRON` is non-empty.
+5. **Rotate line** (always present): `ROTATE_LOG_CRON … /bin/rotate_log`.
+6. Default **CMD** tails `/var/log/cron.log` so the container stays foreground-friendly for Compose and logs aggregate cron output.
+
+Worker scripts live at `/bin/backup`, `/bin/check`, `/bin/bisync`, `/bin/rotate_log`.
+
+---
+
+## Volumes and filesystem layout
+
+| Path | Purpose |
+| --- | --- |
+| `/data` | Declared `VOLUME`; typical backup source when `BACKUP_ROOT_DIR=/data`. |
+| `/config` | Recommended mount for `rclone.conf`, exclude files, `msmtprc`, sync job file. |
+| `/hooks` | Optional mount for hook scripts (see [Hooks](#hooks)). |
+| `/var/log` | Optional mount to persist logs on the host. |
+| `/restore` | Convention for `restic restore --target /restore` (mount explicitly). |
+| `/mnt/restic` | Default `RESTIC_REPOSITORY` path when using local disk or NFS target mount. |
+
+---
+
+## Environment variables
+
+Defaults below match **`Dockerfile`** unless noted. Empty default means unset/blank unless you provide it at runtime.
+
+### Restic core
+
+| Variable | Default | Description |
+| --- | --- | --- |
+| `RESTIC_REPOSITORY` | `/mnt/restic` | Restic repository location (local path, `s3:…`, `sftp:…`, `rclone:…`, `swift:…`, etc.). |
+| `RESTIC_PASSWORD` | *(empty)* | Repository password. |
+| `RESTIC_PASSWORD_FILE` | *(empty)* | File inside the container containing the password (Restic standard). |
+| `RESTIC_TAG` | `automated` | **Required** tag passed to `restic backup` (`--tag=…`). |
+| `RESTIC_CACHE_DIR` | `/.cache/restic` | Restic cache directory. |
+| `RESTIC_CACERT` | *(empty)* | Declared in the image for custom CA workflows; pass TLS trust material via Restic flags in **`RESTIC_JOB_ARGS`** / **`RESTIC_CHECK_ARGS`** (for example `--cacert /config/ca.pem`) when needed. |
+| `RESTIC_CHECK_REPOSITORY_STATUS` | `ON` | On startup, probe repo (`restic snapshots`); init if missing. Set to anything else to skip probe/init. |
+
+### Backup job
+
+| Variable | Default | Description |
+| --- | --- | --- |
+| `BACKUP_CRON` | `0 */6 * * *` | Cron schedule for `/bin/backup`. |
+| `BACKUP_ROOT_DIR` | *(empty)* | If set, appended as backup path(s). If empty and `RESTIC_JOB_ARGS` is empty, `restic backup` runs with **no explicit path** (usually wrong for normal use—set `BACKUP_ROOT_DIR` or pass paths via `RESTIC_JOB_ARGS`). |
+| `RESTIC_JOB_ARGS` | *(empty)* | Extra words passed to `restic backup` (parsed as shell words). Examples: `--exclude-file /config/exclude_files.txt`, `--limit-upload 5000`. |
+| `RESTIC_FORGET_ARGS` | *(empty)* | If set **and** backup exits `0`, runs `restic forget` with these words (parsed as shell words), e.g. `--prune --keep-daily 7`. |
+
+### Check job
+
+| Variable | Default | Description |
+| --- | --- | --- |
+| `CHECK_CRON` | *(empty)* | If non-empty, schedules `/bin/check`. |
+| `RESTIC_CHECK_ARGS` | *(empty)* | Extra arguments for `restic check`. |
+
+### NFS
+
+| Variable | Default | Description |
+| --- | --- | --- |
+| `NFS_TARGET` | *(empty)* | If set, entrypoint runs `mount -o nolock -v "$NFS_TARGET" /mnt/restic`. Intended workflow keeps `RESTIC_REPOSITORY` at default `/mnt/restic`. |
+
+### Rclone sync (bisync)
+
+| Variable | Default | Description |
+| --- | --- | --- |
+| `RCLONE_CONFIG` | `/config/rclone.conf` | Path to Rclone configuration. |
+| `SYNC_JOB_FILE` | `/config/sync_jobs.txt` | Job file: one `SOURCE;DESTINATION` pair per line (comments `#` allowed). |
+| `SYNC_JOB_ARGS` | *(empty)* | Extra args passed to `rclone bisync` / recovery `copy` (shell-word split; `--resync` is stripped from routine runs). |
+| `SYNC_CRON` | *(empty)* | If non-empty, schedules `/bin/bisync`. |
+| `SYNC_VERBOSE` | `ON` | When `ON`, sync messages also echo to stdout (still always logged to file). |
+
+### Mail
+
+| Variable | Default | Description |
+| --- | --- | --- |
+| `MAILX_RCPT` | *(empty)* | If set, backup/check can mail logs (see [Mail notifications](#mail-notifications)). |
+| `MAILX_ON_ERROR` | `OFF` | When `ON`, backup and check only send mail after a **failed** run. Sync mails only when at least one job error occurred (see scripts). |
+
+### Log rotation (`/var/log/cron.log`)
+
+| Variable | Default | Description |
+| --- | --- | --- |
+| `ROTATE_LOG_CRON` | `0 0 * * 6` | Cron schedule for `/bin/rotate_log`. |
+| `CRON_LOG_MAX_SIZE` | `1048576` | Rotate when `cron.log` exceeds this size (bytes). |
+| `MAX_CRON_LOG_ARCHIVES` | `5` | Keep this many compressed archives `cron_log_<timestamp>.tar.gz`. |
+
+### OpenStack Swift (when using `swift:` repository)
+
+| Variable | Default |
+| --- | --- |
+| `OS_AUTH_URL` | *(empty)* |
+| `OS_PROJECT_ID` | *(empty)* |
+| `OS_PROJECT_NAME` | *(empty)* |
+| `OS_USER_DOMAIN_NAME` | `Default` |
+| `OS_PROJECT_DOMAIN_ID` | `Default` |
+| `OS_USERNAME` | *(empty)* |
+| `OS_PASSWORD` | *(empty)* |
+| `OS_REGION_NAME` | *(empty)* |
+| `OS_INTERFACE` | *(empty)* |
+| `OS_IDENTITY_API_VERSION` | `3` |
+
+### AWS S3
+
+Use standard AWS variables (`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_DEFAULT_REGION`, etc.) as required by Restic’s S3 backend; they are not declared in the Dockerfile but are honored by the runtime.
+
+### Locale / time
+
+| Variable | Default | Description |
+| --- | --- | --- |
+| `TZ` | `Europe/Amsterdam` | Container timezone; cron typically respects `TZ` when set in the environment used by `crond`. |
+
+---
+
+## Cron and time zones
+
+Crontab entries are written literally from `BACKUP_CRON`, `CHECK_CRON`, `SYNC_CRON`, and `ROTATE_LOG_CRON`. Ensure **`TZ`** matches how you expect schedules to fire. For UTC-only mental models, set `TZ=UTC`.
+
+---
 
 ## Hooks
 
-The container supports hooks for its three primary functions:
+Mount scripts into **`/hooks`**:
 
-* **Backup**: Creates backups of your data to a repository
-* **Check**: Verifies the consistency of a repository
-* **Sync**: Performs bidirectional syncing between a local directory and a Rclone target
+| Hook | When |
+| --- | --- |
+| `/hooks/pre-backup.sh` | Before backup |
+| `/hooks/post-backup.sh` | After backup; receives **backup exit code** as `$1` |
+| `/hooks/pre-check.sh` | Before check |
+| `/hooks/post-check.sh` | After check; receives **check exit code** as `$1` |
+| `/hooks/pre-sync.sh` | Before sync batch |
+| `/hooks/post-sync.sh` | After sync batch; receives **aggregate exit code** as `$1` |
 
-Each function has pre- and post-execution hooks:
+Hooks must be executable inside the container (`chmod +x`).
 
-* `/hooks/pre-backup.sh` and `/hooks/post-backup.sh`
-* `/hooks/pre-check.sh` and `/hooks/post-check.sh`
-* `/hooks/pre-sync.sh` and `/hooks/post-sync.sh`
+---
 
-To implement hooks, mount your scripts to the container's `/hooks` directory:
+## Examples: Docker Compose
 
-```shell
--v ~/path/to/your/hooks:/hooks
-```
-
-## Container Configuration
-
-### Docker Compose Example
+Use a `.env` file or Docker secrets for `RESTIC_PASSWORD`; avoid committing secrets.
 
 ```yaml
-version: '3'
-
 services:
-  restic-remote:
-    container_name: restic-backup-helper
+  restic:
     image: marc0janssen/restic-backup-helper:latest
-    healthcheck:
-      test: ["CMD", "restic", "-r", "rclone:jottacloud:backups", "cat", "config"]
-      interval: 15m
-      timeout: 10s
-      start_period: 1m
-      start_interval: 10s
-    restart: always
-    hostname: supernode
+    container_name: restic-backup-helper
+    hostname: backup-node
+    restart: unless-stopped
     cap_add:
       - DAC_READ_SEARCH
       - SYS_ADMIN
     devices:
       - /dev/fuse
+    env_file:
+      - restic.env
     environment:
-      - RESTIC_PASSWORD=Pa55w0rd
-      - RESTIC_TAG=your_tags_here
-      - RESTIC_FORGET_ARGS=--prune --keep-hourly 24 --keep-daily 7 --keep-weekly 5 --keep-monthly 12 --keep-yearly 10
-      - RESTIC_REPOSITORY=rclone:jottacloud:backups
-      - RESTIC_JOB_ARGS=--exclude-file /config/exclude_files.txt
-      - RESTIC_CACHE_DIR=/tmp/cache_dir
-      - TMPDIR=/tmp/restic/
-      - BACKUP_CRON=0 1,13 * * *
-      - BACKUP_ROOT_DIR=/data
-      - MAILX_RCPT=your_email@example.com
-      - MAILX_ON_ERROR=OFF
-      - CHECK_CRON=37 1 1 * *
-      - RCLONE_CONFIG=/config/rclone.conf
-      - SYNC_JOB_FILE=/config/sync_jobs.txt
-      - SYNC_JOB_ARGS=--exclude-from exclude_sync.txt
-      - SYNC_CRON=*/10 * * * *
-      - TZ=Europe/London
+      RESTIC_REPOSITORY: ${RESTIC_REPOSITORY}
+      RESTIC_TAG: ${RESTIC_TAG:-daily}
+      BACKUP_CRON: ${BACKUP_CRON:-0 2 * * *}
+      BACKUP_ROOT_DIR: /data
+      CHECK_CRON: ${CHECK_CRON:-37 3 * * 0}
+      TZ: ${TZ:-Europe/Amsterdam}
     volumes:
-      - /etc/localtime:/etc/localtime:ro
-      - /path/to/your/hooks:/hooks
-      - /path/to/your/log:/var/log
-      - /path/to/your/data:/data
-      - /path/to/your/config/:/config
-      - /path/to/your/config/msmtprc:/etc/msmtprc
-      - /path/to/your/data:/data
-      - /path/to/your/tmp/:/tmp/restic/
-      - /path/to/your/cache_dir/:/tmp/cache_dir/
+      - ./config:/config
+      - ./hooks:/hooks
+      - backup-logs:/var/log
+      - /srv/documents:/data:ro
+    command: ["tail", "-fn0", "/var/log/cron.log"]
 
+volumes:
+  backup-logs:
 ```
 
-To access the container shell:
+**Health checks:** choose how hard you want Compose to probe the repository.
 
-```shell
-sudo docker exec -ti restic-backup-helper /bin/sh
+- **Weak** — only verifies the Restic binary (no repository access):
+
+```yaml
+healthcheck:
+  test: ["CMD", "restic", "version"]
+  interval: 5m
+  timeout: 10s
+  retries: 3
 ```
 
-## Log Files
+- **Strong** — fails if credentials or repository reachability break (uses `RESTIC_*` env inside the container; compare [`scripts/docker-compose.yml`](scripts/docker-compose.yml)):
 
-Logs are stored in `/var/log` and can be mounted to the host:
-
-```shell
--v /path/to/your/log:/var/log
+```yaml
+healthcheck:
+  test: ["CMD-SHELL", "restic cat config >/dev/null 2>&1 || exit 1"]
+  interval: 15m
+  timeout: 30s
+  start_period: 1m
 ```
 
-Available log files include:
-
-* `backup-error-last.log` - Most recent backup error log
-* `backup-last.log` - Most recent backup log
-* `check-error-last.log` - Most recent repository check error log
-* `check-last.log` - Most recent repository check log
-* `cron.log` - Active cron log
-* `sync-error-last.log` - Most recent sync error log
-* `sync-last.log` - Most recent sync log
-* `rotate-last.log` - Most recent rotate log
-
-## Container Usage Examples
-
-Assuming the container name is `restic-backup-helper`:
-
-```shell
-# Execute the internal backup function
-sudo docker exec -ti restic-backup-helper /bin/backup
-
-# Execute the internal check function
-sudo docker exec -ti restic-backup-helper /bin/check
-
-# List snapshots in your repository
-sudo docker exec -ti restic-backup-helper restic snapshots
-
-# Create a backup of a specific directory
-sudo docker exec -ti restic-backup-helper restic backup /mnt/data
-
-# Restore from a specific snapshot
-sudo docker exec -ti restic-backup-helper restic restore  --target /mnt/data
-```
-
-## Backup Operations
-
-### Manual Backup Execution
-
-To run a backup manually, independent of the scheduled cron job:
-
-```shell
-docker exec -ti restic-backup-helper /bin/backup
-```
-
-### Backup Specific Paths
-
-```shell
-docker exec -ti restic-backup-helper restic backup /data/path/to/dir --tag my-tag
-```
-
-## Repository Verification
-
-To manually verify backup integrity and consistency:
-
-```shell
-docker exec -ti restic-backup-helper /bin/check
-```
-
-## Data Restoration
-
-For data restoration, you might want to mount a separate volume at `/restore` to prevent overwriting existing data.
-
-First, identify your snapshot ID:
-
-```shell
-docker exec -ti restic-backup-helper restic snapshots
-```
-
-Example output:
-```
-09e7818a  2025-03-23 20:05:01  supernode       tag       /home/admin/data      238.157 MiB
-```
-
-Then restore using:
-
-```shell
-docker exec -ti restic-backup-helper restic restore --include /home/admin/data --target / 09e7818a
-```
-
-## Mount Functionality
-
-To use `restic mount /mnt/restic`, add these parameters when starting the container:
-```
---privileged --cap-add=SYS_ADMIN --device /dev/fuse
-```
-
-## Environment variables
-
-* `RESTIC_REPOSITORY` - the location of the restic repository. Default `/mnt/restic`. For S3: `s3:https://s3.amazonaws.com/BUCKET_NAME`
-
-* `RESTIC_PASSWORD` - the password for the restic repository. Will also be used for restic init during first start when the repository is not initialized.
-
-* `RESTIC_TAG` - Optional. To tag the images created by the container.
-
-* `NFS_TARGET` - Optional. If set the given NFS is mounted, i.e. `mount -o nolock -v ${NFS_TARGET} /mnt/restic`. `RESTIC_REPOSITORY` must remain it's default value!
-
-* `BACKUP_CRON` - A cron expression to run the backup. Note: cron daemon uses UTC time zone. Default: `0 */6 * * *` aka every 6 hours.
-
-* `CHECK_CRON` - A cron expression to run the repository check. Note: cron daemon uses UTC time zone.
-
-* `BACKUP_ROOT_DIR` - The source path you like to backup. If not specified '/data' is assumed.
-
-* `RESTIC_FORGET_ARGS` - Optional. Only if specified `restic forget` is run with the given arguments after each backup. Example value: `-e "RESTIC_FORGET_ARGS=--prune --keep-last 10 --keep-hourly 24 --keep-daily 7 --keep-weekly 52 --keep-monthly 120 --keep-yearly 100"`
-
-* `RESTIC_JOB_ARGS` - Optional. Allows to specify extra arguments to the backup job such as limiting bandwith with `--limit-upload` or excluding file masks with `--exclude`.
-
-* `RESTIC_CHECK_ARGS` - Optional. Allows to specify extra arguments to the check job such as --check-unused, --read-data, --read-data-subset
-
-* `RESTIC_CHECK_REPOSITORY_STATUS` - Optional. Check if repository is online on container startup. Default: `ON`
-
-* `AWS_ACCESS_KEY_ID` - Optional. When using restic with AWS S3 storage.
-
-* `AWS_SECRET_ACCESS_KEY` - Optional. When using restic with AWS S3 storage.
-
-* `MAILX_RCPT` - Optional. If a mailadrress is specified, the content of `/var/log/backup-last.log` is sent via mail after each a backup. A valid msmtprc file is needed in the `/config/` directory.
-
-* `MAILX_ON_ERROR` - Optional. If set to "ON" the MAILX_ON_ERROR will only email the backuplogs if the backup is unsuccessful, e.g. the exitcode of backup is not equal zero. When MAILX_ON_ERROR is set to any other value than "ON", the logs will always be mailed to you.
-
-* `RCLONE_CONFIG` - Optional. Needed when useing RCLONE to access your repository. `/config/rclone.conf` is needed to be setup with `rclone config`. 
-
-* `SYNC_JOB_FILE` - Optional. Needed when setting up a sync folder from your local device to a remote location.  An example is shown below.
-
-* `SYNC_JOB_ARGS` - Optional.  Arguments needed for bisyncing with Rclone. For example `--exclude-from exclude_sync.txt`
-
-* `SYNC_CRON` - Optional.  A cron expression to run the sync. Note: cron daemon uses UTC time zone. Default: `*/5 * * * *` aka every 5 minutes.
-
-* `SYNC_VERBOSE` - Optinal. Determines if the sync logs all in the cron.log. Default: `ON`
-
-* `ROTATE_LOG_CRON` - A cron expression to run the cron.log rotation. Note: cron daemon uses UTC time zone. Default: `0 */6 * * *` aka every 6 hours.
-
-* `CRON_LOG_MAX_SIZE` - The max size of the cron.log before it rotates.
-
-* `MAX_CRON_LOG_ARCHIVES` - The max amount of kept archives.
-
-* `OS_AUTH_URL` - Optional. When using restic with OpenStack Swift container.
-
-* `OS_PROJECT_ID` - Optional. When using restic with OpenStack Swift container.
-
-* `OS_PROJECT_NAME` - Optional. When using restic with OpenStack Swift container.
-
-* `OS_USER_DOMAIN_NAME` - Optional. When using restic with OpenStack Swift container.
-
-* `OS_PROJECT_DOMAIN_ID` - Optional. When using restic with OpenStack Swift container.
-
-* `OS_USERNAME` - Optional. When using restic with OpenStack Swift container.
-
-* `OS_PASSWORD` - Optional. When using restic with OpenStack Swift container.
-
-* `OS_REGION_NAME` - Optional. When using restic with OpenStack Swift container.
-
-* `OS_INTERFACE` - Optional. When using restic with OpenStack Swift container.
-
-* `OS_IDENTITY_API_VERSION` - Optional. When using restic with OpenStack Swift container.
-
-
-## Volumes
-
-* `/data` - Default backup source directory
-* `/log` - Log directory
-
-## Hostname Configuration
-
-Since Restic records the hostname with each snapshot, you may want to set a custom hostname rather than using the Docker container ID:
-
-```
---hostname your-custom-hostname
-```
-
-## SFTP Repository Setup
-
-For SFTP repositories, Restic requires password-less SSH login. Mount your `.ssh` directory containing authorized certificates:
-
-```shell
--v ~/.ssh:/root/.ssh
-```
-
-Then configure the repository:
-
-```shell
--e "RESTIC_REPOSITORY=sftp:user@host:/tmp/backup"
-```
-
-## OpenStack Swift Repository
-
-For Swift repositories, specify the repository and required authentication variables:
-
-```shell
--e "RESTIC_REPOSITORY=swift:backup:/"
--e "RESTIC_PASSWORD=password"
--e "OS_AUTH_URL=https://auth.cloud.ovh.net/v3"
--e "OS_PROJECT_ID=xxxx"
--e "OS_PROJECT_NAME=xxxx"
--e "OS_USER_DOMAIN_NAME=Default"
--e "OS_PROJECT_DOMAIN_ID=default"
--e "OS_USERNAME=username"
--e "OS_PASSWORD=password"
--e "OS_REGION_NAME=SBG"
--e "OS_INTERFACE=public"
--e "OS_IDENTITY_API_VERSION=3"
-```
-
-## Rclone Configuration
-
-To use Rclone as a backend, provide the configuration file path:
-
-```shell
--e "RCLONE_CONFIG=/config/rclone.conf"
-```
-
-Note: For certain backends (including Jottacloud, Google Drive, and Microsoft OneDrive), Rclone writes data back to the configuration file. Ensure the file is writable by Docker, or the authentication token may become invalid.
-
-## Sync Job Configuration
-
-Example sync job file:
-
-```
-# SYNC JOBS
-# SOURCE;DESTINATION
-
-/volume1/inbox;jottasync:/inbox
-/volume1/photo;jottasync:/photo
-```
-
-## Backlog & Changelog
-For releases, see: [GitHub Releases](https://github.com/marc0janssen/restic-backup-helper/releases)
-For backlog, see: [Github Backlog](https://github.com/marc0janssen/restic-backup-helper/blob/master/BACKLOG.md)
-For changelog, see: [Github Changelog](https://github.com/marc0janssen/restic-backup-helper/blob/master/CHANGELOG.md)
+`restic snapshots` is a heavier alternative when you want an end-to-end read against the repo.
 
 ---
 
-*Note: This repository is a fork of [Restic Backup Docker:1.2-0.9.4](https://github.com/lobaro/restic-backup-docker)*
+## Backup backends
+
+### Local repository
+
+Point `RESTIC_REPOSITORY` at a mounted path (for example `/mnt/restic`) and persist that volume.
+
+### NFS
+
+Set `NFS_TARGET` (example: `nfs-server:/export/restic`) and keep `RESTIC_REPOSITORY=/mnt/restic` so the mount target matches the repo path.
+
+### SFTP
+
+Restic needs non-interactive SSH auth. Mount keys read-only:
+
+```shell
+-v ~/.ssh:/root/.ssh:ro
+```
+
+Example repository: `sftp:user@host:/path/to/repo`.
+
+### S3 and compatible APIs
+
+Example: `s3:s3.amazonaws.com/bucket-name/prefix` or custom endpoint per Restic docs. Provide AWS (or provider) credentials via environment.
+
+### Rclone remote
+
+Use `rclone:<remote>:<path>` form for `RESTIC_REPOSITORY` and supply `RCLONE_CONFIG`. Some providers refresh tokens inside `rclone.conf`; keep that file on a writable mount.
+
+### OpenStack Swift
+
+Use `swift:container:/path` style URLs and populate the `OS_*` variables.
+
+---
+
+## Optional Rclone sync jobs
+
+`SYNC_JOB_FILE` lines:
+
+```text
+# SOURCE;DESTINATION   (local path or rclone remote path)
+/data/inbox;jottacloud:inbox
+```
+
+Schedule with `SYNC_CRON`. On bisync failure the script attempts a **recovery** sequence (`copy` both directions, then `bisync --resync`). Mail is sent only when errors occurred (`MAILX_RCPT` set).
+
+---
+
+## Mail notifications
+
+- **Backup / check:** If `MAILX_RCPT` is set, mail goes out per run unless `MAILX_ON_ERROR=ON`, in which case mail is sent only on failure.
+- **Sync:** Mail is sent when `MAILX_RCPT` is set **and** at least one job recorded an error.
+
+Mount msmtp configuration so `/usr/sbin/sendmail` (symlinked to `msmtp`) can relay mail, for example:
+
+```shell
+-v ./config/msmtprc:/etc/msmtprc:ro
+```
+
+---
+
+## Log rotation
+
+`/bin/rotate_log` compresses oversized `cron.log` to `/var/log/cron_log_<timestamp>.tar.gz` and trims old archives. Tune `ROTATE_LOG_CRON`, `CRON_LOG_MAX_SIZE`, and `MAX_CRON_LOG_ARCHIVES`.
+
+---
+
+## Manual operations
+
+Replace container name as needed.
+
+```shell
+docker exec -ti restic-backup-helper /bin/backup
+docker exec -ti restic-backup-helper /bin/check
+docker exec -ti restic-backup-helper restic snapshots
+docker exec -ti restic-backup-helper restic restore latest --target /restore
+```
+
+**Configuration check** — validate env and critical paths before relying on cron (exits `0` or `1`; does not run `restic backup`):
+
+```shell
+docker run --rm \
+  --env-file restic.env \
+  -v /srv/documents:/data:ro \
+  -v ./config:/config:ro \
+  marc0janssen/restic-backup-helper:latest \
+  config-check
+```
+
+**FUSE mount inside the container** (browse snapshots):
+
+```shell
+docker run --rm -it --cap-add SYS_ADMIN --device /dev/fuse \
+  --entrypoint /bin/sh \
+  -e RESTIC_REPOSITORY -e RESTIC_PASSWORD \
+  marc0janssen/restic-backup-helper:latest \
+  -c "mkdir -p /mnt/browse && restic mount /mnt/browse"
+```
+
+---
+
+## Security
+
+- Never bake repository passwords, API keys, or mail credentials into images.
+- Prefer **`RESTIC_PASSWORD_FILE`** (Restic standard) over `RESTIC_PASSWORD` when you can mount a secret as a file. Docker Compose example:
+
+```yaml
+secrets:
+  restic_password:
+    file: ./restic.password
+services:
+  restic:
+    secrets:
+      - restic_password
+    environment:
+      RESTIC_PASSWORD_FILE: /run/secrets/restic_password
+```
+
+On Kubernetes, mount a `Secret` as a volume (or use `subPath`) and set `RESTIC_PASSWORD_FILE` to that path so the literal password does not appear in Pod spec env values.
+
+- Prefer secrets, env files ignored by git, or orchestrator secret mounts for other sensitive values.
+- Restrict mounts (`:ro` where possible) for backup sources and SSH keys.
+- Review logs before forwarding them by mail (paths or URLs might be sensitive).
+- **`MAILX_RCPT`** is passed as a single quoted argument to `mail` (no `sh -c` wrapper). Treat it as trusted configuration; odd characters in addresses are discouraged.
+- The container **runs as root** (upstream-style for cron, FUSE, NFS). Prefer least privilege at the **Docker/Kubernetes** layer (`cap_drop`, read-only roots where possible, seccomp/AppArmor) rather than expecting a non-root `USER` inside this image.
+
+---
+
+## Troubleshooting
+
+| Symptom | Things to check |
+| --- | --- |
+| Backup exits immediately / “Missing RESTIC_TAG” | Export **`RESTIC_TAG`**. |
+| Empty or wrong backup content | Set **`BACKUP_ROOT_DIR`** and/or **`RESTIC_JOB_ARGS`** paths intentionally; empty both yields a degenerate `restic backup` invocation. |
+| Cron “wrong timezone” | Set **`TZ`** and restart the container. |
+| Rclone auth breaks | Ensure `rclone.conf` is writable if the backend refreshes tokens. |
+| Permission denied on source | Match UID/GID or ACLs on mounted volumes; avoid overly broad `:privileged` unless required. |
+| Pull / push fails via corporate proxy to a **private registry** or LAN host | Add the registry hostname or LAN ranges to **`NO_PROXY`** / **`no_proxy`** (e.g. `192.168.0.0/16,.internal,myregistry.local`) so Docker talks directly; verify TLS to internal registries. |
+
+---
+
+## Further reading
+
+- [CHANGELOG.md](CHANGELOG.md)
+- [BACKLOG.md](BACKLOG.md)
+- [GitHub Releases](https://github.com/marc0janssen/restic-backup-helper/releases)
+- Sample files under [`config/`](config/)
+
+---
+
+This project evolved from [**Restic Backup Docker** (lobaro/restic-backup-docker)](https://github.com/lobaro/restic-backup-docker); thank you to the original authors.
