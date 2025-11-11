@@ -32,11 +32,13 @@ echo "$NEW_RELEASE" > $RELEASE_FILE
 
 # Change new releasenumber in files
 # Only change the lines with "release:"
-sed -i '' "s/release:.*/release: ${NEW_RELEASE}/" ./README.md
+sed -i.bak "s/release:.*/release: ${NEW_RELEASE}/" ./README.md
 # Only change the lines without "-dev"
-sed -i '' '/restic-backup-helper:[0-9.]*-[0-9.]*$/s/restic-backup-helper:[0-9.]*-[0-9.]*/restic-backup-helper:'"${NEW_RELEASE}"'/' ./README.md
+sed -i.bak "/restic-backup-helper:[0-9.]*-[0-9.]*$/s/restic-backup-helper:[0-9.]*-[0-9.]*/restic-backup-helper:${NEW_RELEASE}/" ./README.md
 # Set restic version in Dockerfile
-sed -i '' "s/restic\/restic:.*/restic\/restic:${VERSION_RESTIC}/" ./Dockerfile
+sed -i.bak "s#restic/restic:.*#restic/restic:${VERSION_RESTIC}#" ./Dockerfile
+
+rm -f ./README.md.bak ./Dockerfile.bak
 
 docker buildx build --no-cache --platform linux/amd64,linux/arm64 --push -t marc0janssen/restic-backup-helper:${NEW_RELEASE} -t marc0janssen/restic-backup-helper:latest -f ./Dockerfile .
 #docker buildx build --no-cache --platform linux/amd64,linux/arm64 --push -t marc0janssen/restic-backup-helper:${NEW_RELEASE} -f ./Dockerfile .
