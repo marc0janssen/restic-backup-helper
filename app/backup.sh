@@ -66,10 +66,26 @@ logLast "RESTIC_REPOSITORY: ${MASKED_REPO}"
 # Perform backup
 if [ -n "${BACKUP_ROOT_DIR}" ]; then
   log "📦 Performing backup of ${BACKUP_ROOT_DIR}..."
+elif [ -n "${RESTIC_JOB_ARGS}" ]; then
+  log "📦 Performing backup using RESTIC_JOB_ARGS..."
 else
-  log "📦 Performing backup of serveral sources..."
+  log "📦 Performing backup with restic defaults..."
 fi
-restic backup "${BACKUP_ROOT_DIR}" ${RESTIC_JOB_ARGS} --tag="${RESTIC_TAG?"Missing environment variable RESTIC_TAG"}" >> "${LAST_LOGFILE}" 2>&1
+
+backup_cmd=(backup)
+
+if [ -n "${RESTIC_JOB_ARGS}" ]; then
+  read -r -a restic_job_args <<< "${RESTIC_JOB_ARGS}"
+  backup_cmd+=("${restic_job_args[@]}")
+fi
+
+backup_cmd+=("--tag=${RESTIC_TAG?"Missing environment variable RESTIC_TAG"}")
+
+if [ -n "${BACKUP_ROOT_DIR}" ]; then
+  backup_cmd+=("${BACKUP_ROOT_DIR}")
+fi
+
+restic "${backup_cmd[@]}" >> "${LAST_LOGFILE}" 2>&1
 backupRC=$?
 logLast "Finished backup at $(date +"%Y-%m-%d %a %H:%M:%S")"
 
