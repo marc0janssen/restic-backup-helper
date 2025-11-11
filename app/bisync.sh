@@ -61,9 +61,6 @@ else
   log "ℹ️ Pre-sync script not found..."
 fi
 
-# Record start time
-start=$(date +%s)
-
 # Note sync start
 log "🔄 Starting Sync at $(date +"%Y-%m-%d %a %H:%M:%S")"
 
@@ -84,11 +81,13 @@ if [[ -n "${SYNC_JOB_ARGS}" ]]; then
   unset RAW_SYNC_JOB_ARGS
 fi
 
-# Set possible sync errors to no errors
-syncHasNoError=0
+# Track sync errors across all jobs
+syncHasError=0
+overallRC=0
 
 # Perform sync
 while IFS= read -r line; do
+  job_start=$(date +%s)
   # Skip empty lines and comment lines
     [[ -z "${line}" || "${line}" == \#* ]] && continue
 
@@ -114,7 +113,7 @@ while IFS= read -r line; do
   else
     errorlog "❌ Sync Failed with Status ${syncRC}"
     copyErrorLog
-    
+
     # Recovery procedure
     errorlog "🚨 Starting recovery procedure for ${SYNC_SOURCE}..."
     
@@ -124,6 +123,12 @@ while IFS= read -r line; do
     rclone_copy_cmd+=("${SYNC_JOB_ARGS_ARRAY[@]}")
     "${rclone_copy_cmd[@]}" >> "${LAST_LOGFILE}" 2>&1
     copy1RC=$?
+    if [ $copy1RC -ne 0 ]; then
+      syncHasError=1
+      if [ $overallRC -eq 0 ]; then
+        overallRC=$copy1RC
+      fi
+    fi
 
     # Step 2: Update source from destination
     log "🔄 Step 2: Updating from ${SYNC_DESTINATION} to ${SYNC_SOURCE}"
@@ -131,7 +136,13 @@ while IFS= read -r line; do
     rclone_copy_cmd+=("${SYNC_JOB_ARGS_ARRAY[@]}")
     "${rclone_copy_cmd[@]}" >> "${LAST_LOGFILE}" 2>&1
     copy2RC=$?
-    
+    if [ $copy2RC -ne 0 ]; then
+      syncHasError=1
+      if [ $overallRC -eq 0 ]; then
+        overallRC=$copy2RC
+      fi
+    fi
+
     # Step 3: Resync if both copies were successful
     if [ $copy1RC -eq 0 ] && [ $copy2RC -eq 0 ]; then
       log "🔄 Step 3: Performing full resync between ${SYNC_SOURCE} and ${SYNC_DESTINATION}"
@@ -144,35 +155,47 @@ while IFS= read -r line; do
         errorlog "✅ Recovery Successful - All steps completed"
       else
         errorlog "❌ Recovery Failed - Resync failed with status ${syncRC}"
-        syncHasNoError=1
+        syncHasError=1
+        if [ $overallRC -eq 0 ]; then
+          overallRC=$syncRC
+        fi
       fi
     else
       # Detailed error reporting
       if [ $copy1RC -ne 0 ] && [ $copy2RC -ne 0 ]; then
         errorlog "❌ Recovery Failed - Both update operations failed"
+        if [ $overallRC -eq 0 ]; then
+          overallRC=$copy1RC
+        fi
       elif [ $copy1RC -ne 0 ]; then
         errorlog "❌ Recovery Failed - Source to destination update failed with status ${copy1RC}"
+        if [ $overallRC -eq 0 ]; then
+          overallRC=$copy1RC
+        fi
       else
         errorlog "❌ Recovery Failed - Destination to source update failed with status ${copy2RC}"
+        if [ $overallRC -eq 0 ]; then
+          overallRC=$copy2RC
+        fi
       fi
     fi
-    
+
     # Log final recovery status
     log "📊 Recovery Exitcode Summary: Source→Dest=${copy1RC}, Dest→Source=${copy2RC}, Resync=${syncRC}"
   fi
 
   # Record end time
   end=$(date +%s)
-  duration=$((end-start))
+  duration=$((end-job_start))
   minutes=$((duration / 60))
   seconds=$((duration % 60))
 
   log "🏁 Finished sync at $(date +"%Y-%m-%d %a %H:%M:%S") after ${minutes}m ${seconds}s"
-  
+
 done < "${SYNC_JOB_FILE}"
 
 # Send mail notification
-if [ -n "${MAILX_RCPT}" ] && [ $syncHasNoError -ne 0 ]; then
+if [ -n "${MAILX_RCPT}" ] && [ $syncHasError -ne 0 ]; then
   log "📧 Sending email notification to ${MAILX_RCPT}..."
   if sh -c "mail -v -s 'Result of the last ${HOSTNAME} sync' ${MAILX_RCPT} < ${LAST_LOGFILE} > ${LAST_MAIL_LOGFILE} 2>&1"; then
     log "✅ Mail notification successfully sent"
@@ -184,9 +207,9 @@ fi
 # Check if post-sync script exists and execute it
 if [ -f "/hooks/post-sync.sh" ]; then
   log "🚀 Starting post-sync script..."
-  /hooks/post-sync.sh $syncRC
+  /hooks/post-sync.sh $overallRC
 else
   log "ℹ️ Post-sync script not found..."
 fi
 
-exit $syncRC
+exit $overallRC

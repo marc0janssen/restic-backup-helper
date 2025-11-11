@@ -11,8 +11,37 @@ LAST_CHECK_LOGFILE="/var/log/check-last.log"
 LAST_ERROR_CHECK_LOGFILE="/var/log/check-error-last.log"
 LAST_MAIL_LOGFILE="/var/log/check-mail-last.log"
 
-# Masked variables
-MASKED_REPO=$(echo "${RESTIC_REPOSITORY}" | sed -E 's#(https://[^:]+:)[^@]+(@)#\1***\2#')
+# Mask repository credentials before logging
+mask_repository() {
+  local repo="$1"
+  local rest="$repo"
+  local masked=""
+  local before after last_part prefix
+
+  while [[ "$rest" == *"@"* ]]; do
+    before="${rest%%@*}"
+    after="${rest#*@}"
+    last_part="${before##*/}"
+
+    if [[ "$before" == *":"* && "$last_part" == *":"* ]]; then
+      prefix="${before%:*}"
+      masked+="${prefix}:***@"
+    else
+      masked+="${before}@"
+    fi
+
+    rest="$after"
+  done
+
+  masked+="$rest"
+  printf '%s' "$masked"
+}
+
+if [ -n "${RESTIC_REPOSITORY}" ]; then
+  MASKED_REPO=$(mask_repository "${RESTIC_REPOSITORY}")
+else
+  MASKED_REPO="${RESTIC_REPOSITORY}"
+fi
 
 # Get releasenumber from file
 RELEASE=$(cat /.release)
