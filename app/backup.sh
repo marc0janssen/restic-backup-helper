@@ -11,8 +11,40 @@ LAST_LOGFILE="/var/log/backup-last.log"
 LAST_ERROR_LOGFILE="/var/log/backup-error-last.log"
 LAST_MAIL_LOGFILE="/var/log/backup-mail-last.log"
 
-# Masked variables
-MASKED_REPO=$(echo "${RESTIC_REPOSITORY}" | sed -E 's#(https://[^:]+:)[^@]+(@)#\1***\2#')
+# Mask repository credentials before logging
+if [ -n "${RESTIC_REPOSITORY}" ]; then
+  MASKED_REPO=$(python3 - "$RESTIC_REPOSITORY" <<'PY'
+import sys
+
+repo = sys.argv[1]
+masked_parts = []
+pos = 0
+
+while True:
+    at = repo.find('@', pos)
+    if at == -1:
+        masked_parts.append(repo[pos:])
+        break
+
+    segment = repo[pos:at]
+    colon = segment.rfind(':')
+    slash = segment.rfind('/')
+
+    if colon != -1 and colon > slash:
+        masked_parts.append(segment[:colon + 1])
+        masked_parts.append('***')
+    else:
+        masked_parts.append(segment)
+
+    masked_parts.append('@')
+    pos = at + 1
+
+print(''.join(masked_parts), end='')
+PY
+)
+else
+  MASKED_REPO="${RESTIC_REPOSITORY}"
+fi
 
 # Get releasenumber from file
 RELEASE=$(cat /.release)
