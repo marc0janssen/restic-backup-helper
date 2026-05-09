@@ -2,6 +2,12 @@
 
 ## Restic Backup Helper
 
+### 1.11.0-0.18.1 (2026-05-09)
+
+#### Changed
+
+- Rewrote **README.md** and **README-containers.md**: accurate defaults from the image, full environment matrix, hooks, volumes, compose patterns, backend notes (S3, SFTP, Rclone, Swift, NFS), logging, mail, sync behaviour, and operations (backup, check, restore, mount). Added CI status badges to Docker Hub readme alignment.
+
 ### 1.10.5-0.18.1 (2026-05-09)
 
 #### Changed
