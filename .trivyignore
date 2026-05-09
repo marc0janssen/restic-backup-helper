@@ -1,1 +1,7 @@
 # Repository-wide Trivy ignores (misconfigs, secrets false positives, accepted risks).
+
+# AVD-DS-0031 flags Dockerfile ENV names that look like credentials. This image
+# intentionally declares empty defaults for runtime injection (RESTIC_PASSWORD*,
+# OpenStack OS_*); values are not baked into layers as secrets.
+AVD-DS-0031
+DS-0031

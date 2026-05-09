@@ -2,6 +2,18 @@
 
 ## Restic Backup Helper
 
+### 1.10.3-0.18.1 (2026-05-09)
+
+#### Changed
+
+- Ignore Trivy **AVD-DS-0031** for the Dockerfile: empty `ENV` placeholders for runtime secrets are intentional, not leaked build-time credentials.
+
+### 1.10.2-0.18.1 (2026-05-09)
+
+#### Changed
+
+- `scripts/update-restic-base.sh` now bumps `VERSION` (patch), refreshes README release lines, prepends `CHANGELOG`, and syncs `VERSION_RESTIC` defaults when the Restic base tag changes (so drift/automation PRs satisfy the CI versioning guard).
+
 ### 1.10.1-0.18.1 (2026-05-09)
 
 #### Added
