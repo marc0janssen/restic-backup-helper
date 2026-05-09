@@ -62,6 +62,9 @@ main() {
 	docker compose -f ci/docker-compose.smoke.yml exec -T "${service}" \
 		sh -c 'test "${RESTIC_BACKUP_HELPER_RELEASE}" = "ci-smoke"'
 
+	log_info "Running config-check"
+	docker compose -f ci/docker-compose.smoke.yml run --rm --no-deps "${service}" config-check
+
 	log_info "Smoke test passed"
 }
 

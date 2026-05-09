@@ -2,6 +2,32 @@
 
 ## Restic Backup Helper
 
+### 1.11.3-0.18.1 (2026-05-09)
+
+#### Added
+
+- **`config-check`**: run the image with command `config-check` to validate `RESTIC_*` auth, `RESTIC_TAG`, backup paths (`BACKUP_ROOT_DIR` / `RESTIC_JOB_ARGS`), readable `RCLONE_CONFIG` when using `rclone:` repositories, and optional sync job file presence (warning only). Exits before cron/NFS/repo init.
+- **Dependabot** updates for GitHub Actions (`.github/dependabot.yml`).
+
+#### Changed
+
+- **`backup.sh`**: prominent warning when both `BACKUP_ROOT_DIR` and `RESTIC_JOB_ARGS` are empty (degenerate `restic backup` without paths).
+- **Docs**: Compose **HEALTHCHECK** examples (weak `restic version` vs strong `restic cat config`), **`RESTIC_PASSWORD_FILE`** with Docker Compose secrets and a minimal Kubernetes pattern, private-registry **`NO_PROXY`** troubleshooting.
+- **CI smoke**: `docker compose … run … config-check` with smoke compose env extended for validation.
+
+### 1.11.3-0.18.1 (2026-05-09)
+
+#### Added
+
+- **`config-check`** entrypoint mode: validate `RESTIC_REPOSITORY`, repository auth, `RESTIC_TAG`, backup paths (`BACKUP_ROOT_DIR` / `RESTIC_JOB_ARGS`), readable `rclone.conf` when using an `rclone:` repo, and warn when `SYNC_CRON` is set without a non-empty `SYNC_JOB_FILE`.
+- **Dependabot** (weekly) for GitHub Actions workflow dependency updates.
+
+#### Changed
+
+- **`backup.sh`**: log a clear warning when both `BACKUP_ROOT_DIR` and `RESTIC_JOB_ARGS` are empty (degenerate `restic backup` without explicit paths).
+- **Docs**: Compose **HEALTHCHECK** weak (`restic version`) vs strong (`restic cat config`) examples; **`RESTIC_PASSWORD_FILE`** with Compose **secrets**; private registry / proxy **`NO_PROXY`** troubleshooting; **`config-check`** usage.
+- **CI smoke test** runs `docker compose … run … config-check`; smoke compose sets `RESTIC_TAG` and `BACKUP_ROOT_DIR` so checks reflect a typical layout.
+
 ### 1.11.2-0.18.1 (2026-05-09)
 
 #### Changed

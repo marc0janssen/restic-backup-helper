@@ -18,7 +18,7 @@ Ideas and planned enhancements for **restic-backup-helper**. Ordering is not str
 - [ ] Optional **webhook** after backup / check / sync (HTTPS POST with exit code, duration, hostname; configurable URL + optional secret header).
 - [ ] Optional **`last-run.json`** (or similar) under `/var/log` with timestamps and exit codes for external tooling.
 - [ ] **Prometheus** metrics endpoint or simple **node_exporter textfile** companion doc (push gateway pattern).
-- [ ] Documented **Compose HEALTHCHECK** recipes (weak vs strong: `restic version` vs `restic cat config` / `snapshots`).
+- [x] Documented **Compose HEALTHCHECK** recipes (weak vs strong: `restic version` vs `restic cat config` / `snapshots`) — 1.11.3-0.18.1.
 
 ---
 
@@ -26,7 +26,7 @@ Ideas and planned enhancements for **restic-backup-helper**. Ordering is not str
 
 - [ ] First-class **`RESTIC_CACERT`** (or documented `--cacert`) wiring in backup/check entry paths without relying only on `RESTIC_JOB_ARGS`.
 - [ ] Optional **separate cron for `prune`** (decouple retention from post-backup `forget`).
-- [ ] **`RESTIC_PASSWORD_FILE`** + **Docker/Kubernetes secrets** as primary examples in README / Compose samples.
+- [x] **`RESTIC_PASSWORD_FILE`** + **Docker/Kubernetes secrets** as primary examples in README / Compose samples — 1.11.3-0.18.1.
 - [ ] Pre/post **hook timeouts** and clearer logging of hook exit codes (today hooks run without enforced timeout).
 
 ---
@@ -41,8 +41,8 @@ Ideas and planned enhancements for **restic-backup-helper**. Ordering is not str
 
 ## UX & operations
 
-- [ ] **`config-check` mode**: entrypoint or script that validates env + critical paths/mounts and exits non-zero before starting cron (CI / smoke friendly).
-- [ ] Clearer behaviour when **`BACKUP_ROOT_DIR` is empty** (warn loudly or documented single recommended pattern).
+- [x] **`config-check` mode**: entrypoint or script that validates env + critical paths/mounts and exits non-zero before starting cron (CI / smoke friendly) — 1.11.3-0.18.1.
+- [x] Clearer behaviour when **`BACKUP_ROOT_DIR` is empty** (warn loudly or documented single recommended pattern) — 1.11.3-0.18.1.
 - [ ] **`RESTIC_TAG`** ergonomics: stronger validation message or optional safe default policy (breaking change — needs semver note).
 
 ---
@@ -64,5 +64,5 @@ Ideas and planned enhancements for **restic-backup-helper**. Ordering is not str
 ## Docs & CI
 
 - [ ] **Kubernetes** example manifest: `Secret`/`env`, `SecurityContext`, optional `emptyDir` cache, no plaintext passwords in YAML.
-- [ ] **Private registry** troubleshooting (proxy `NO_PROXY`, TLS to LAN registry) in README FAQ.
-- [ ] **Dependabot** (or Renovate) for GitHub Actions pin bumps.
+- [x] **Private registry** troubleshooting (proxy `NO_PROXY`, TLS to LAN registry) in README FAQ — 1.11.3-0.18.1.
+- [x] **Dependabot** (or Renovate) for GitHub Actions pin bumps — 1.11.3-0.18.1 (Dependabot weekly on `/`).

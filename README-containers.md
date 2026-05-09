@@ -12,20 +12,20 @@ Scheduled [Restic](https://restic.net) backups, optional `restic check`, optiona
 
 ## Release
 
-release: 1.11.2-0.18.1
+release: 1.11.3-0.18.1
 
 **Stable**
 
 ```shell
 docker pull marc0janssen/restic-backup-helper:latest
-docker pull marc0janssen/restic-backup-helper:1.11.2-0.18.1
+docker pull marc0janssen/restic-backup-helper:1.11.3-0.18.1
 ```
 
 **Development (experimental)**
 
 ```shell
 docker pull marc0janssen/restic-backup-helper:develop
-docker pull marc0janssen/restic-backup-helper:1.11.2-0.18.1-dev
+docker pull marc0janssen/restic-backup-helper:1.11.4-0.18.1-dev
 ```
 
 ---
@@ -35,7 +35,7 @@ docker pull marc0janssen/restic-backup-helper:1.11.2-0.18.1-dev
 | Tag | Meaning |
 | --- | --- |
 | `latest` | Current stable |
-| `<semver>-<restic>` | Pinned stable (helper version + Restic base), e.g. `1.11.2-0.18.1` |
+| `<semver>-<restic>` | Pinned stable (helper version + Restic base), e.g. `1.11.3-0.18.1` |
 | `develop` | Latest testing build |
 | `<semver>-<restic>-dev` | Pinned testing image |
 
@@ -49,6 +49,7 @@ docker pull marc0janssen/restic-backup-helper:1.11.2-0.18.1-dev
 | **Check** | `CHECK_CRON` (if set) → `/bin/check` |
 | **Sync** | `SYNC_CRON` (if set) → `/bin/bisync` reading `SYNC_JOB_FILE` |
 | **Log rotate** | `ROTATE_LOG_CRON` → `/bin/rotate_log` for `cron.log` |
+| **Config check** | One-shot `docker run … config-check` (same env as prod) validates settings without cron |
 
 Startup (`/entry.sh`) can verify/init the repo when `RESTIC_CHECK_REPOSITORY_STATUS=ON`. Jobs use **`flock`** locks (`/var/run/*.lock`).
 

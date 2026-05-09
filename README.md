@@ -46,6 +46,7 @@ If this image saves you time, you can [leave a tip on Ko-fi](https://ko-fi.com/m
 - **Scheduled integrity check** via `/bin/check` when `CHECK_CRON` is non-empty.
 - **Scheduled Rclone bisync** via `/bin/bisync` when `SYNC_CRON` and a valid `SYNC_JOB_FILE` are configured.
 - **Repository probe on startup**: when `RESTIC_CHECK_REPOSITORY_STATUS=ON`, the entrypoint runs `restic snapshots`; if the repo is missing it attempts `restic init` (requires a valid `RESTIC_PASSWORD` / `RESTIC_PASSWORD_FILE`).
+- **Configuration check**: run `docker run … config-check` with the same env as production to validate credentials and backup paths without starting cron (CI-friendly).
 - **Concurrency**: each job uses `flock` on a dedicated lock file so overlapping runs do not corrupt state.
 - **Based on** [`restic/restic`](https://hub.docker.com/r/restic/restic) Alpine image; Restic version follows the `FROM restic/restic:<tag>` line in this repo’s `Dockerfile`.
 
@@ -53,12 +54,12 @@ If this image saves you time, you can [leave a tip on Ko-fi](https://ko-fi.com/m
 
 ## Image tags and release
 
-release: 1.11.2-0.18.1
+release: 1.11.3-0.18.1
 
 | Train | When to use | Example pull |
 | --- | --- | --- |
-| **Stable** | Production | `docker pull marc0janssen/restic-backup-helper:latest` or pinned `marc0janssen/restic-backup-helper:1.11.2-0.18.1` |
-| **Testing** | Pre-release / CI | `docker pull marc0janssen/restic-backup-helper:develop` or `marc0janssen/restic-backup-helper:1.11.2-0.18.1-dev` |
+| **Stable** | Production | `docker pull marc0janssen/restic-backup-helper:latest` or pinned `marc0janssen/restic-backup-helper:1.11.3-0.18.1` |
+| **Testing** | Pre-release / CI | `docker pull marc0janssen/restic-backup-helper:develop` or `marc0janssen/restic-backup-helper:1.11.4-0.18.1-dev` |
 
 Pinned tags let you lock both **helper semver** and **Restic base** (`<semver>-<restic>`).
 
@@ -267,7 +268,29 @@ volumes:
   backup-logs:
 ```
 
-**Health checks:** Tailor `healthcheck` to your repo URL and credentials; `restic cat config` or `restic snapshots` are common choices when the repository is reachable from the container.
+**Health checks:** choose how hard you want Compose to probe the repository.
+
+- **Weak** — only verifies the Restic binary (no repository access):
+
+```yaml
+healthcheck:
+  test: ["CMD", "restic", "version"]
+  interval: 5m
+  timeout: 10s
+  retries: 3
+```
+
+- **Strong** — fails if credentials or repository reachability break (uses `RESTIC_*` env inside the container; compare [`scripts/docker-compose.yml`](scripts/docker-compose.yml)):
+
+```yaml
+healthcheck:
+  test: ["CMD-SHELL", "restic cat config >/dev/null 2>&1 || exit 1"]
+  interval: 15m
+  timeout: 30s
+  start_period: 1m
+```
+
+`restic snapshots` is a heavier alternative when you want an end-to-end read against the repo.
 
 ---
 
@@ -348,6 +371,17 @@ docker exec -ti restic-backup-helper restic snapshots
 docker exec -ti restic-backup-helper restic restore latest --target /restore
 ```
 
+**Configuration check** — validate env and critical paths before relying on cron (exits `0` or `1`; does not run `restic backup`):
+
+```shell
+docker run --rm \
+  --env-file restic.env \
+  -v /srv/documents:/data:ro \
+  -v ./config:/config:ro \
+  marc0janssen/restic-backup-helper:latest \
+  config-check
+```
+
 **FUSE mount inside the container** (browse snapshots):
 
 ```shell
@@ -363,7 +397,23 @@ docker run --rm -it --cap-add SYS_ADMIN --device /dev/fuse \
 ## Security
 
 - Never bake repository passwords, API keys, or mail credentials into images.
-- Prefer secrets, env files ignored by git, or orchestrator secret mounts.
+- Prefer **`RESTIC_PASSWORD_FILE`** (Restic standard) over `RESTIC_PASSWORD` when you can mount a secret as a file. Docker Compose example:
+
+```yaml
+secrets:
+  restic_password:
+    file: ./restic.password
+services:
+  restic:
+    secrets:
+      - restic_password
+    environment:
+      RESTIC_PASSWORD_FILE: /run/secrets/restic_password
+```
+
+On Kubernetes, mount a `Secret` as a volume (or use `subPath`) and set `RESTIC_PASSWORD_FILE` to that path so the literal password does not appear in Pod spec env values.
+
+- Prefer secrets, env files ignored by git, or orchestrator secret mounts for other sensitive values.
 - Restrict mounts (`:ro` where possible) for backup sources and SSH keys.
 - Review logs before forwarding them by mail (paths or URLs might be sensitive).
 - **`MAILX_RCPT`** is passed as a single quoted argument to `mail` (no `sh -c` wrapper). Treat it as trusted configuration; odd characters in addresses are discouraged.
@@ -380,6 +430,7 @@ docker run --rm -it --cap-add SYS_ADMIN --device /dev/fuse \
 | Cron “wrong timezone” | Set **`TZ`** and restart the container. |
 | Rclone auth breaks | Ensure `rclone.conf` is writable if the backend refreshes tokens. |
 | Permission denied on source | Match UID/GID or ACLs on mounted volumes; avoid overly broad `:privileged` unless required. |
+| Pull / push fails via corporate proxy to a **private registry** or LAN host | Add the registry hostname or LAN ranges to **`NO_PROXY`** / **`no_proxy`** (e.g. `192.168.0.0/16,.internal,myregistry.local`) so Docker talks directly; verify TLS to internal registries. |
 
 ---
 

@@ -10,6 +10,8 @@ services:
     environment:
       RESTIC_REPOSITORY: /data/repo
       RESTIC_PASSWORD: ci-smoke-test-password-not-for-production
+      RESTIC_TAG: ci-smoke
+      BACKUP_ROOT_DIR: /data
       RESTIC_CHECK_REPOSITORY_STATUS: "ON"
       BACKUP_CRON: "0 0 31 2 *"
       CHECK_CRON: ""

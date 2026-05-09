@@ -6,6 +6,56 @@
 # Description: Container startup script for Restic Backup Helper
 # =========================================================
 
+run_config_check() {
+	local err=0
+	local sjf rc_file
+
+	echo "[config-check] Validating configuration..."
+	if [ -z "${RESTIC_REPOSITORY:-}" ]; then
+		echo "[config-check] ERROR: RESTIC_REPOSITORY is empty." >&2
+		err=1
+	fi
+	if [ -n "${RESTIC_PASSWORD_FILE:-}" ]; then
+		if [ ! -r "${RESTIC_PASSWORD_FILE}" ]; then
+			echo "[config-check] ERROR: RESTIC_PASSWORD_FILE is not readable: ${RESTIC_PASSWORD_FILE}" >&2
+			err=1
+		fi
+	elif [ -z "${RESTIC_PASSWORD:-}" ]; then
+		echo "[config-check] ERROR: Set RESTIC_PASSWORD or RESTIC_PASSWORD_FILE." >&2
+		err=1
+	fi
+	if [ -z "${RESTIC_TAG:-}" ]; then
+		echo "[config-check] ERROR: RESTIC_TAG is empty." >&2
+		err=1
+	fi
+	if [ -z "${BACKUP_ROOT_DIR:-}" ] && [ -z "${RESTIC_JOB_ARGS:-}" ]; then
+		echo "[config-check] ERROR: BACKUP_ROOT_DIR and RESTIC_JOB_ARGS are both empty (no backup paths)." >&2
+		err=1
+	fi
+	if [[ "${RESTIC_REPOSITORY:-}" == rclone:* ]]; then
+		rc_file="${RCLONE_CONFIG:-/config/rclone.conf}"
+		if [ ! -r "${rc_file}" ]; then
+			echo "[config-check] ERROR: Rclone repository configured but ${rc_file} is not readable." >&2
+			err=1
+		fi
+	fi
+	if [ -n "${SYNC_CRON:-}" ]; then
+		sjf="${SYNC_JOB_FILE:-/config/sync_jobs.txt}"
+		if [ ! -s "${sjf}" ]; then
+			echo "[config-check] WARN: SYNC_CRON is set but ${sjf} is missing or empty." >&2
+		fi
+	fi
+	if [ "${err}" -eq 0 ]; then
+		echo "[config-check] OK."
+	fi
+	return "${err}"
+}
+
+if [ "${1:-}" = "config-check" ]; then
+	run_config_check
+	exit $?
+fi
+
 # Masked variables with ******
 MASKED_REPO=$(echo "${RESTIC_REPOSITORY}" | sed -E 's#(https://[^:]+:)[^@]+(@)#\1***\2#')
 

@@ -92,6 +92,10 @@ logLast "RESTIC_FORGET_ARGS: ${RESTIC_FORGET_ARGS}"
 logLast "RESTIC_JOB_ARGS: ${RESTIC_JOB_ARGS}"
 logLast "RESTIC_REPOSITORY: ${MASKED_REPO}"
 
+if [ -z "${BACKUP_ROOT_DIR:-}" ] && [ -z "${RESTIC_JOB_ARGS:-}" ]; then
+	log "⚠️ WARNING: BACKUP_ROOT_DIR and RESTIC_JOB_ARGS are both empty — restic will run without explicit backup paths (usually unintended). Set at least one of them."
+fi
+
 # Perform backup
 if [ -n "${BACKUP_ROOT_DIR}" ]; then
 	log "📦 Performing backup of ${BACKUP_ROOT_DIR}..."
