@@ -2,6 +2,12 @@
 
 ## Restic Backup Helper
 
+### 1.11.2-0.18.1 (2026-05-09)
+
+#### Changed
+
+- Expanded **BACKLOG.md** with grouped future ideas (observability, Restic ops, security, UX, sync, scale, docs/CI).
+
 ### 1.11.1-0.18.1 (2026-05-09)
 
 #### Security
