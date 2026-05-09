@@ -1,0 +1,61 @@
+name: Security Scan
+
+on:
+  push:
+  pull_request:
+  schedule:
+    - cron: "43 5 * * 2"
+  workflow_dispatch:
+
+jobs:
+  trivy-filesystem:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      security-events: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Run Trivy SARIF scan
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          format: sarif
+          output: trivy-results.sarif
+          trivyignores: .trivyignore
+          ignore-unfixed: true
+          severity: CRITICAL,HIGH,MEDIUM,LOW
+          scanners: vuln,misconfig,secret
+
+      - name: Upload Trivy SARIF
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-results.sarif
+
+      - name: Enforce security severity gate
+        env:
+          TRIVY_FAIL_SEVERITY: ${{ vars.TRIVY_FAIL_SEVERITY || 'CRITICAL' }}
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          format: table
+          output: trivy-gate-results.txt
+          exit-code: 1
+          trivyignores: .trivyignore
+          ignore-unfixed: true
+          severity: ${{ env.TRIVY_FAIL_SEVERITY }}
+          scanners: vuln,misconfig,secret
+
+      - name: Upload security scan diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-scan-diagnostics
+          path: |
+            trivy-results.sarif
+            trivy-gate-results.txt

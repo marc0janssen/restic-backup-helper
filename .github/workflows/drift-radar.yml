@@ -1,0 +1,151 @@
+name: Drift Radar
+
+on:
+  schedule:
+    - cron: "17 6 * * 1"
+  workflow_dispatch:
+  pull_request:
+    branches:
+      - develop
+
+jobs:
+  dependency-drift-radar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Run dependency drift radar
+        id: drift
+        run: |
+          chmod +x ./scripts/ci-drift-radar.sh
+          ./scripts/ci-drift-radar.sh
+
+      - name: Create or update drift issue
+        if: steps.drift.outputs.drift_detected == 'yes' && github.event_name != 'pull_request'
+        uses: actions/github-script@v8
+        env:
+          DRIFT_BODY: ${{ steps.drift.outputs.summary_body }}
+          DRIFT_COUNT: ${{ steps.drift.outputs.drift_count }}
+        with:
+          script: |
+            const title = "Dependency drift radar: Restic base image updates available";
+            const labels = ["dependencies", "maintenance", "drift-radar"];
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const runUrl = `${context.serverUrl}/${owner}/${repo}/actions/runs/${context.runId}`;
+            const body = [
+              "Automated drift report: pinned `restic/restic` base in Dockerfile differs from latest GitHub release.",
+              "",
+              process.env.DRIFT_BODY || "",
+              "",
+              `- Workflow run: ${runUrl}`,
+              `- Drift count: ${process.env.DRIFT_COUNT || "unknown"}`
+            ].join("\n");
+
+            const { data: existingIssues } = await github.rest.issues.listForRepo({
+              owner,
+              repo,
+              state: "open",
+              labels: "drift-radar",
+              per_page: 100
+            });
+
+            const issue = existingIssues.find((item) => item.title === title);
+            if (issue) {
+              await github.rest.issues.update({
+                owner,
+                repo,
+                issue_number: issue.number,
+                body
+              });
+              core.info(`Updated existing drift issue #${issue.number}`);
+            } else {
+              const { data: created } = await github.rest.issues.create({
+                owner,
+                repo,
+                title,
+                body,
+                labels
+              });
+              core.info(`Created drift issue #${created.number}`);
+            }
+
+      - name: Close drift issue when no drift
+        if: steps.drift.outputs.drift_detected == 'no' && github.event_name != 'pull_request'
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const title = "Dependency drift radar: Restic base image updates available";
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const runUrl = `${context.serverUrl}/${owner}/${repo}/actions/runs/${context.runId}`;
+            const { data: existingIssues } = await github.rest.issues.listForRepo({
+              owner,
+              repo,
+              state: "open",
+              labels: "drift-radar",
+              per_page: 100
+            });
+            const issue = existingIssues.find((item) => item.title === title);
+            if (!issue) {
+              core.info("No open drift issue found to close");
+              return;
+            }
+            await github.rest.issues.createComment({
+              owner,
+              repo,
+              issue_number: issue.number,
+              body: `Dependency drift radar reports no drift. Closing automatically.\n\n- Workflow run: ${runUrl}`
+            });
+            await github.rest.issues.update({
+              owner,
+              repo,
+              issue_number: issue.number,
+              state: "closed"
+            });
+            core.info(`Closed drift issue #${issue.number}`);
+
+      - name: Prepare drift auto-refresh branch
+        id: autoprep
+        if: steps.drift.outputs.drift_detected == 'yes' && github.event_name != 'pull_request'
+        run: |
+          set -eu
+          latest="${{ steps.drift.outputs.latest_restic_tag }}"
+          current="${{ steps.drift.outputs.current_restic_tag }}"
+          changed=no
+          if [ "${current}" != "${latest}" ]; then
+            chmod +x ./scripts/update-restic-base.sh
+            ./scripts/update-restic-base.sh ./Dockerfile "${latest}"
+            changed=yes
+          fi
+          echo "changed=${changed}" >> "${GITHUB_OUTPUT}"
+
+      - name: Create or update drift refresh PR
+        if: steps.drift.outputs.drift_detected == 'yes' && steps.autoprep.outputs.changed == 'yes' && github.event_name != 'pull_request'
+        uses: peter-evans/create-pull-request@v6
+        with:
+          commit-message: "chore: refresh Restic base image from drift radar"
+          branch: "automation/drift-radar-restic-base"
+          delete-branch: true
+          title: "chore: refresh Restic base image from drift radar"
+          body: |
+            ## Summary
+            - Bump pinned `FROM restic/restic` using `./scripts/update-restic-base.sh`
+            - Review upstream Restic release notes before merging; align `VERSION_RESTIC` in build env files if your release train requires it
+
+            ## Source
+            - Scheduled drift radar workflow
+            - Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          labels: |
+            dependencies
+            maintenance
+            drift-radar

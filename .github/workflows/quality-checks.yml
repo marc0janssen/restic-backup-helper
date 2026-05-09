@@ -1,0 +1,47 @@
+name: Quality Checks
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  shell-quality:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Install quality tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y shellcheck shfmt
+
+      - name: Run shell quality checks
+        env:
+          CI_CONVENTIONAL_COMMIT_LINT: ${{ vars.CI_CONVENTIONAL_COMMIT_LINT || 'false' }}
+          CI_CONVENTIONAL_COMMIT_RANGE: ${{ github.event_name == 'pull_request' && format('{0}..{1}', github.event.pull_request.base.sha, github.sha) || 'HEAD~20..HEAD' }}
+        run: |
+          chmod +x ./scripts/ci-quality-checks.sh
+          ./scripts/ci-quality-checks.sh
+
+      - name: Collect diagnostics on failure
+        if: failure()
+        run: |
+          {
+            echo "## git status --short"
+            git status --short
+            echo
+            echo "## git diff --stat"
+            git diff --stat
+          } > quality-failure-diagnostics.txt
+
+      - name: Upload quality diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: quality-failure-diagnostics
+          path: quality-failure-diagnostics.txt

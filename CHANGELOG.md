@@ -2,6 +2,12 @@
 
 ## Restic Backup Helper
 
+### 1.10.1-0.18.1 (2026-05-09)
+
+#### Added
+
+- GitHub Actions workflows aligned with `marc0janssen/nzbgetvpn`: quality checks (`shellcheck`, `shfmt`), Docker smoke test, Trivy security scan, release orchestration on tags, and weekly drift radar for `restic/restic` base image updates.
+
 ### 1.10.0-0.18.1 (2026-05-09)
 
 #### Added

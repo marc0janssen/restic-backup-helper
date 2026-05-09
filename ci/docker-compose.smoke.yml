@@ -1,0 +1,24 @@
+services:
+  restic-smoke:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+      args:
+        RESTIC_BACKUP_HELPER_RELEASE: ci-smoke
+    image: restic-backup-helper:ci-smoke
+    container_name: restic-smoke
+    environment:
+      RESTIC_REPOSITORY: /data/repo
+      RESTIC_PASSWORD: ci-smoke-test-password-not-for-production
+      RESTIC_CHECK_REPOSITORY_STATUS: "ON"
+      BACKUP_CRON: "0 0 31 2 *"
+      CHECK_CRON: ""
+      SYNC_CRON: ""
+      ROTATE_LOG_CRON: "0 0 31 2 *"
+    volumes:
+      - restic-smoke-data:/data
+    command: ["tail", "-fn0", "/var/log/cron.log"]
+    restart: "no"
+
+volumes:
+  restic-smoke-data:
