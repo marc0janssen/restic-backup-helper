@@ -163,6 +163,7 @@ RELEASE="${image_version}-${VERSION_RESTIC}-dev"
 docker buildx build --no-cache --platform "${PLATFORM_ARG}" --push \
 	--build-arg "RESTIC_BACKUP_HELPER_RELEASE=${RELEASE}" \
 	-t "${LOCAL_REPO_ARG}:testing" \
+	-t "${LOCAL_REPO_ARG}:${RELEASE}" \
 	-f ./Dockerfile .
 
 echo ""
