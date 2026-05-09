@@ -11,8 +11,7 @@ LAST_LOGFILE="/var/log/sync-last.log"
 LAST_ERROR_LOGFILE="/var/log/sync-error-last.log"
 LAST_MAIL_LOGFILE="/var/log/sync-mail-last.log"
 
-# Get releasenumber from file
-RELEASE=$(cat /.release)
+RELEASE="${RESTIC_BACKUP_HELPER_RELEASE:-unknown}"
 
 # Function to copy error log
 copyErrorLog() {

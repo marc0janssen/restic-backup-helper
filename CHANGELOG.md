@@ -2,6 +2,18 @@
 
 ## Restic Backup Helper
 
+### 1.10.0-0.18.1 (2026-05-09)
+
+#### Added
+
+- `README-containers.md` for Docker Hub (`docker pushrm --file`).
+- `AGENTS.md` for coding agents; optional `build.env` / `build-testing.env`; `build-testing-local.sh` with env precedence fixes.
+- Release metadata in images via `ARG`/`ENV RESTIC_BACKUP_HELPER_RELEASE` and OCI labels (no repository `.release` file).
+
+#### Changed
+
+- Build scripts: shared `scripts/build-common.sh`, env loading and `RESTIC_BACKUP_HELPER_RELEASE` build-arg on all publish builds.
+
 ### 1.9.97-0.18.1 (2025-09-28)
 
 #### Changed

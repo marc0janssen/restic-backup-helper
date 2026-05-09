@@ -43,8 +43,8 @@ else
   MASKED_REPO="${RESTIC_REPOSITORY}"
 fi
 
-# Get releasenumber from file
-RELEASE=$(cat /.release)
+# Releasestring: ENV gezet bij image build (build-arg)
+RELEASE="${RESTIC_BACKUP_HELPER_RELEASE:-unknown}"
 
 # Function to copy error log
 copyErrorLog() {

@@ -9,8 +9,8 @@
 # Masked variables with ******
 MASKED_REPO=$(echo "${RESTIC_REPOSITORY}" | sed -E 's#(https://[^:]+:)[^@]+(@)#\1***\2#')
 
-# Get releasenumber from file
-RELEASE=$(cat /.release)
+# Releasestring (ingesteld bij image build via build-arg, zie Dockerfile)
+RELEASE="${RESTIC_BACKUP_HELPER_RELEASE:-unknown}"
 
 echo "🌟 *************************************************"
 echo "🌟 ***           Restic Backup Helper            ***"
