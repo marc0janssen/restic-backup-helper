@@ -2,6 +2,12 @@
 
 ## Restic Backup Helper
 
+### 1.10.5-0.18.1 (2026-05-09)
+
+#### Changed
+
+- `ci-quality-checks.sh`: use `continue` in versioning guard `case` branch so `shfmt` output matches across Ubuntu CI vs local toolchains (no empty `;;` arm).
+
 ### 1.10.4-0.18.1 (2026-05-09)
 
 #### Changed

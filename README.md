@@ -26,18 +26,18 @@ Available at [marc0janssen/restic-backup-helper](https://hub.docker.com/reposito
 
 ### Release
 
-release: 1.10.4-0.18.1
+release: 1.10.5-0.18.1
 
 **Stable**
 ```shell
 docker pull marc0janssen/restic-backup-helper:latest
-docker pull marc0janssen/restic-backup-helper:1.10.4-0.18.1
+docker pull marc0janssen/restic-backup-helper:1.10.5-0.18.1
 ```
 
 **Development (Experimental)**
 ```shell
 docker pull marc0janssen/restic-backup-helper:develop
-docker pull marc0janssen/restic-backup-helper:1.10.4-0.18.1-dev
+docker pull marc0janssen/restic-backup-helper:1.10.5-0.18.1-dev
 ```
 
 ## Changelog

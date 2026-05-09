@@ -6,20 +6,20 @@ Docker image for scheduled [Restic](https://restic.net) backups, repository chec
 
 ## Release
 
-release: 1.10.4-0.18.1
+release: 1.10.5-0.18.1
 
 **Stable**
 
 ```shell
 docker pull marc0janssen/restic-backup-helper:latest
-docker pull marc0janssen/restic-backup-helper:1.10.4-0.18.1
+docker pull marc0janssen/restic-backup-helper:1.10.5-0.18.1
 ```
 
 **Development (experimental)**
 
 ```shell
 docker pull marc0janssen/restic-backup-helper:develop
-docker pull marc0janssen/restic-backup-helper:1.10.4-0.18.1-dev
+docker pull marc0janssen/restic-backup-helper:1.10.5-0.18.1-dev
 ```
 
 ## Tags
@@ -27,7 +27,7 @@ docker pull marc0janssen/restic-backup-helper:1.10.4-0.18.1-dev
 | Tag | Description |
 | --- | --- |
 | `latest` | Current stable image |
-| `<semver>-<restic>` | Pinned stable (e.g. `1.10.4-0.18.1`) |
+| `<semver>-<restic>` | Pinned stable (e.g. `1.10.5-0.18.1`) |
 | `develop` | Current testing / development image |
 | `<semver>-<restic>-dev` | Pinned testing build |
 
