@@ -77,8 +77,7 @@ run_version_metadata_guard() {
 
 	while IFS= read -r changed_file; do
 		case "${changed_file}" in
-		"" | VERSION | CHANGELOG.md | README.md | README-containers.md)
-			;;
+		"" | VERSION | CHANGELOG.md | README.md | README-containers.md) ;;
 		*)
 			has_non_metadata_change="1"
 			;;

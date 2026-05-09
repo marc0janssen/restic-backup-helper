@@ -139,8 +139,8 @@ jobs:
           title: "chore: refresh Restic base image from drift radar"
           body: |
             ## Summary
-            - Bump pinned `FROM restic/restic` using `./scripts/update-restic-base.sh`
-            - Review upstream Restic release notes before merging; align `VERSION_RESTIC` in build env files if your release train requires it
+            - Run `./scripts/update-restic-base.sh ./Dockerfile <tag>` (raises VERSION patch, syncs README/CHANGELOG, `VERSION_RESTIC` defaults in scripts/examples). Review changelog wording before merge.
+            - Read upstream Restic release notes for breaking changes.
 
             ## Source
             - Scheduled drift radar workflow

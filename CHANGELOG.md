@@ -2,6 +2,12 @@
 
 ## Restic Backup Helper
 
+### 1.10.4-0.18.1 (2026-05-09)
+
+#### Changed
+
+- Publish full `scripts/update-restic-base.sh` (VERSION patch, README/CHANGELOG, `VERSION_RESTIC` defaults) and align drift-radar messaging; `ci-quality-checks.sh` shfmt fix for empty `case` branch.
+
 ### 1.10.3-0.18.1 (2026-05-09)
 
 #### Changed

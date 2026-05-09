@@ -74,7 +74,7 @@ status_line() {
 		echo
 		echo "Suggested next actions:"
 		echo "- Review breaking changes in upstream Restic release notes."
-		echo "- Run \`./scripts/update-restic-base.sh ./Dockerfile ${latest_restic}\` and align \`VERSION_RESTIC\` in build env files."
+		echo "- Run \`./scripts/update-restic-base.sh ./Dockerfile ${latest_restic}\` (bumps VERSION patch, README/CHANGELOG, VERSION_RESTIC defaults)."
 	fi
 } >"${summary_file}"
 
