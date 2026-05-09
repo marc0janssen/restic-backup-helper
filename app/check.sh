@@ -131,7 +131,7 @@ if [ -n "${MAILX_RCPT}" ] && {
 	[ "${MAILX_ON_ERROR^^}" != "ON" ] || { [ "${MAILX_ON_ERROR^^}" == "ON" ] && [ "$checkRC" -ne 0 ]; }
 }; then
 	log "📧 Sending email notification to ${MAILX_RCPT}..."
-	if sh -c "mail -v -s 'Result of the last ${HOSTNAME} check run on ${MASKED_REPO}' ${MAILX_RCPT} < ${LAST_CHECK_LOGFILE} > ${LAST_MAIL_LOGFILE} 2>&1"; then
+	if mail -v -s "Result of the last ${HOSTNAME} check run on ${MASKED_REPO}" "${MAILX_RCPT}" <"${LAST_CHECK_LOGFILE}" >"${LAST_MAIL_LOGFILE}" 2>&1; then
 		log "✅ Mail notification successfully sent"
 	else
 		log "❌ Sending mail notification FAILED. Check ${LAST_MAIL_LOGFILE} for further information."

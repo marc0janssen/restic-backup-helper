@@ -2,6 +2,15 @@
 
 ## Restic Backup Helper
 
+### 1.11.1-0.18.1 (2026-05-09)
+
+#### Security
+
+- **Mail:** invoke `mail` with a quoted `"${MAILX_RCPT}"` recipient instead of `sh -c … ${MAILX_RCPT}` to prevent command injection from a malicious env value.
+- **Samples:** remove hardcoded repository/SMTP passwords from `scripts/docker-compose.yml` and `config/msmtprc`; require `.env` / local edits for secrets.
+- **Compose healthcheck** uses `restic cat config` with repository settings from container env (no baked URL).
+- **Trivy:** ignore **AVD-DS-0002** (non-root `USER`)—root is intentional for FUSE/NFS/cron in this image class; document mitigations in README.
+
 ### 1.11.0-0.18.1 (2026-05-09)
 
 #### Changed

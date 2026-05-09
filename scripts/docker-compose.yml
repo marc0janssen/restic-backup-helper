@@ -1,3 +1,8 @@
+# Example Compose stack — copy to your host and provide secrets via a `.env` file
+# (same directory) or exported variables. Do not commit `.env`.
+#
+# Required at runtime at minimum: RESTIC_REPOSITORY, RESTIC_PASSWORD, RESTIC_TAG.
+#
 version: '3'
 
 services:
@@ -5,7 +10,8 @@ services:
     container_name: restic-remote
     image: marc0janssen/restic-backup-helper:latest
     healthcheck:
-      test: ["CMD", "restic", "-r", "rclone:jottacloud:backups", "cat", "config"]
+      # Uses RESTIC_* env inside the container (no repo URL in this file).
+      test: ["CMD-SHELL", "restic cat config || exit 1"]
       interval: 15m
       timeout: 10s
       start_period: 1m
@@ -18,10 +24,10 @@ services:
     devices:
       - /dev/fuse
     environment:
-      - RESTIC_PASSWORD=Pa55w0rd
-      - RESTIC_TAG=your_tags_here
+      - RESTIC_REPOSITORY=${RESTIC_REPOSITORY}
+      - RESTIC_PASSWORD=${RESTIC_PASSWORD}
+      - RESTIC_TAG=${RESTIC_TAG:-daily}
       - RESTIC_FORGET_ARGS=--prune --keep-hourly 24 --keep-daily 7 --keep-weekly 5 --keep-monthly 12 --keep-yearly 10
-      - RESTIC_REPOSITORY=rclone:jottacloud:backups
       - RESTIC_JOB_ARGS=--exclude-file /config/exclude_files.txt
       - BACKUP_CRON=0 1,13 * * *
       - BACKUP_ROOT_DIR=/volume1/data

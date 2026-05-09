@@ -5,3 +5,10 @@
 # OpenStack OS_*); values are not baked into layers as secrets.
 AVD-DS-0031
 DS-0031
+
+# AVD-DS-0002 (non-root USER): This helper builds on restic/restic and runs
+# crond, optional FUSE mounts, and NFS client mounts as root—switching to an
+# unprivileged user would break typical deployments; mitigate with read-only
+# sources, minimal caps, and orchestrator policies instead.
+AVD-DS-0002
+DS-0002
