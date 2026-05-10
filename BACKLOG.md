@@ -32,7 +32,7 @@ Ideas and planned enhancements for **restic-backup-helper**. Ordering is not str
 - [x] Pre/post **hook timeouts** and clearer logging of hook exit codes via `HOOK_TIMEOUT` (default `0` = no timeout) and `/bin/lib.sh::run_hook` — 1.11.19-0.18.1.
 - [x] **Repository startup probe** distinguishes missing repository from transient failures: uses `restic cat config` and only runs `restic init` on exit code 10; aborts startup loudly with restic stderr on other non-zero exits — 1.11.20-0.18.1.
 - [ ] Review **automatic `restic unlock`** behaviour after backup/check errors; consider opt-in `RESTIC_AUTO_UNLOCK=ON` or safer stale-lock handling for multi-host repositories.
-- [ ] Improve cron **`flock -n` skipped-run logging** so an overlapping run records a clear "previous run still active, skipped" message instead of only a raw flock exit.
+- [x] Improve cron **`flock -n` skipped-run logging** via `/bin/locked_run` wrapper that logs `⏭ <job> skipped: previous run still active (lock <path>)` to `/var/log/cron.log` and exits 0 instead of an opaque non-zero `flock` exit; works with both util-linux and busybox flock — 1.11.25-0.18.1.
 
 ---
 

@@ -148,22 +148,22 @@ else
 fi
 
 echo "⏰ Setting up backup cron job with expression: ${BACKUP_CRON:-}"
-echo "${BACKUP_CRON:-} /usr/bin/flock -n /var/run/cron.lock /bin/backup >> /var/log/cron.log 2>&1" >/var/spool/cron/crontabs/root
+echo "${BACKUP_CRON:-} /bin/locked_run backup /var/run/cron.lock /bin/backup >> /var/log/cron.log 2>&1" >/var/spool/cron/crontabs/root
 
 # Setup check cron job if specified
 if [ -n "${CHECK_CRON:-}" ]; then
 	echo "⏰ Setting up check cron job with expression: ${CHECK_CRON}"
-	echo "${CHECK_CRON} /usr/bin/flock -n /var/run/check.lock /bin/check >> /var/log/cron.log 2>&1" >>/var/spool/cron/crontabs/root
+	echo "${CHECK_CRON} /bin/locked_run check /var/run/check.lock /bin/check >> /var/log/cron.log 2>&1" >>/var/spool/cron/crontabs/root
 fi
 
 # Setup sync cron job if specified
 if [ -n "${SYNC_CRON:-}" ]; then
 	echo "⏰ Setting up sync cron job with expression: ${SYNC_CRON}"
-	echo "${SYNC_CRON} /usr/bin/flock -n /var/run/bisync.lock /bin/bisync >> /var/log/cron.log 2>&1" >>/var/spool/cron/crontabs/root
+	echo "${SYNC_CRON} /bin/locked_run bisync /var/run/bisync.lock /bin/bisync >> /var/log/cron.log 2>&1" >>/var/spool/cron/crontabs/root
 fi
 
 echo "⏰ Setting up rotate log cron job with expression: ${ROTATE_LOG_CRON:-}"
-echo "${ROTATE_LOG_CRON:-} /usr/bin/flock -n /var/run/rotate_log.lock /bin/rotate_log >> /var/log/cron.log 2>&1" >>/var/spool/cron/crontabs/root
+echo "${ROTATE_LOG_CRON:-} /bin/locked_run rotate_log /var/run/rotate_log.lock /bin/rotate_log >> /var/log/cron.log 2>&1" >>/var/spool/cron/crontabs/root
 
 # Start the cron daemon
 touch /var/log/cron.log

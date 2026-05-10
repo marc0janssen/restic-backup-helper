@@ -2,6 +2,12 @@
 
 ## Restic Backup Helper
 
+### 1.11.25-0.18.1 (2026-05-10)
+
+#### Fixed
+
+- **Cron skipped-run visibility**: introduce **`/bin/locked_run`**, a small lock-aware wrapper that the cron entries written by `/entry.sh` now invoke instead of `/usr/bin/flock -n` directly. When a previous backup / check / sync / rotate is still running and the new cron tick cannot acquire the lock, the wrapper logs `[<timestamp>] ⏭ <job> skipped: previous run still active (lock <path>)` to `/var/log/cron.log` and exits `0`, instead of leaving cron with an opaque non-zero `flock` exit that disappears silently. Implemented with `exec 9>"<lock>"; flock -n 9` (FD form) so it works with both util-linux and busybox `flock` without depending on `flock -E`. Worker exit codes are passed through unchanged via `exec "$@"`; lock files (`/var/run/{cron,check,bisync,rotate_log}.lock`) are unchanged.
+
 ### 1.11.24-0.18.1 (2026-05-10)
 
 #### Changed
