@@ -2,6 +2,12 @@
 
 ## Restic Backup Helper
 
+### 1.11.5-0.18.1 (2026-05-09)
+
+#### Changed
+
+- **CI**: upgrade `actions/upload-artifact` from v4 to **v6** (runs on Node.js 24; avoids deprecated Node 20 action runtime).
+
 ### 1.11.4-0.18.1 (2026-05-09)
 
 #### Changed

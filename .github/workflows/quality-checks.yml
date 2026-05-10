@@ -41,7 +41,7 @@ jobs:
 
       - name: Upload quality diagnostics
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: quality-failure-diagnostics
           path: quality-failure-diagnostics.txt
