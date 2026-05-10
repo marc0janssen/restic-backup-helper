@@ -77,6 +77,71 @@ copyErrorLog() {
 	fi
 }
 
+# JSON-escape a string for inclusion as a JSON value. Handles backslash, quote
+# and the ASCII control range so callers do not need to depend on jq inside the
+# image. Multi-byte UTF-8 sequences are passed through as-is (valid JSON).
+json_escape() {
+	local s="$1"
+	s="${s//\\/\\\\}"
+	s="${s//\"/\\\"}"
+	s="${s//$'\b'/\\b}"
+	s="${s//$'\f'/\\f}"
+	s="${s//$'\n'/\\n}"
+	s="${s//$'\r'/\\r}"
+	s="${s//$'\t'/\\t}"
+	printf '%s' "$s"
+}
+
+# Format an epoch seconds value as ISO 8601 in the container's timezone.
+iso8601_local() {
+	date -d "@$1" +"%Y-%m-%dT%H:%M:%S%z" 2>/dev/null || date +"%Y-%m-%dT%H:%M:%S%z"
+}
+
+# Write a per-job last-run JSON document to /var/log/last-<job>.json. Intended
+# for external monitoring (no daemons or push gateways needed).
+#
+# Usage:
+#   write_last_run_json <job> <exit_code> <start_epoch> <end_epoch> [extra_key extra_value ...]
+#
+# Always-included fields: job, hostname, release, started_at, finished_at,
+# duration_seconds, exit_code. Extra positional pairs are added as string
+# fields (already JSON-escaped) so callers can attach details such as
+# "repository" (masked), "snapshot_id", "sync_jobs_processed", etc.
+write_last_run_json() {
+	local job="$1"
+	local exit_code="$2"
+	local start_epoch="$3"
+	local end_epoch="$4"
+	shift 4
+
+	local target="/var/log/last-${job}.json"
+	local tmp="${target}.tmp"
+	local started finished duration release hostname
+	started="$(iso8601_local "${start_epoch}")"
+	finished="$(iso8601_local "${end_epoch}")"
+	duration=$((end_epoch - start_epoch))
+	release="${RESTIC_BACKUP_HELPER_RELEASE:-unknown}"
+	hostname="${HOSTNAME:-$(hostname 2>/dev/null || echo unknown)}"
+
+	{
+		printf '{\n'
+		printf '  "job": "%s",\n' "$(json_escape "${job}")"
+		printf '  "hostname": "%s",\n' "$(json_escape "${hostname}")"
+		printf '  "release": "%s",\n' "$(json_escape "${release}")"
+		printf '  "started_at": "%s",\n' "$(json_escape "${started}")"
+		printf '  "finished_at": "%s",\n' "$(json_escape "${finished}")"
+		printf '  "duration_seconds": %d,\n' "${duration}"
+		# Optional string extras. Numbers should be passed as strings; consumers
+		# can coerce. Keeps the writer dependency-free.
+		while [ "$#" -ge 2 ]; do
+			printf '  "%s": "%s",\n' "$(json_escape "$1")" "$(json_escape "$2")"
+			shift 2
+		done
+		printf '  "exit_code": %d\n' "${exit_code}"
+		printf '}\n'
+	} >"${tmp}" && mv -f "${tmp}" "${target}"
+}
+
 # Populate the global RESTIC_CACERT_ARGS array with --cacert flags derived from
 # the RESTIC_CACERT environment variable. Empty array when RESTIC_CACERT is
 # unset; warns (without aborting) when set but the file is not readable so the

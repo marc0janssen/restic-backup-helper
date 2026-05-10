@@ -120,6 +120,12 @@ seconds=$((duration % 60))
 
 log "🏁 Finished backup at $(date +"%Y-%m-%d %a %H:%M:%S") after ${minutes}m ${seconds}s"
 
+# Persist a structured per-run summary for external monitoring.
+write_last_run_json "backup" "${backupRC}" "${start}" "${end}" \
+	"repository" "${MASKED_REPO}" \
+	"backup_root_dir" "${BACKUP_ROOT_DIR:-}" \
+	"restic_tag" "${RESTIC_TAG:-}"
+
 # Send mail notification (on failure if MAILX_ON_ERROR=ON, else always when MAILX_RCPT set)
 if [ -n "${MAILX_RCPT}" ] && {
 	[ "${MAILX_ON_ERROR^^}" != "ON" ] || { [ "${MAILX_ON_ERROR^^}" == "ON" ] && [ "$backupRC" -ne 0 ]; }

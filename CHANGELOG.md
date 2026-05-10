@@ -2,6 +2,16 @@
 
 ## Restic Backup Helper
 
+### 1.11.18-0.18.1 (2026-05-10)
+
+#### Added
+
+- **Per-run last-run JSON files** under `/var/log` for external monitoring (no daemons or push gateways required):
+  - `/var/log/last-backup.json` (job, hostname, release, started_at, finished_at, duration_seconds, exit_code, repository (masked), backup_root_dir, restic_tag).
+  - `/var/log/last-check.json` (job, hostname, release, started_at, finished_at, duration_seconds, exit_code, repository (masked)).
+  - `/var/log/last-sync.json` (job, hostname, release, started_at, finished_at, duration_seconds, exit_code, sync_jobs_processed, sync_jobs_failed).
+- **`/bin/lib.sh`**: `write_last_run_json` writer, `json_escape` helper and `iso8601_local` formatter so the workers stay dependency-free (no `jq` in the image).
+
 ### 1.11.17-0.18.1 (2026-05-10)
 
 #### Added

@@ -65,12 +65,16 @@ fi
 # Track sync errors across all jobs
 syncHasError=0
 overallRC=0
+syncJobsProcessed=0
+syncJobsFailed=0
+syncRunStart=$(date +%s)
 
 # Perform sync
 while IFS= read -r line; do
 	job_start=$(date +%s)
 	# Skip empty lines and comment lines
 	[[ -z "${line}" || "${line}" == \#* ]] && continue
+	syncJobsProcessed=$((syncJobsProcessed + 1))
 
 	# Split the line at the semicolon
 	IFS=';' read -r SYNC_SOURCE SYNC_DESTINATION <<<"${line}"
@@ -92,6 +96,7 @@ while IFS= read -r line; do
 	if [ $syncRC -eq 0 ]; then
 		log "✅ Sync Successful"
 	else
+		syncJobsFailed=$((syncJobsFailed + 1))
 		errorlog "❌ Sync Failed with Status ${syncRC}"
 		copyErrorLog
 
@@ -174,6 +179,13 @@ while IFS= read -r line; do
 	log "🏁 Finished sync at $(date +"%Y-%m-%d %a %H:%M:%S") after ${minutes}m ${seconds}s"
 
 done <"${SYNC_JOB_FILE}"
+
+syncRunEnd=$(date +%s)
+
+# Persist a structured per-run summary for external monitoring.
+write_last_run_json "sync" "${overallRC}" "${syncRunStart}" "${syncRunEnd}" \
+	"sync_jobs_processed" "${syncJobsProcessed}" \
+	"sync_jobs_failed" "${syncJobsFailed}"
 
 # Send mail notification
 if [ -n "${MAILX_RCPT}" ] && [ "$syncHasError" -ne 0 ]; then

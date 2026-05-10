@@ -88,6 +88,10 @@ seconds=$((duration % 60))
 
 log "🏁 Finished check at $(date +"%Y-%m-%d %a %H:%M:%S") after ${minutes}m ${seconds}s"
 
+# Persist a structured per-run summary for external monitoring.
+write_last_run_json "check" "${checkRC}" "${start}" "${end}" \
+	"repository" "${MASKED_REPO}"
+
 # Send mail notification (on failure if MAILX_ON_ERROR=ON, else always when MAILX_RCPT set)
 if [ -n "${MAILX_RCPT}" ] && {
 	[ "${MAILX_ON_ERROR^^}" != "ON" ] || { [ "${MAILX_ON_ERROR^^}" == "ON" ] && [ "$checkRC" -ne 0 ]; }
