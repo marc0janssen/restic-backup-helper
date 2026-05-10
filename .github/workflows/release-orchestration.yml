@@ -91,6 +91,29 @@ jobs:
           severity: CRITICAL,HIGH
           scanners: vuln,misconfig,secret
 
+      # Source-tree SBOM (SPDX + CycloneDX) for the release artifact set.
+      # Image-level SBOMs are emitted by ./build.sh / ./build-testing.sh after
+      # the docker push (see scripts/build-common.sh::emit_sbom, gated by
+      # SBOM=ON) so this step covers tagged source releases that may never run
+      # the publish script (e.g. dependency-only tags).
+      - name: Generate source SBOM (SPDX + CycloneDX)
+        uses: anchore/sbom-action@v0
+        with:
+          path: .
+          format: spdx-json
+          output-file: sbom-source.spdx.json
+          artifact-name: sbom-source-spdx-json
+          upload-artifact: false
+
+      - name: Generate source SBOM (CycloneDX)
+        uses: anchore/sbom-action@v0
+        with:
+          path: .
+          format: cyclonedx-json
+          output-file: sbom-source.cyclonedx.json
+          artifact-name: sbom-source-cyclonedx-json
+          upload-artifact: false
+
       - name: Upload release diagnostics
         if: always()
         uses: actions/upload-artifact@v6
@@ -99,3 +122,5 @@ jobs:
           path: |
             trivy-results.sarif
             trivy-release-gate.txt
+            sbom-source.spdx.json
+            sbom-source.cyclonedx.json

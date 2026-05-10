@@ -38,9 +38,12 @@ If this image saves you time, you can [leave a tip on Ko-fi](https://ko-fi.com/m
 16. [Manual operations](#manual-operations)
 17. [Security](#security)
 18. [Logging & privacy](#logging--privacy)
-19. [Troubleshooting](#troubleshooting)
-20. [Contributing](#contributing)
-21. [Further reading](#further-reading)
+19. [Supply chain (SBOM, Trivy)](#supply-chain-sbom-trivy)
+20. [Hardening (read-only root, capabilities, non-root)](#hardening-read-only-root-capabilities-non-root)
+21. [Multiple backup jobs](#multiple-backup-jobs)
+22. [Troubleshooting](#troubleshooting)
+23. [Contributing](#contributing)
+24. [Further reading](#further-reading)
 
 ---
 
@@ -61,15 +64,20 @@ If this image saves you time, you can [leave a tip on Ko-fi](https://ko-fi.com/m
 
 ## Image tags and release
 
-release: 1.15.0-0.18.1
+release: 1.16.0-0.18.1
 
 | Train | When to use | Example pull |
 | --- | --- | --- |
-| **Stable** | Production | `docker pull marc0janssen/restic-backup-helper:latest` or pinned `marc0janssen/restic-backup-helper:1.15.0-0.18.1` |
-| **Testing** | Pre-release / CI | `docker pull marc0janssen/restic-backup-helper:develop` or `marc0janssen/restic-backup-helper:1.15.0-0.18.1-dev` |
+| **Stable** | Production | `docker pull marc0janssen/restic-backup-helper:latest` or pinned `marc0janssen/restic-backup-helper:1.16.0-0.18.1` |
+| **Testing** | Pre-release / CI | `docker pull marc0janssen/restic-backup-helper:develop` or `marc0janssen/restic-backup-helper:1.16.0-0.18.1-dev` |
 
 > **Upgrading?**
 >
+> - **From 1.15.x → 1.16.0:** purely additive — no env-var rename, no behaviour change in the workers. New surfaces only:
+>   - **SBOM** generation for image builds via `SBOM=ON ./build.sh` (requires `syft`); CI also uploads source-tree SBOMs on tag releases. See [Supply chain](#supply-chain-sbom-trivy).
+>   - **`scripts/docker-compose.yml`** now ships two opt-in [Compose profiles](https://docs.docker.com/compose/profiles/): `metrics` (node-exporter sidecar) and `dev` (mailhog SMTP catcher). Existing `docker compose up` invocations keep starting only the main service.
+>   - **Multiple backup jobs** pattern at [`examples/compose/multi-job.yml`](examples/compose/multi-job.yml) for setups that already wanted to back up several datasets on different schedules. See [Multiple backup jobs](#multiple-backup-jobs).
+>   - **Hardening** docs section enumerates capabilities to drop and tmpfs paths needed for `read_only: true` (orchestration-layer tightening; no image change).
 > - **From 1.14.x → 1.15.0:** purely additive. New opt-in env vars: `METRICS_DIR` (Prometheus textfile collector) and `SYNC_BISYNC_CHECK_ACCESS` (bisync `--check-access` opt-in). Mail subjects gain a richer prefix (`[OK|FAIL N] Backup …`); update any subject-based filter rules. Container logs now mask inline credentials in sync source/destination URLs.
 > - **From 1.13.x → 1.14.0:** `RESTIC_TAG=""` (explicitly empty) is now a hard failure with exit code 2 — set a meaningful tag (e.g. `daily`, `${HOSTNAME}-data`). The Dockerfile still defaults to `automated`, so installs that never set `RESTIC_TAG` are unaffected. `SYNC_JOB_FILE` gains optional `MODE` / `EXTRA_ARGS` columns; existing two-column lines keep working as bisync.
 > - **From 1.11.x:** Automatic `restic unlock` after backup / check failures is **opt-in** via `RESTIC_AUTO_UNLOCK=ON` (since 1.12.0). The new default leaves the lock alone (safer for repositories shared across multiple hosts). See the env table below and the [Troubleshooting](#troubleshooting) section for the migration hint.
@@ -396,7 +404,21 @@ volumes:
   restic-cache:
 ```
 
-A runnable, less commented variant lives at [`scripts/docker-compose.yml`](scripts/docker-compose.yml) for quick `docker compose up` testing. For Kubernetes a full single-Pod manifest (Deployment + Secret + PVC, FUSE-friendly capabilities, strong liveness probe and pre-wired `METRICS_DIR`) is at [`examples/kubernetes/restic-backup-helper.yaml`](examples/kubernetes/restic-backup-helper.yaml).
+A runnable, less commented variant lives at [`scripts/docker-compose.yml`](scripts/docker-compose.yml) for quick `docker compose up` testing. That file also ships two **opt-in [Compose profiles](https://docs.docker.com/compose/profiles/)** so you do not have to fork it for ancillary services:
+
+| Profile | Adds | Why |
+| --- | --- | --- |
+| `metrics` | `node-exporter` sidecar bound to `127.0.0.1:9100`, scraping the `backup-logs` volume's `textfile_collector/` subdirectory | Exposes the `restic_<job>_last_*` gauges from `METRICS_DIR` over HTTP without a host-level node-exporter. |
+| `dev` | `mailhog` SMTP catcher (port 1025 SMTP, 8025 web UI; both bound to `127.0.0.1`) | Local end-to-end test of `MAILX_RCPT` mail subjects/bodies without a real relay. Point your `msmtprc` at `host mailhog`, `port 1025` (no auth, no TLS). |
+
+```shell
+docker compose up                       # only the restic-backup service
+docker compose --profile metrics up     # + node-exporter sidecar
+docker compose --profile dev up         # + mailhog SMTP catcher
+docker compose --profile metrics --profile dev up   # both
+```
+
+The main `restic-backup` service has no `profiles:` key, so it is always brought up regardless of which profile (if any) you pick. For Kubernetes a full single-Pod manifest (Deployment + Secret + PVC, FUSE-friendly capabilities, strong liveness probe and pre-wired `METRICS_DIR`) is at [`examples/kubernetes/restic-backup-helper.yaml`](examples/kubernetes/restic-backup-helper.yaml).
 
 **Health checks:** choose how hard you want Compose to probe the repository.
 
@@ -616,6 +638,121 @@ To audit what your container actually logs:
 docker exec -ti restic-backup-helper cat /var/log/cron.log
 docker exec -ti restic-backup-helper cat /var/log/last-backup.json
 ```
+
+---
+
+## Supply chain (SBOM, Trivy)
+
+Two complementary tools document what is inside this image and surface CVEs against it:
+
+- **Trivy** runs in the [Security Scan](.github/workflows/security-scan.yml) workflow on every push and weekly, and in [Release Orchestration](.github/workflows/release-orchestration.yml) on tag pushes. SARIF results upload to the GitHub Security tab; the release workflow additionally fails on any `CRITICAL`/`HIGH` finding so a tag never ships with a known critical vulnerability.
+- **SBOMs** (Software Bill of Materials) are emitted in two places, depending on whether you publish locally or via CI:
+
+  | Source | Tool | Where | When |
+  | --- | --- | --- | --- |
+  | Pushed image (preferred) | [`syft`](https://github.com/anchore/syft) | `./sbom/restic-backup-helper-<release>.{spdx,cyclonedx}.json` | After `./build.sh` / `./build-testing.sh` when `SBOM=ON` and `syft` is on `PATH`. |
+  | Source tree (fallback) | [`anchore/sbom-action`](https://github.com/anchore/sbom-action) | Workflow run artifact `release-orchestration-diagnostics` (`sbom-source.{spdx,cyclonedx}.json`) | Every tag push (`v*`) via the release workflow. |
+
+  Enable image-level SBOMs locally:
+
+  ```shell
+  # one-off install (macOS/Linux):
+  curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sudo sh -s -- -b /usr/local/bin
+  SBOM=ON ./build.sh
+  # → sbom/restic-backup-helper-1.16.0-0.18.1.spdx.json
+  # → sbom/restic-backup-helper-1.16.0-0.18.1.cyclonedx.json
+  ```
+
+  The `sbom/` directory is gitignored. Both SPDX and CycloneDX JSON are produced so you can feed Dependency-Track, GUAC, or any SCA tool that prefers either format.
+
+If `SBOM=ON` is set but `syft` is not installed, the build logs a clear skip line and continues — it never breaks an existing publish flow.
+
+---
+
+## Hardening (read-only root, capabilities, non-root)
+
+The image **runs as root** and uses a writable root filesystem by default. That is a deliberate trade-off for the workloads it serves; this section explains why and what you can still tighten on top.
+
+### Why root, FUSE, NFS
+
+- **Cron-as-root**: `crond` (busybox) writes to `/var/spool/cron/crontabs/root` and reads `/etc/crontabs/root`; restoring snapshots commonly needs root to recreate UIDs/GIDs and ACLs faithfully.
+- **FUSE (`restic mount`)**: requires `CAP_SYS_ADMIN` and access to `/dev/fuse`; that capability is meaningless without an effective UID 0 inside the container.
+- **NFS** (`NFS_TARGET`): the `mount` syscall in busybox needs `CAP_SYS_ADMIN`; the same constraint as FUSE.
+- **Hooks**: user-supplied `/hooks/*.sh` scripts may need to read source files under tight ACLs; running as a non-root UID would break some perfectly reasonable backup setups.
+- **Restic backends**: most cloud backends (`s3:`, `swift:`, `rclone:`) work fine as non-root, but `sftp:` plus `~/.ssh` mounts and local repository mounts under `/mnt/restic` typically end up needing root.
+
+A separate "slim" image (no FUSE, no NFS, no cron, runs as UID 1000) is on the backlog for users who can accept those trade-offs. The default image keeps the boring, batteries-included behaviour.
+
+### What you CAN tighten at the orchestration layer
+
+Cap the blast radius **outside** the image — Docker / Compose / Kubernetes are the right place for these knobs:
+
+- **Drop most kernel capabilities**, keep only what FUSE/NFS need:
+
+  ```yaml
+  cap_drop:
+    - ALL
+  cap_add:
+    - DAC_READ_SEARCH   # source paths under tight ACLs
+    - SYS_ADMIN         # FUSE / NFS mount / restic mount
+  ```
+
+- **Read-only root filesystem** with tmpfs for the few writable paths the workers actually need:
+
+  ```yaml
+  read_only: true
+  tmpfs:
+    - /tmp
+    - /run
+    - /var/run
+    - /var/spool/cron        # crond writes the rendered crontab here
+    - /var/log               # last-*.json + cron.log; switch to a named volume to persist
+    - /.cache/restic         # restic cache; mount a volume to keep it across restarts
+  ```
+
+  Trade-offs to know:
+  - `/var/log` as tmpfs means `last-*.json`, `cron.log` archives and `*.prom` files are lost on container restart. Switch that one to a named volume if you scrape it externally (Prometheus textfile collector, log forwarder).
+  - `/.cache/restic` as tmpfs means every restart re-warms the restic cache (slower first backup after restart). A named volume is recommended for any non-trivial repository.
+
+- **No new privileges**:
+
+  ```yaml
+  security_opt:
+    - no-new-privileges:true
+  ```
+
+- **Per-volume `:ro`** on backup sources so a hostile hook script cannot mutate them:
+
+  ```yaml
+  volumes:
+    - /srv/documents:/data:ro
+    - ~/.ssh:/root/.ssh:ro     # only when using sftp:
+  ```
+
+- **Seccomp / AppArmor**: the upstream Docker default profiles already block the riskiest syscalls; an explicit profile path can tighten further but is environment-specific.
+
+On Kubernetes the equivalent knobs are `securityContext.capabilities`, `securityContext.readOnlyRootFilesystem: true` plus `emptyDir` mounts for `/tmp`, `/var/spool/cron`, etc., and a `PodSecurity` policy at namespace level. The [Kubernetes example](examples/kubernetes/restic-backup-helper.yaml) already drops all capabilities and re-adds only `DAC_READ_SEARCH` + `SYS_ADMIN`.
+
+> **TL;DR**: don't try to make the image non-root or read-only **inside** the container — tighten it at the orchestration layer with `cap_drop`, `read_only` + tmpfs, `:ro` source mounts and `no-new-privileges`. You keep the well-tested cron/FUSE behaviour and still meet most CIS-style benchmarks.
+
+---
+
+## Multiple backup jobs
+
+When one host needs to back up several distinct trees on different schedules (or with different tags / forget policies), the recommended pattern is **multiple containers** sharing one Restic repository, password and cache volume — not a single container with multi-job env. Reasons:
+
+- One container = one cron daemon = one set of `BACKUP_CRON` / `RESTIC_TAG` / `BACKUP_ROOT_DIR`. Adding "BACKUP_CRON_documents" / "BACKUP_CRON_media" inside one container would either require a private DSL or invite cron-collisions and ambiguous notifications.
+- Multiple containers compose naturally with healthchecks, restart policies, log aggregation and `docker compose ps`.
+- Lock contention is repository-level (Restic's own lock); per-container `flock` is independent and never blocks across jobs.
+- Notifications (`MAILX_RCPT`, `WEBHOOK_URL`, `last-<job>.json`, mail subjects) are per-container, so each job tells you which dataset it was about without extra plumbing.
+
+A complete reference for the pattern lives at [`examples/compose/multi-job.yml`](examples/compose/multi-job.yml). It uses a YAML anchor (`x-restic-base: &restic_base`) to share repository env, the password secret and the cache volume, then declares one service per dataset (`restic-documents`, `restic-media`, `restic-vmstore`) with its own `BACKUP_CRON`, `BACKUP_ROOT_DIR`, `RESTIC_TAG`, `RESTIC_FORGET_ARGS` and `hostname:` (so mail subjects and `last-*.json` clearly identify the job).
+
+Trade-offs:
+
+- **One container per job** ⇒ lower copy-paste with anchors, clear isolation, easy to disable one job by `docker compose stop restic-media`. Recommended for ≥ 2 jobs.
+- **One container** ⇒ keep the existing single-container Compose example, schedule a single `BACKUP_CRON`, and use `RESTIC_JOB_ARGS="--exclude-file /config/excludes.txt"` plus `BACKUP_ROOT_DIR=/data` covering both datasets via separate bind mounts under `/data/`. Simpler when both datasets follow the same retention and timing.
+- **`PRUNE_CRON` and `CHECK_CRON`**: run them on **exactly one** of the containers (the "owner" container), not all of them. Otherwise N containers would each schedule a heavy `restic prune` against the same repository on the same cadence and trip Restic's repository lock.
 
 ---
 

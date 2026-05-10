@@ -8,6 +8,14 @@
 # - RESTIC_TAG
 # - BACKUP_CRON
 # - at least one source volume mounted at BACKUP_ROOT_DIR
+#
+# Optional Compose profiles (use `--profile` to opt in):
+#   metrics : adds a node-exporter sidecar that scrapes METRICS_DIR
+#             (`docker compose --profile metrics up`)
+#   dev     : adds a mailhog SMTP catcher for local testing of mail
+#             notifications (`docker compose --profile dev up`)
+# The main `restic-backup` service has no `profiles:` key, so it is always
+# included regardless of profile selection.
 
 services:
   restic-backup:
@@ -54,6 +62,7 @@ services:
       SYNC_JOB_ARGS: ${SYNC_JOB_ARGS:---exclude-from /config/exclude_sync.txt}
       SYNC_CRON: ${SYNC_CRON:-}
       SYNC_VERBOSE: ${SYNC_VERBOSE:-ON}
+      SYNC_BISYNC_CHECK_ACCESS: ${SYNC_BISYNC_CHECK_ACCESS:-OFF}
 
       # Optional NFS repository mount; usually keep RESTIC_REPOSITORY=/mnt/restic.
       NFS_TARGET: ${NFS_TARGET:-}
@@ -67,6 +76,11 @@ services:
       WEBHOOK_HEADER_AUTH: ${WEBHOOK_HEADER_AUTH:-}
       WEBHOOK_TIMEOUT: ${WEBHOOK_TIMEOUT:-15}
       WEBHOOK_ON_ERROR: ${WEBHOOK_ON_ERROR:-OFF}
+
+      # Optional Prometheus textfile collector.
+      # When set together with the `metrics` profile, the node-exporter sidecar
+      # below scrapes <volume backup-logs>/textfile_collector for restic_*.prom.
+      METRICS_DIR: ${METRICS_DIR:-/var/log/textfile_collector}
 
       # Optional hook timeout in seconds; 0 disables timeout enforcement.
       HOOK_TIMEOUT: ${HOOK_TIMEOUT:-300}
@@ -103,6 +117,43 @@ services:
       # - ~/.ssh:/root/.ssh:ro
 
     command: ["tail", "-fn0", "/var/log/cron.log"]
+
+  # ── Profile: metrics ────────────────────────────────────────────────────────
+  # Run with: docker compose --profile metrics up
+  # Scrapes the same volume that holds METRICS_DIR (default subdir
+  # `textfile_collector` under /var/log) so node-exporter exposes the
+  # restic_<job>_last_* gauges over HTTP on 127.0.0.1:9100. Skip this sidecar
+  # entirely when you already have a host-level node-exporter scraping the
+  # same path on the host. The flag set below disables the kernel/system
+  # collectors so this sidecar only exports the textfile metrics.
+  node-exporter:
+    image: prom/node-exporter:latest
+    container_name: restic-node-exporter
+    hostname: ${RESTIC_HOSTNAME:-backup-node}-exporter
+    restart: unless-stopped
+    profiles: ["metrics"]
+    command:
+      - --collector.textfile.directory=/var/log/textfile_collector
+      - --collector.disable-defaults
+      - --collector.textfile
+    ports:
+      - "127.0.0.1:9100:9100"
+    volumes:
+      - backup-logs:/var/log:ro
+
+  # ── Profile: dev ────────────────────────────────────────────────────────────
+  # Run with: docker compose --profile dev up
+  # Local SMTP sink for testing mail notifications without a real relay.
+  # Point your msmtprc at host=mailhog port=1025 (no auth, no TLS) and view
+  # captured mail at http://localhost:8025.
+  mailhog:
+    image: mailhog/mailhog:latest
+    container_name: restic-mailhog
+    restart: unless-stopped
+    profiles: ["dev"]
+    ports:
+      - "127.0.0.1:1025:1025"
+      - "127.0.0.1:8025:8025"
 
 secrets:
   restic_password:

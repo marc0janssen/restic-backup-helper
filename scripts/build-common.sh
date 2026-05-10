@@ -89,6 +89,40 @@ cd_repo_root() {
 	cd "${REPO_ROOT}" || exit 1
 }
 
+# Optional SBOM generation against the pushed image. Gated by SBOM=ON so
+# unset/local builds stay fast; logs and skips when syft is not installed so
+# CI matrices that don't pre-install syft don't break the publish flow.
+# Args:
+#   $1 — fully-qualified image reference, e.g. repo/name:1.16.0-0.18.1
+emit_sbom() {
+	local image_ref="$1"
+	local out_dir base
+
+	case "${SBOM:-}" in
+	[Oo][Nn] | 1 | [Tt][Rr][Uu][Ee] | [Yy][Ee][Ss]) ;;
+	*)
+		echo "[build] SBOM generation disabled (set SBOM=ON to enable)"
+		return 0
+		;;
+	esac
+
+	if ! command -v syft >/dev/null 2>&1; then
+		echo "[build] SBOM=ON but 'syft' is not on PATH; skipping. Install via: https://github.com/anchore/syft#installation"
+		return 0
+	fi
+
+	out_dir="${SBOM_DIR:-${REPO_ROOT}/sbom}"
+	mkdir -p "${out_dir}"
+	base="${out_dir}/restic-backup-helper-${RESTIC_NEW_RELEASE}"
+
+	echo "[build] Generating SBOM for ${image_ref} via syft -> ${base}.{spdx.json,cyclonedx.json}"
+	syft "${image_ref}" \
+		-o "spdx-json=${base}.spdx.json" \
+		-o "cyclonedx-json=${base}.cyclonedx.json"
+	echo "[build] SBOM written:"
+	ls -1 "${base}".*.json
+}
+
 patch_dockerfile_restic_base() {
 	local dockerfile="${REPO_ROOT}/Dockerfile"
 	sed -i.bak "s#restic/restic:.*#restic/restic:${VERSION_RESTIC}#" "${dockerfile}"
@@ -135,6 +169,8 @@ run_stable_build() {
 
 	docker pushrm --file README-containers.md "${DOCKER_IMAGE_REPO}:latest"
 
+	emit_sbom "${DOCKER_IMAGE_REPO}:${RESTIC_NEW_RELEASE}"
+
 	echo ""
 	echo "Docker image ${RESTIC_NEW_RELEASE} built"
 }
@@ -163,6 +199,8 @@ run_testing_build() {
 		-f ./Dockerfile .
 
 	docker pushrm --file README-containers.md "${DOCKER_IMAGE_REPO}:develop"
+
+	emit_sbom "${DOCKER_IMAGE_REPO}:${RESTIC_NEW_RELEASE}"
 
 	echo ""
 	echo "Docker image ${RESTIC_NEW_RELEASE} built"

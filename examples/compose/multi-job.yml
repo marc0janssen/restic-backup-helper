@@ -1,0 +1,154 @@
+# Multiple backup jobs sharing one Restic repository.
+#
+# Pattern: one container per dataset, all writing to the same RESTIC_REPOSITORY
+# with the same RESTIC_PASSWORD. YAML anchors (`x-restic-base: &restic_base`)
+# share the boring bits — image, password secret, cache volume, repository env,
+# notification hooks — so each per-job service only declares the parts that
+# actually differ (cron, source mount, tag, forget policy, hostname).
+#
+# Why this pattern instead of a single multi-job container:
+#   * one cron daemon per service → no fighting over a single crontab
+#   * one BACKUP_CRON / RESTIC_TAG / BACKUP_ROOT_DIR per service → unambiguous
+#     mail subjects, last-*.json files, webhook payloads
+#   * each container's flock is independent; restic's repository lock still
+#     serialises writes against the shared repo (which is what you want)
+#   * `docker compose stop restic-media` disables one job without affecting
+#     the others; per-service healthchecks and restart policies just work
+#
+# Important: schedule CHECK_CRON and PRUNE_CRON on EXACTLY ONE service (the
+# "owner", here `restic-documents`). Otherwise N containers would each kick
+# off a heavy `restic prune` against the same repository on the same cadence
+# and trip restic's repository lock on every prune cycle.
+#
+# Apply with: docker compose -f multi-job.yml up -d
+#
+# Required at runtime at minimum:
+#   * RESTIC_REPOSITORY in the environment (or .env in this directory)
+#   * ./restic.password file (Docker secret) — chmod 600 on the host
+#   * one source volume per service mounted at the matching BACKUP_ROOT_DIR
+
+x-restic-base: &restic_base
+  image: marc0janssen/restic-backup-helper:latest
+  restart: unless-stopped
+
+  # Needed for `restic mount` and reading source paths under tight ACLs.
+  cap_add:
+    - DAC_READ_SEARCH
+    - SYS_ADMIN
+  devices:
+    - /dev/fuse
+
+  secrets:
+    - restic_password
+
+  # Strong probe — fails when credentials or repository reachability break.
+  healthcheck:
+    test: ["CMD-SHELL", "restic cat config >/dev/null 2>&1 || exit 1"]
+    interval: 15m
+    timeout: 30s
+    start_period: 1m
+    start_interval: 10s
+
+  command: ["tail", "-fn0", "/var/log/cron.log"]
+
+x-restic-env: &restic_env
+  # ── Shared Restic core (same repo, same password, same probe behaviour) ──
+  RESTIC_REPOSITORY: ${RESTIC_REPOSITORY:?set RESTIC_REPOSITORY in .env or shell}
+  RESTIC_PASSWORD_FILE: /run/secrets/restic_password
+  RESTIC_CACHE_DIR: /.cache/restic
+  RESTIC_CHECK_REPOSITORY_STATUS: "ON"
+  # OFF is safer when multiple containers (= multiple "hosts" from restic's
+  # perspective) write to the same repo: an automatic unlock could clear
+  # another container's legitimate lock mid-backup.
+  RESTIC_AUTO_UNLOCK: "OFF"
+
+  # ── Shared notifications ────────────────────────────────────────────────
+  MAILX_RCPT: ${MAILX_RCPT:-}
+  MAILX_ON_ERROR: "ON"
+  WEBHOOK_URL: ${WEBHOOK_URL:-}
+  WEBHOOK_ON_ERROR: "OFF"
+  WEBHOOK_TIMEOUT: "15"
+  HOOK_TIMEOUT: "300"
+
+  # ── Shared metrics + locale ─────────────────────────────────────────────
+  METRICS_DIR: /var/log/textfile_collector
+  TZ: ${TZ:-Europe/Amsterdam}
+
+services:
+  # ── Owner: also runs CHECK_CRON + PRUNE_CRON for the shared repository ──
+  restic-documents:
+    <<: *restic_base
+    container_name: restic-documents
+    hostname: documents              # appears in mail subjects + last-*.json
+    environment:
+      <<: *restic_env
+      BACKUP_CRON: "0 2 * * *"
+      BACKUP_ROOT_DIR: /data
+      RESTIC_TAG: documents
+      RESTIC_JOB_ARGS: "--exclude-file /config/exclude_documents.txt --one-file-system"
+      RESTIC_FORGET_ARGS: "--keep-daily 14 --keep-weekly 8 --keep-monthly 24 --keep-yearly 10"
+      # Repository-wide jobs — schedule on this owner only.
+      CHECK_CRON: "37 3 * * 0"
+      PRUNE_CRON: "0 4 * * 0"
+      RESTIC_PRUNE_ARGS: "--max-unused 10%"
+    volumes:
+      - ./config:/config:ro
+      - documents-cache:/.cache/restic
+      - documents-logs:/var/log
+      - /srv/documents:/data:ro
+
+  restic-media:
+    <<: *restic_base
+    container_name: restic-media
+    hostname: media
+    environment:
+      <<: *restic_env
+      BACKUP_CRON: "30 3 * * *"
+      BACKUP_ROOT_DIR: /data
+      RESTIC_TAG: media
+      RESTIC_JOB_ARGS: "--exclude-file /config/exclude_media.txt"
+      RESTIC_FORGET_ARGS: "--keep-daily 7 --keep-weekly 4 --keep-monthly 6"
+      # No CHECK_CRON / PRUNE_CRON here — owner handles them for the repo.
+      CHECK_CRON: ""
+      PRUNE_CRON: ""
+    volumes:
+      - ./config:/config:ro
+      - media-cache:/.cache/restic
+      - media-logs:/var/log
+      - /srv/media:/data:ro
+
+  restic-vmstore:
+    <<: *restic_base
+    container_name: restic-vmstore
+    hostname: vmstore
+    environment:
+      <<: *restic_env
+      BACKUP_CRON: "15 1 * * *"
+      BACKUP_ROOT_DIR: /data
+      RESTIC_TAG: vmstore
+      # VM disk images compress poorly; use --read-concurrency to cap I/O.
+      RESTIC_JOB_ARGS: "--exclude-file /config/exclude_vmstore.txt --read-concurrency 2"
+      RESTIC_FORGET_ARGS: "--keep-daily 3 --keep-weekly 2 --keep-monthly 3"
+      CHECK_CRON: ""
+      PRUNE_CRON: ""
+    volumes:
+      - ./config:/config:ro
+      - vmstore-cache:/.cache/restic
+      - vmstore-logs:/var/log
+      - /srv/vmstore:/data:ro
+
+secrets:
+  restic_password:
+    file: ./restic.password
+
+# Per-service cache and log volumes keep snapshots, JSON summaries and
+# textfile-collector files separated by job, which makes monitoring rules
+# (per-hostname) and scrape paths trivial. Switch to a single shared volume
+# only if you do not care about per-job log isolation.
+volumes:
+  documents-cache:
+  documents-logs:
+  media-cache:
+  media-logs:
+  vmstore-cache:
+  vmstore-logs:

@@ -2,6 +2,21 @@
 
 ## Restic Backup Helper
 
+### 1.16.0-0.18.1 (2026-05-10)
+
+#### Added
+
+- **SBOM artifacts on release builds.** Two complementary surfaces:
+  - `scripts/build-common.sh::emit_sbom` runs after the `docker buildx --push` step in `./build.sh` / `./build-testing.sh` when `SBOM=ON` and [`syft`](https://github.com/anchore/syft) is on `PATH`; writes SPDX + CycloneDX JSON to `./sbom/restic-backup-helper-<release>.{spdx,cyclonedx}.json`. Skips with a clear log line when `SBOM` is unset or when `syft` is missing, so existing local builds are unaffected.
+  - `.github/workflows/release-orchestration.yml` now runs `anchore/sbom-action@v0` against the source tree on every `v*` tag push and uploads `sbom-source.{spdx,cyclonedx}.json` alongside the existing Trivy diagnostics.
+  - New `sbom/` is gitignored. README has a new **"Supply chain (SBOM, Trivy)"** section explaining where each artifact comes from and which tool to feed it to (Dependency-Track, GUAC, etc.).
+- **Hardening docs (read-only root, capabilities, non-root).** New README section explains why the image runs as root (cron, FUSE, NFS, hooks), and shows a Compose snippet that wraps it in `read_only: true` + tmpfs for `/tmp`, `/run`, `/var/run`, `/var/spool/cron`, `/var/log`, `/.cache/restic` plus `cap_drop: [ALL]` + `cap_add: [DAC_READ_SEARCH, SYS_ADMIN]` and `no-new-privileges:true` so operators can tighten the blast radius at the orchestration layer without forking the image.
+- **Compose profiles in [`scripts/docker-compose.yml`](scripts/docker-compose.yml).** Two opt-in [profiles](https://docs.docker.com/compose/profiles/):
+  - `metrics` adds a `prom/node-exporter` sidecar (bound to `127.0.0.1:9100`) that scrapes the `backup-logs` volume's `textfile_collector/` subdirectory using `--collector.disable-defaults --collector.textfile`, exposing the `restic_<job>_last_*` gauges over HTTP without a host-level node-exporter.
+  - `dev` adds a `mailhog/mailhog` SMTP catcher on `127.0.0.1:1025` (SMTP) + `127.0.0.1:8025` (web UI) so contributors can end-to-end test `MAILX_RCPT` mail subjects/bodies locally without a real relay.
+  - The main `restic-backup` service has no `profiles:` key and is always brought up regardless of selection. README documents the matrix and the `docker compose --profile metrics --profile dev up` invocation.
+- **Multiple backup jobs example** at [`examples/compose/multi-job.yml`](examples/compose/multi-job.yml). One container per dataset (documents/media/vmstore), all sharing one `RESTIC_REPOSITORY` + Restic password secret + per-job cache and log volumes via two YAML anchors (`x-restic-base`, `x-restic-env`). The "owner" container also runs `CHECK_CRON` + `PRUNE_CRON` for the shared repo so a heavy weekly prune does not run N times in parallel and trip the Restic repository lock. README has a new **"Multiple backup jobs"** section that documents the trade-offs vs. a single multi-job container (rejected: ambiguous `last-*.json`, no per-job mail subjects, single-cron contention).
+
 ### 1.15.0-0.18.1 (2026-05-10)
 
 #### Added

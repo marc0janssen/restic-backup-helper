@@ -50,8 +50,8 @@ Ideas and planned enhancements for **restic-backup-helper**. Ordering is not str
 
 - [x] Remove the duplicate **Rclone install path**: dropped `rclone` from the Dockerfile `apk add` line so `install_rclone.sh` is the single source — 1.14.0-0.18.1.
 - [x] **Checksum-pinned Rclone download** in `install_rclone.sh`: verifies the archive against the upstream `SHA256SUMS` (per-version when `RCLONE_VERSION` build-arg is set), fails the build on mismatch — 1.14.0-0.18.1.
-- [ ] **SBOM** artifact on release builds (e.g. Syft / build attestations) alongside existing Trivy CI.
-- [ ] Optional **read-only root** + **non-root** exploration doc (likely separate “slim” image or documented trade-offs vs FUSE/NFS/cron-as-root).
+- [x] **SBOM artifacts on release builds**: opt-in `SBOM=ON ./build.sh` runs Syft against the pushed image and writes SPDX + CycloneDX JSON to `./sbom/` (gitignored); release-orchestration workflow additionally runs `anchore/sbom-action` against the source tree on every `v*` tag and uploads `sbom-source.{spdx,cyclonedx}.json` next to the existing Trivy diagnostics. README **Supply chain** section documents both surfaces — 1.16.0-0.18.1.
+- [x] **Hardening (read-only root, non-root) docs**: README section explains why the image runs as root (cron, FUSE, NFS, hooks) and ships a Compose recipe (`read_only: true` + tmpfs for `/tmp`, `/run`, `/var/run`, `/var/spool/cron`, `/var/log`, `/.cache/restic`, plus `cap_drop: [ALL]` + `cap_add: [DAC_READ_SEARCH, SYS_ADMIN]` and `no-new-privileges:true`) so operators can tighten the blast radius at the orchestration layer without forking the image. A separate "slim" image remains an open backlog idea — 1.16.0-0.18.1.
 - [x] Reviewed Dockerfile package strategy: dropped `apk upgrade` (reproducibility win, CVE coverage stays a Trivy-scan / base-rebuild responsibility) and inline-documented every remaining apk package — 1.15.0-0.18.1.
 - [x] Audited logs and notification output: sync source/destination credentials are now masked via new `lib.sh::mask_endpoint` helper; README "Logging & privacy" section enumerates the redaction surface (repository URL, sync endpoints, webhook URL, webhook auth header, hook stdout, restic args) — 1.15.0-0.18.1.
 
@@ -86,8 +86,8 @@ Ideas and planned enhancements for **restic-backup-helper**. Ordering is not str
 
 ## Multi-job / scale (larger changes)
 
-- [ ] **Multiple named backup jobs** (different roots, tags, crons) in one container **or** official **multi-container Compose** pattern with shared repo env.
-- [ ] **Helm chart** or **Compose profiles** (`minimal`, `backup+sync`, `dev`) to reduce copy-paste.
+- [x] **Multiple named backup jobs** as a documented multi-container Compose pattern: [`examples/compose/multi-job.yml`](examples/compose/multi-job.yml) uses two YAML anchors (`x-restic-base`, `x-restic-env`) so each per-dataset service only declares the parts that actually differ (cron, source mount, tag, forget policy, hostname). The "owner" service runs `CHECK_CRON` + `PRUNE_CRON` for the shared repo so a heavy weekly prune does not run N times in parallel and trip the Restic repository lock. README has a new **Multiple backup jobs** section that documents the trade-offs vs. an in-container multi-job design (rejected for now) — 1.16.0-0.18.1.
+- [x] **Compose profiles** in [`scripts/docker-compose.yml`](scripts/docker-compose.yml): opt-in `metrics` profile adds a `prom/node-exporter` sidecar (bound to `127.0.0.1:9100`) that scrapes the textfile-collector volume; opt-in `dev` profile adds a `mailhog/mailhog` SMTP catcher (`127.0.0.1:1025` + `127.0.0.1:8025` web UI) so contributors can test mail notifications locally. The main `restic-backup` service has no `profiles:` key and is always included. A Helm chart remains an open backlog idea — 1.16.0-0.18.1.
 
 ---
 

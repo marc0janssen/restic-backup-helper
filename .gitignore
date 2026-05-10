@@ -6,3 +6,4 @@ old/
 build-testing-local.env
 build.env
 build-testing.env
+sbom/

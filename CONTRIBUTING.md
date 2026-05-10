@@ -47,3 +47,12 @@ Anything new should keep these end-to-end guarantees so existing operators are n
 ## Building images
 
 The build scripts (`build.sh`, `build-testing.sh`, `build-testing-local.sh`) use the values in `VERSION` + `VERSION_RESTIC` (build-script env). Hand-built images must pass `--build-arg RESTIC_BACKUP_HELPER_RELEASE=…` so `docker inspect` shows the right release string. See [`AGENTS.md`](AGENTS.md) for the full publish flow and Docker Hub `README-containers.md` integration.
+
+### Optional: SBOM generation
+
+Set `SBOM=ON` before running a publish script and `scripts/build-common.sh::emit_sbom` will run [`syft`](https://github.com/anchore/syft) against the just-pushed image and write SPDX + CycloneDX JSON to `./sbom/` (gitignored). The step is a no-op when `SBOM` is unset or when `syft` is missing on `PATH`, so existing local builds are unaffected. See the README "Supply chain" section for the broader picture (CI source-tree SBOMs, Trivy gates).
+
+```shell
+SBOM=ON ./build.sh
+ls sbom/
+```
