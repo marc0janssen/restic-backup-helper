@@ -37,11 +37,11 @@ Ideas and planned enhancements for **restic-backup-helper**. Ordering is not str
 
 ## Runtime correctness & logging
 
-- [ ] Harden **`/bin/rotate_log`** so `cron.log` is truncated only after archive creation succeeds.
-- [ ] Store rotated logs with relative archive paths (`tar -C /var/log ... cron.log`) instead of embedding `/var/log/cron.log` as an absolute path.
-- [ ] Validate **`CRON_LOG_MAX_SIZE`** and **`MAX_CRON_LOG_ARCHIVES`** as positive integers before comparing sizes or pruning archives.
-- [ ] Add explicit **NFS mount failure handling** in `entry.sh`: if `NFS_TARGET` is set and mount fails, log a clear error and exit non-zero instead of scheduling broken jobs.
-- [ ] Reuse the stronger repository credential masking from backup/check in **`entry.sh`** so startup logs do not expose credentials in repository URLs.
+- [x] Harden **`/bin/rotate_log`** so `cron.log` is truncated only after archive creation succeeds — 1.11.15-0.18.1.
+- [x] Store rotated logs with relative archive paths (`tar -C /var/log ... cron.log`) instead of embedding `/var/log/cron.log` as an absolute path — 1.11.15-0.18.1.
+- [x] Validate **`CRON_LOG_MAX_SIZE`** and **`MAX_CRON_LOG_ARCHIVES`** as positive integers before comparing sizes or pruning archives — 1.11.15-0.18.1.
+- [x] Add explicit **NFS mount failure handling** in `entry.sh`: if `NFS_TARGET` is set and mount fails, log a clear error and exit non-zero instead of scheduling broken jobs — 1.11.15-0.18.1.
+- [x] Reuse the stronger repository credential masking from backup/check in **`entry.sh`** so startup logs do not expose credentials in repository URLs — 1.11.15-0.18.1.
 
 ---
 
@@ -75,11 +75,11 @@ Ideas and planned enhancements for **restic-backup-helper**. Ordering is not str
 
 ## Code quality & maintainability
 
-- [ ] Introduce shared runtime helper library (for example `app/lib.sh` copied to `/bin/lib.sh`) for logging, `copyErrorLog`, repository masking, hook execution and mail notification helpers.
-- [ ] Remove obsolete commented **`RESTIC_PUBLICKEY`** / `CACERT_OPTION` code now that `RESTIC_CACERT` is the documented path.
+- [x] Introduce shared runtime helper library (`app/lib.sh` copied to `/bin/lib.sh`) for logging, `copyErrorLog`, repository masking — 1.11.16-0.18.1.
+- [x] Remove obsolete commented **`RESTIC_PUBLICKEY`** / `CACERT_OPTION` code now that `RESTIC_CACERT` is the documented path — 1.11.15-0.18.1.
 - [ ] Add `set -euo pipefail` (or a carefully reviewed equivalent) to runtime worker scripts where practical, preserving deliberate exit-code handling around Restic/Rclone commands.
-- [ ] Add a generic **hook runner** helper with executable checks, timeout support and consistent logging of hook start, exit code and duration.
-- [ ] Reduce duplicated mail-notification logic between backup/check/sync while preserving existing `MAILX_ON_ERROR` behaviour.
+- [ ] Add a generic **hook runner** helper (in `/bin/lib.sh`) with executable checks, timeout support and consistent logging of hook start, exit code and duration.
+- [ ] Reduce duplicated mail-notification logic between backup/check/sync (move into `/bin/lib.sh`) while preserving existing `MAILX_ON_ERROR` behaviour.
 
 ---
 

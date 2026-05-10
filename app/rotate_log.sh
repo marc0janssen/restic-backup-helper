@@ -12,17 +12,8 @@ LAST_LOGFILE="/var/log/rotate-last.log"
 LOG_FILE="/var/log/cron.log"
 ARCHIVE_DIR="/var/log"
 
-# Function to write to the last log file
-logLast() {
-	echo "$1" >>"${LAST_LOGFILE}"
-}
-
-# Function to log messages to both console and log file
-log() {
-	local message="$1"
-	echo "${message}"
-	logLast "${message}"
-}
+# shellcheck source=lib.sh
+. /bin/lib.sh
 
 # Clear log file
 rm -f "${LAST_LOGFILE}"

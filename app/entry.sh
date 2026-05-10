@@ -56,32 +56,8 @@ if [ "${1:-}" = "config-check" ]; then
 	exit $?
 fi
 
-# Mask repository credentials before logging.
-# Same implementation as in /bin/backup and /bin/check; consolidate via app/lib.sh later.
-mask_repository() {
-	local repo="$1"
-	local rest="$repo"
-	local masked=""
-	local before after last_part prefix
-
-	while [[ "$rest" == *"@"* ]]; do
-		before="${rest%%@*}"
-		after="${rest#*@}"
-		last_part="${before##*/}"
-
-		if [[ "$before" == *":"* && "$last_part" == *":"* ]]; then
-			prefix="${before%:*}"
-			masked+="${prefix}:***@"
-		else
-			masked+="${before}@"
-		fi
-
-		rest="$after"
-	done
-
-	masked+="$rest"
-	printf '%s' "$masked"
-}
+# shellcheck source=lib.sh
+. /bin/lib.sh
 
 if [ -n "${RESTIC_REPOSITORY}" ]; then
 	MASKED_REPO="$(mask_repository "${RESTIC_REPOSITORY}")"

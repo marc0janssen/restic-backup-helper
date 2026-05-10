@@ -2,6 +2,14 @@
 
 ## Restic Backup Helper
 
+### 1.11.16-0.18.1 (2026-05-10)
+
+#### Changed
+
+- **Shared runtime helpers**: extract `mask_repository`, `log`, `logLast`, `errorlog` and `copyErrorLog` to **`/bin/lib.sh`** (sourced by `/entry.sh`, `/bin/backup`, `/bin/check`, `/bin/bisync` and `/bin/rotate_log`). Pure refactor; user-visible behaviour for backup, check, bisync, rotate_log and entrypoint is unchanged.
+- **`/bin/check`**: rename internal log variables `LAST_CHECK_LOGFILE` → `LAST_LOGFILE` and `LAST_ERROR_CHECK_LOGFILE` → `LAST_ERROR_LOGFILE` so the shared helpers can be reused. The on-disk file paths (`/var/log/check-last.log`, `/var/log/check-error-last.log`, `/var/log/check-mail-last.log`) are unchanged.
+- **`/bin/bisync`**: keep current `SYNC_VERBOSE` semantics by mapping it onto `LOG_VERBOSE` for the shared `log()` helper (default `OFF` when `SYNC_VERBOSE` is unset, matching prior behaviour).
+
 ### 1.11.15-0.18.1 (2026-05-10)
 
 #### Fixed

@@ -6,36 +6,15 @@
 # Description: Script for verifying repository integrity with Restic
 # =========================================================
 
-# Define log files
-LAST_CHECK_LOGFILE="/var/log/check-last.log"
-LAST_ERROR_CHECK_LOGFILE="/var/log/check-error-last.log"
+# Define log files (kept on disk under their existing names; variable names are
+# unified to LAST_LOGFILE / LAST_ERROR_LOGFILE so /bin/lib.sh helpers can be
+# shared with /bin/backup and /bin/bisync).
+LAST_LOGFILE="/var/log/check-last.log"
+LAST_ERROR_LOGFILE="/var/log/check-error-last.log"
 LAST_MAIL_LOGFILE="/var/log/check-mail-last.log"
 
-# Mask repository credentials before logging
-mask_repository() {
-	local repo="$1"
-	local rest="$repo"
-	local masked=""
-	local before after last_part prefix
-
-	while [[ "$rest" == *"@"* ]]; do
-		before="${rest%%@*}"
-		after="${rest#*@}"
-		last_part="${before##*/}"
-
-		if [[ "$before" == *":"* && "$last_part" == *":"* ]]; then
-			prefix="${before%:*}"
-			masked+="${prefix}:***@"
-		else
-			masked+="${before}@"
-		fi
-
-		rest="$after"
-	done
-
-	masked+="$rest"
-	printf '%s' "$masked"
-}
+# shellcheck source=lib.sh
+. /bin/lib.sh
 
 if [ -n "${RESTIC_REPOSITORY}" ]; then
 	MASKED_REPO=$(mask_repository "${RESTIC_REPOSITORY}")
@@ -46,25 +25,8 @@ fi
 # Releasestring: ENV gezet bij image build (build-arg)
 RELEASE="${RESTIC_BACKUP_HELPER_RELEASE:-unknown}"
 
-# Function to copy error log
-copyErrorLog() {
-	cp "${LAST_CHECK_LOGFILE}" "${LAST_ERROR_CHECK_LOGFILE}"
-}
-
-# Function to write to the last log file
-logLast() {
-	echo "$1" >>"${LAST_CHECK_LOGFILE}"
-}
-
-# Function to log messages to both console and log file
-log() {
-	local message="$1"
-	echo "${message}"
-	logLast "${message}"
-}
-
 # Clear log files
-rm -f "${LAST_CHECK_LOGFILE}" "${LAST_MAIL_LOGFILE}"
+rm -f "${LAST_LOGFILE}" "${LAST_MAIL_LOGFILE}"
 
 # Check if pre-check script exists and execute it
 if [ -f "/hooks/pre-check.sh" ]; then
@@ -100,7 +62,7 @@ if [ -n "${RESTIC_CHECK_ARGS}" ]; then
 	check_cmd+=("${restic_check_args[@]}")
 fi
 
-restic "${check_cmd[@]}" >>"${LAST_CHECK_LOGFILE}" 2>&1
+restic "${check_cmd[@]}" >>"${LAST_LOGFILE}" 2>&1
 checkRC=$?
 logLast "Finished check at $(date +"%Y-%m-%d %a %H:%M:%S")"
 
@@ -127,7 +89,7 @@ if [ -n "${MAILX_RCPT}" ] && {
 	[ "${MAILX_ON_ERROR^^}" != "ON" ] || { [ "${MAILX_ON_ERROR^^}" == "ON" ] && [ "$checkRC" -ne 0 ]; }
 }; then
 	log "📧 Sending email notification to ${MAILX_RCPT}..."
-	if mail -v -s "Result of the last ${HOSTNAME} check run on ${MASKED_REPO}" "${MAILX_RCPT}" <"${LAST_CHECK_LOGFILE}" >"${LAST_MAIL_LOGFILE}" 2>&1; then
+	if mail -v -s "Result of the last ${HOSTNAME} check run on ${MASKED_REPO}" "${MAILX_RCPT}" <"${LAST_LOGFILE}" >"${LAST_MAIL_LOGFILE}" 2>&1; then
 		log "✅ Mail notification successfully sent"
 	else
 		log "❌ Sending mail notification FAILED. Check ${LAST_MAIL_LOGFILE} for further information."

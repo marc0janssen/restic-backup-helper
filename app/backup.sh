@@ -11,31 +11,8 @@ LAST_LOGFILE="/var/log/backup-last.log"
 LAST_ERROR_LOGFILE="/var/log/backup-error-last.log"
 LAST_MAIL_LOGFILE="/var/log/backup-mail-last.log"
 
-# Mask repository credentials before logging
-mask_repository() {
-	local repo="$1"
-	local rest="$repo"
-	local masked=""
-	local before after last_part prefix
-
-	while [[ "$rest" == *"@"* ]]; do
-		before="${rest%%@*}"
-		after="${rest#*@}"
-		last_part="${before##*/}"
-
-		if [[ "$before" == *":"* && "$last_part" == *":"* ]]; then
-			prefix="${before%:*}"
-			masked+="${prefix}:***@"
-		else
-			masked+="${before}@"
-		fi
-
-		rest="$after"
-	done
-
-	masked+="$rest"
-	printf '%s' "$masked"
-}
+# shellcheck source=lib.sh
+. /bin/lib.sh
 
 if [ -n "${RESTIC_REPOSITORY}" ]; then
 	MASKED_REPO=$(mask_repository "${RESTIC_REPOSITORY}")
@@ -45,23 +22,6 @@ fi
 
 # Releasestring: ENV gezet bij image build (build-arg)
 RELEASE="${RESTIC_BACKUP_HELPER_RELEASE:-unknown}"
-
-# Function to copy error log
-copyErrorLog() {
-	cp "${LAST_LOGFILE}" "${LAST_ERROR_LOGFILE}"
-}
-
-# Function to write to the last log file
-logLast() {
-	echo "$1" >>"${LAST_LOGFILE}"
-}
-
-# Function to log messages to both console and log file
-log() {
-	local message="$1"
-	echo "${message}"
-	logLast "${message}"
-}
 
 # Clear log files
 rm -f "${LAST_LOGFILE}" "${LAST_MAIL_LOGFILE}"

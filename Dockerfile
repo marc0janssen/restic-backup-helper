@@ -52,6 +52,8 @@ COPY /app/backup.sh /bin/backup
 COPY /app/check.sh /bin/check
 COPY /app/bisync.sh /bin/bisync
 COPY /app/rotate_log.sh /bin/rotate_log
+# Sourced by /entry.sh and the workers; kept readable but not executable.
+COPY /app/lib.sh /bin/lib.sh
 # Baked at build: ./build.sh passes --build-arg (no repo .release file).
 ARG RESTIC_BACKUP_HELPER_RELEASE=unknown
 LABEL org.opencontainers.image.title="restic-backup-helper" \

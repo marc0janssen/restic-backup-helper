@@ -11,31 +11,13 @@ LAST_LOGFILE="/var/log/sync-last.log"
 LAST_ERROR_LOGFILE="/var/log/sync-error-last.log"
 LAST_MAIL_LOGFILE="/var/log/sync-mail-last.log"
 
+# Map SYNC_VERBOSE onto the shared LOG_VERBOSE used by /bin/lib.sh's log().
+LOG_VERBOSE="${SYNC_VERBOSE:-OFF}"
+
+# shellcheck source=lib.sh
+. /bin/lib.sh
+
 RELEASE="${RESTIC_BACKUP_HELPER_RELEASE:-unknown}"
-
-# Function to copy error log
-copyErrorLog() {
-	cp "${LAST_LOGFILE}" "${LAST_ERROR_LOGFILE}"
-}
-
-# Function to write to the last log file
-logLast() {
-	echo "$1" >>"${LAST_LOGFILE}"
-}
-
-# Function to log messages to both console and log file
-log() {
-	local message="$1"
-	[[ "${SYNC_VERBOSE^^}" == "ON" ]] && echo "${message}"
-	logLast "${message}"
-}
-
-# Function to log errors to both console and log file
-errorlog() {
-	local message="$1"
-	echo "${message}"
-	logLast "${message}"
-}
 
 # Check if the file exists and is not empty
 if [ ! -s "${SYNC_JOB_FILE}" ]; then
