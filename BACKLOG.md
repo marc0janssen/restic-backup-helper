@@ -27,7 +27,7 @@ Ideas and planned enhancements for **restic-backup-helper**. Ordering is not str
 ## Restic & scheduling
 
 - [x] First-class **`RESTIC_CACERT`** wiring in backup/check/entrypoint restic calls: append `--cacert "$RESTIC_CACERT"` automatically when set/readable; warn at runtime and error in `config-check` when set but unreadable — 1.11.17-0.18.1.
-- [ ] Optional **separate cron for `prune`** (decouple retention from post-backup `forget`).
+- [x] Standalone **`PRUNE_CRON`** + **`RESTIC_PRUNE_ARGS`** + `/bin/prune` so heavy `restic prune` runs on its own cadence (typically weekly) while `RESTIC_FORGET_ARGS` keeps post-backup forget cheap. Writes `/var/log/last-prune.json`, supports `pre-prune.sh` / `post-prune.sh` hooks and the `MAILX_*` / `WEBHOOK_*` notification stack — 1.13.0-0.18.1.
 - [x] **`RESTIC_PASSWORD_FILE`** + **Docker/Kubernetes secrets** as primary examples in README / Compose samples — 1.11.3-0.18.1.
 - [x] Pre/post **hook timeouts** and clearer logging of hook exit codes via `HOOK_TIMEOUT` (default `0` = no timeout) and `/bin/lib.sh::run_hook` — 1.11.19-0.18.1.
 - [x] **Repository startup probe** distinguishes missing repository from transient failures: uses `restic cat config` and only runs `restic init` on exit code 10; aborts startup loudly with restic stderr on other non-zero exits — 1.11.20-0.18.1.

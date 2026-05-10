@@ -162,6 +162,13 @@ if [ -n "${SYNC_CRON:-}" ]; then
 	echo "${SYNC_CRON} /bin/locked_run bisync /var/run/bisync.lock /bin/bisync >> /var/log/cron.log 2>&1" >>/var/spool/cron/crontabs/root
 fi
 
+# Setup standalone prune cron job if specified (decouples retention from
+# the post-backup `restic forget` invocation in /bin/backup).
+if [ -n "${PRUNE_CRON:-}" ]; then
+	echo "⏰ Setting up prune cron job with expression: ${PRUNE_CRON}"
+	echo "${PRUNE_CRON} /bin/locked_run prune /var/run/prune.lock /bin/prune >> /var/log/cron.log 2>&1" >>/var/spool/cron/crontabs/root
+fi
+
 echo "⏰ Setting up rotate log cron job with expression: ${ROTATE_LOG_CRON:-}"
 echo "${ROTATE_LOG_CRON:-} /bin/locked_run rotate_log /var/run/rotate_log.lock /bin/rotate_log >> /var/log/cron.log 2>&1" >>/var/spool/cron/crontabs/root
 

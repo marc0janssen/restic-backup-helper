@@ -15,6 +15,7 @@ ENV RESTIC_CACHE_DIR="/.cache/restic"
 ENV RESTIC_FORGET_ARGS=""
 ENV RESTIC_JOB_ARGS=""
 ENV RESTIC_CHECK_ARGS=""
+ENV RESTIC_PRUNE_ARGS=""
 ENV RESTIC_CHECK_REPOSITORY_STATUS="ON"
 ENV RESTIC_CACERT=""
 ENV RESTIC_AUTO_UNLOCK="OFF"
@@ -22,6 +23,7 @@ ENV NFS_TARGET=""
 ENV BACKUP_CRON="0 */6 * * *"
 ENV BACKUP_ROOT_DIR=""
 ENV CHECK_CRON=""
+ENV PRUNE_CRON=""
 ENV RCLONE_CONFIG="/config/rclone.conf"
 ENV SYNC_JOB_FILE="/config/sync_jobs.txt"
 ENV SYNC_JOB_ARGS=""
@@ -58,6 +60,7 @@ COPY /app/backup.sh /bin/backup
 COPY /app/check.sh /bin/check
 COPY /app/bisync.sh /bin/bisync
 COPY /app/rotate_log.sh /bin/rotate_log
+COPY /app/prune.sh /bin/prune
 # Lock-aware cron wrapper used by /entry.sh to log "skipped: previous run
 # still active" instead of leaving cron with an opaque flock exit code.
 COPY /app/locked_run.sh /bin/locked_run
@@ -68,7 +71,7 @@ ARG RESTIC_BACKUP_HELPER_RELEASE=unknown
 LABEL org.opencontainers.image.title="restic-backup-helper" \
 	org.opencontainers.image.version="${RESTIC_BACKUP_HELPER_RELEASE}"
 ENV RESTIC_BACKUP_HELPER_RELEASE=${RESTIC_BACKUP_HELPER_RELEASE}
-RUN chmod 755 /entry.sh /bin/backup /bin/check /bin/bisync /bin/rotate_log /bin/locked_run
+RUN chmod 755 /entry.sh /bin/backup /bin/check /bin/bisync /bin/rotate_log /bin/prune /bin/locked_run
 
 # set sendmail-path
 RUN rm -rf /usr/sbin/sendmail && ln -s /usr/bin/msmtp /usr/sbin/sendmail

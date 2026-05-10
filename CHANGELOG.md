@@ -2,6 +2,20 @@
 
 ## Restic Backup Helper
 
+### 1.13.0-0.18.1 (2026-05-10)
+
+#### Added
+
+- **Standalone `restic prune` schedule** (`/bin/prune`) so retention can be decoupled from the post-backup `restic forget`. New environment variables:
+  - **`PRUNE_CRON`** (default empty): when non-empty, `/entry.sh` schedules `/bin/prune` via `/bin/locked_run` on its own lock (`/var/run/prune.lock`).
+  - **`RESTIC_PRUNE_ARGS`** (default empty): extra words passed to `restic prune` (e.g. `--max-unused 10%`, `--max-repack-size 5G`); shell-word split.
+- **`/var/log/last-prune.json`**: same schema as the other per-run JSON summaries (`job`, `hostname`, `release`, `started_at`, `finished_at`, `duration_seconds`, `exit_code`, `repository` (masked)). Posted to `WEBHOOK_URL` when configured. Supports `pre-prune.sh` / `post-prune.sh` hooks via the existing hook runner.
+- **Mail subject** for prune mirrors backup/check (`Result of the last <hostname> prune run on <repository>`); honours `MAILX_RCPT` and `MAILX_ON_ERROR`.
+
+#### Changed
+
+- **`/entry.sh`** appends a fifth cron line when `PRUNE_CRON` is set; existing `RESTIC_FORGET_ARGS` behaviour in `/bin/backup` is unchanged. Typical pattern: keep `RESTIC_FORGET_ARGS=--keep-daily 7 --keep-weekly 4` (forget only, fast) on every backup and run `restic prune` (slow, repository-wide) once a week via `PRUNE_CRON='0 4 * * 0'`. If `RESTIC_FORGET_ARGS` already includes `--prune` the next standalone prune simply has nothing to do.
+
 ### 1.12.0-0.18.1 (2026-05-10)
 
 #### Added

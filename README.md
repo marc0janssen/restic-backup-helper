@@ -46,6 +46,7 @@ If this image saves you time, you can [leave a tip on Ko-fi](https://ko-fi.com/m
 
 - **Scheduled backup** via `/bin/backup` (cron expression `BACKUP_CRON`), with optional **snapshot policy** (`RESTIC_FORGET_ARGS` runs `restic forget` after a successful backup).
 - **Scheduled integrity check** via `/bin/check` when `CHECK_CRON` is non-empty.
+- **Scheduled standalone prune** via `/bin/prune` when `PRUNE_CRON` is non-empty (decouples the heavy `restic prune` from per-backup `restic forget`).
 - **Scheduled Rclone bisync** via `/bin/bisync` when `SYNC_CRON` and a valid `SYNC_JOB_FILE` are configured.
 - **Repository probe on startup**: when `RESTIC_CHECK_REPOSITORY_STATUS=ON`, the entrypoint probes with `restic cat config` and only auto-runs `restic init` when the probe exits **10** (repository does not exist). Other non-zero exits (wrong password, network, DNS, TLS, auth) log restic stderr and abort startup so a transient failure cannot accidentally re-init a healthy remote.
 - **Configuration check**: run `docker run … config-check` with the same env as production to validate credentials, backup paths, `RCLONE_CONFIG` and `RESTIC_CACERT` readability without starting cron (CI-friendly).
@@ -58,14 +59,14 @@ If this image saves you time, you can [leave a tip on Ko-fi](https://ko-fi.com/m
 
 ## Image tags and release
 
-release: 1.12.0-0.18.1
+release: 1.13.0-0.18.1
 
 | Train | When to use | Example pull |
 | --- | --- | --- |
-| **Stable** | Production | `docker pull marc0janssen/restic-backup-helper:latest` or pinned `marc0janssen/restic-backup-helper:1.12.0-0.18.1` |
-| **Testing** | Pre-release / CI | `docker pull marc0janssen/restic-backup-helper:develop` or `marc0janssen/restic-backup-helper:1.12.0-0.18.1-dev` |
+| **Stable** | Production | `docker pull marc0janssen/restic-backup-helper:latest` or pinned `marc0janssen/restic-backup-helper:1.13.0-0.18.1` |
+| **Testing** | Pre-release / CI | `docker pull marc0janssen/restic-backup-helper:develop` or `marc0janssen/restic-backup-helper:1.13.0-0.18.1-dev` |
 
-> **Upgrading from 1.11.x?** Automatic `restic unlock` after backup / check failures is now **opt-in** via `RESTIC_AUTO_UNLOCK=ON`. The new default leaves the lock alone (safer for repositories shared across multiple hosts). See the env table below and the [Troubleshooting](#troubleshooting) section for the migration hint.
+> **Upgrading from 1.11.x?** Automatic `restic unlock` after backup / check failures is now **opt-in** via `RESTIC_AUTO_UNLOCK=ON` (since 1.12.0). The new default leaves the lock alone (safer for repositories shared across multiple hosts). See the env table below and the [Troubleshooting](#troubleshooting) section for the migration hint.
 
 Pinned tags let you lock both **helper semver** and **Restic base** (`<semver>-<restic>`).
 
@@ -102,13 +103,14 @@ For **FUSE / `restic mount`**, add capabilities and device (see [Manual operatio
 ## How it works
 
 1. **`/entry.sh`** starts at container boot, prints release metadata (`RESTIC_BACKUP_HELPER_RELEASE`), optionally mounts NFS (`NFS_TARGET`), validates or initializes the repository, then writes **root’s crontab** under `/var/spool/cron/crontabs/root` and runs **`crond`**.
-2. **Backup line** (always present): `BACKUP_CRON … flock … /bin/backup >> /var/log/cron.log`.
+2. **Backup line** (always present): `BACKUP_CRON … /bin/locked_run backup … /bin/backup >> /var/log/cron.log`.
 3. **Check line** (optional): appended only if `CHECK_CRON` is non-empty.
 4. **Sync line** (optional): appended only if `SYNC_CRON` is non-empty.
-5. **Rotate line** (always present): `ROTATE_LOG_CRON … /bin/rotate_log`.
+5. **Prune line** (optional): appended only if `PRUNE_CRON` is non-empty.
+6. **Rotate line** (always present): `ROTATE_LOG_CRON … /bin/locked_run rotate_log … /bin/rotate_log`.
 6. Default **CMD** tails `/var/log/cron.log` so the container stays foreground-friendly for Compose and logs aggregate cron output.
 
-Worker scripts live at `/bin/backup`, `/bin/check`, `/bin/bisync`, `/bin/rotate_log`.
+Worker scripts live at `/bin/backup`, `/bin/check`, `/bin/prune`, `/bin/bisync`, `/bin/rotate_log`. The cron wrapper itself is `/bin/locked_run`.
 
 ---
 
@@ -157,6 +159,13 @@ Defaults below match **`Dockerfile`** unless noted. Empty default means unset/bl
 | --- | --- | --- |
 | `CHECK_CRON` | *(empty)* | If non-empty, schedules `/bin/check`. |
 | `RESTIC_CHECK_ARGS` | *(empty)* | Extra arguments for `restic check`. |
+
+### Prune job
+
+| Variable | Default | Description |
+| --- | --- | --- |
+| `PRUNE_CRON` | *(empty)* | If non-empty, schedules a standalone **`/bin/prune`** (via `/bin/locked_run` on its own `/var/run/prune.lock`). Use this to run the heavy `restic prune` on its own cadence (typically weekly) while `RESTIC_FORGET_ARGS` keeps post-backup forget cheap. Independent of `RESTIC_FORGET_ARGS`; if `--prune` is already part of `RESTIC_FORGET_ARGS` the next standalone prune simply has nothing to do. |
+| `RESTIC_PRUNE_ARGS` | *(empty)* | Extra words passed to `restic prune` (shell-word split), e.g. `--max-unused 10%`, `--max-repack-size 5G`. |
 
 ### NFS
 
@@ -233,7 +242,7 @@ Use standard AWS variables (`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_D
 
 ## Cron and time zones
 
-Crontab entries are written literally from `BACKUP_CRON`, `CHECK_CRON`, `SYNC_CRON`, and `ROTATE_LOG_CRON`. Ensure **`TZ`** matches how you expect schedules to fire. For UTC-only mental models, set `TZ=UTC`.
+Crontab entries are written literally from `BACKUP_CRON`, `CHECK_CRON`, `SYNC_CRON`, `PRUNE_CRON` and `ROTATE_LOG_CRON`. Each entry is wrapped in `/bin/locked_run` so overlapping ticks log `⏭ <job> skipped: previous run still active` to `/var/log/cron.log` instead of failing silently. Ensure **`TZ`** matches how you expect schedules to fire. For UTC-only mental models, set `TZ=UTC`.
 
 ---
 
@@ -247,6 +256,8 @@ Mount scripts into **`/hooks`**:
 | `/hooks/post-backup.sh` | After backup; receives **backup exit code** as `$1` |
 | `/hooks/pre-check.sh` | Before check |
 | `/hooks/post-check.sh` | After check; receives **check exit code** as `$1` |
+| `/hooks/pre-prune.sh` | Before prune |
+| `/hooks/post-prune.sh` | After prune; receives **prune exit code** as `$1` |
 | `/hooks/pre-sync.sh` | Before sync batch |
 | `/hooks/post-sync.sh` | After sync batch; receives **aggregate exit code** as `$1` |
 
@@ -415,6 +426,7 @@ Each worker writes a structured summary of its **last run** under `/var/log` aft
 | --- | --- | --- |
 | `/var/log/last-backup.json` | `/bin/backup` | `job`, `hostname`, `release`, `started_at`, `finished_at`, `duration_seconds`, `exit_code`, `repository` (masked), `backup_root_dir`, `restic_tag`, plus — when restic produced them — `snapshot_id`, `files_new` / `files_changed` / `files_unmodified`, `bytes_added` / `bytes_stored` (human strings such as `1.234 MiB`) |
 | `/var/log/last-check.json` | `/bin/check` | `job`, `hostname`, `release`, `started_at`, `finished_at`, `duration_seconds`, `exit_code`, `repository` (masked) |
+| `/var/log/last-prune.json` | `/bin/prune` | `job`, `hostname`, `release`, `started_at`, `finished_at`, `duration_seconds`, `exit_code`, `repository` (masked) |
 | `/var/log/last-sync.json` | `/bin/bisync` | `job`, `hostname`, `release`, `started_at`, `finished_at`, `duration_seconds`, `exit_code`, `sync_jobs_processed`, `sync_jobs_failed` |
 
 Files are overwritten atomically each run (write to `*.tmp`, then `mv`). Mount `/var/log` on the host to scrape them, or feed them into Prometheus textfile collectors, Datadog log pipelines, or simple shell scripts. The backup-stats keys (`snapshot_id`, `files_*`, `bytes_*`) are best-effort: when a backup fails before restic prints them, they are simply omitted from the JSON.
@@ -428,6 +440,7 @@ Replace container name as needed.
 ```shell
 docker exec -ti restic-backup-helper /bin/backup
 docker exec -ti restic-backup-helper /bin/check
+docker exec -ti restic-backup-helper /bin/prune
 docker exec -ti restic-backup-helper /bin/bisync
 docker exec -ti restic-backup-helper /bin/rotate_log
 docker exec -ti restic-backup-helper restic snapshots
