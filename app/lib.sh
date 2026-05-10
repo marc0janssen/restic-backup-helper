@@ -272,6 +272,55 @@ run_hook() {
 	return "${hook_rc}"
 }
 
+# Parse a `restic backup` text-format log into the BACKUP_STATS_* globals so
+# callers can attach the values to last-run.json / webhook payloads. The
+# function always defines all globals (empty when not found) so callers can
+# safely test with `[ -n "${BACKUP_STATS_*}" ]`.
+#
+# Captured fields (best-effort, restic 0.13+ text format; survives missing
+# lines from failed runs):
+#   - BACKUP_STATS_SNAPSHOT_ID         e.g. "abc12345" from "snapshot abc12345 saved"
+#   - BACKUP_STATS_FILES_NEW           integer
+#   - BACKUP_STATS_FILES_CHANGED       integer
+#   - BACKUP_STATS_FILES_UNMODIFIED    integer
+#   - BACKUP_STATS_BYTES_ADDED         human string with unit, e.g. "1.234 MiB"
+#   - BACKUP_STATS_BYTES_STORED        human string with unit (deduplicated)
+#
+# Bytes are kept as restic's pre-formatted strings to avoid losing the unit
+# and to keep the helper jq-free; downstream consumers can re-parse if they
+# need raw integers.
+parse_restic_backup_stats() {
+	local log="$1"
+	BACKUP_STATS_SNAPSHOT_ID=""
+	BACKUP_STATS_FILES_NEW=""
+	BACKUP_STATS_FILES_CHANGED=""
+	BACKUP_STATS_FILES_UNMODIFIED=""
+	BACKUP_STATS_BYTES_ADDED=""
+	BACKUP_STATS_BYTES_STORED=""
+
+	[ -n "${log}" ] && [ -f "${log}" ] || return 0
+
+	local line
+
+	line="$(grep -E 'snapshot [a-f0-9]+ saved' "${log}" 2>/dev/null | tail -n 1)"
+	if [ -n "${line}" ]; then
+		BACKUP_STATS_SNAPSHOT_ID="$(printf '%s' "${line}" | sed -nE 's/.*snapshot ([a-f0-9]+) saved.*/\1/p')"
+	fi
+
+	line="$(grep -E '^Files:[[:space:]]+[0-9]+ new,' "${log}" 2>/dev/null | tail -n 1)"
+	if [ -n "${line}" ]; then
+		BACKUP_STATS_FILES_NEW="$(printf '%s' "${line}" | sed -nE 's/^Files:[[:space:]]+([0-9]+) new,[[:space:]]+([0-9]+) changed,[[:space:]]+([0-9]+) unmodified.*/\1/p')"
+		BACKUP_STATS_FILES_CHANGED="$(printf '%s' "${line}" | sed -nE 's/^Files:[[:space:]]+([0-9]+) new,[[:space:]]+([0-9]+) changed,[[:space:]]+([0-9]+) unmodified.*/\2/p')"
+		BACKUP_STATS_FILES_UNMODIFIED="$(printf '%s' "${line}" | sed -nE 's/^Files:[[:space:]]+([0-9]+) new,[[:space:]]+([0-9]+) changed,[[:space:]]+([0-9]+) unmodified.*/\3/p')"
+	fi
+
+	line="$(grep -E '^Added to the repository:' "${log}" 2>/dev/null | tail -n 1)"
+	if [ -n "${line}" ]; then
+		BACKUP_STATS_BYTES_ADDED="$(printf '%s' "${line}" | sed -nE 's/^Added to the repository:[[:space:]]+(.+)[[:space:]]+\((.+) stored\).*/\1/p')"
+		BACKUP_STATS_BYTES_STORED="$(printf '%s' "${line}" | sed -nE 's/^Added to the repository:[[:space:]]+(.+)[[:space:]]+\((.+) stored\).*/\2/p')"
+	fi
+}
+
 # Populate the global RESTIC_CACERT_ARGS array with --cacert flags derived from
 # the RESTIC_CACERT environment variable. Empty array when RESTIC_CACERT is
 # unset; warns (without aborting) when set but the file is not readable so the

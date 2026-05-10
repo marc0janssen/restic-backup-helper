@@ -58,12 +58,12 @@ If this image saves you time, you can [leave a tip on Ko-fi](https://ko-fi.com/m
 
 ## Image tags and release
 
-release: 1.11.21-0.18.1
+release: 1.11.22-0.18.1
 
 | Train | When to use | Example pull |
 | --- | --- | --- |
-| **Stable** | Production | `docker pull marc0janssen/restic-backup-helper:latest` or pinned `marc0janssen/restic-backup-helper:1.11.21-0.18.1` |
-| **Testing** | Pre-release / CI | `docker pull marc0janssen/restic-backup-helper:develop` or `marc0janssen/restic-backup-helper:1.11.21-0.18.1-dev` |
+| **Stable** | Production | `docker pull marc0janssen/restic-backup-helper:latest` or pinned `marc0janssen/restic-backup-helper:1.11.22-0.18.1` |
+| **Testing** | Pre-release / CI | `docker pull marc0janssen/restic-backup-helper:develop` or `marc0janssen/restic-backup-helper:1.11.22-0.18.1-dev` |
 
 Pinned tags let you lock both **helper semver** and **Restic base** (`<semver>-<restic>`).
 
@@ -410,11 +410,11 @@ Each worker writes a structured summary of its **last run** under `/var/log` aft
 
 | File | Written by | Useful fields |
 | --- | --- | --- |
-| `/var/log/last-backup.json` | `/bin/backup` | `job`, `hostname`, `release`, `started_at`, `finished_at`, `duration_seconds`, `exit_code`, `repository` (masked), `backup_root_dir`, `restic_tag` |
+| `/var/log/last-backup.json` | `/bin/backup` | `job`, `hostname`, `release`, `started_at`, `finished_at`, `duration_seconds`, `exit_code`, `repository` (masked), `backup_root_dir`, `restic_tag`, plus — when restic produced them — `snapshot_id`, `files_new` / `files_changed` / `files_unmodified`, `bytes_added` / `bytes_stored` (human strings such as `1.234 MiB`) |
 | `/var/log/last-check.json` | `/bin/check` | `job`, `hostname`, `release`, `started_at`, `finished_at`, `duration_seconds`, `exit_code`, `repository` (masked) |
 | `/var/log/last-sync.json` | `/bin/bisync` | `job`, `hostname`, `release`, `started_at`, `finished_at`, `duration_seconds`, `exit_code`, `sync_jobs_processed`, `sync_jobs_failed` |
 
-Files are overwritten atomically each run (write to `*.tmp`, then `mv`). Mount `/var/log` on the host to scrape them, or feed them into Prometheus textfile collectors, Datadog log pipelines, or simple shell scripts.
+Files are overwritten atomically each run (write to `*.tmp`, then `mv`). Mount `/var/log` on the host to scrape them, or feed them into Prometheus textfile collectors, Datadog log pipelines, or simple shell scripts. The backup-stats keys (`snapshot_id`, `files_*`, `bytes_*`) are best-effort: when a backup fails before restic prints them, they are simply omitted from the JSON.
 
 ---
 

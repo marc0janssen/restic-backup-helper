@@ -2,6 +2,13 @@
 
 ## Restic Backup Helper
 
+### 1.11.22-0.18.1 (2026-05-10)
+
+#### Added
+
+- **Restic backup stats** parsed into `/var/log/last-backup.json` and the backup webhook payload: `snapshot_id` (short id from `snapshot <id> saved`), `files_new` / `files_changed` / `files_unmodified` and `bytes_added` / `bytes_stored` (human-readable strings as restic prints them, e.g. `1.234 MiB`). Closes the snapshot-id follow-up from 1.11.18; downstream monitoring (Slack, Discord, healthchecks.io, …) can surface "backup added X to repository, snapshot abc12345" without a second `restic snapshots` call. Fields are only added when restic actually printed them, so failed runs simply omit the keys.
+- **`/bin/lib.sh`**: `parse_restic_backup_stats <log_file>` populates the new `BACKUP_STATS_*` globals from a captured `restic backup` text-format log; jq-free, tolerant of missing lines.
+
 ### 1.11.21-0.18.1 (2026-05-10)
 
 #### Added

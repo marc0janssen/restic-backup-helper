@@ -114,17 +114,33 @@ seconds=$((duration % 60))
 
 log "🏁 Finished backup at $(date +"%Y-%m-%d %a %H:%M:%S") after ${minutes}m ${seconds}s"
 
-# Persist a structured per-run summary for external monitoring.
-write_last_run_json "backup" "${backupRC}" "${start}" "${end}" \
-	"repository" "${MASKED_REPO}" \
-	"backup_root_dir" "${BACKUP_ROOT_DIR:-}" \
-	"restic_tag" "${RESTIC_TAG:-}"
+parse_restic_backup_stats "${LAST_LOGFILE}"
 
-# POST the same payload to WEBHOOK_URL when configured (no-op otherwise).
-notify_webhook "backup" "${backupRC}" "${start}" "${end}" \
-	"repository" "${MASKED_REPO}" \
-	"backup_root_dir" "${BACKUP_ROOT_DIR:-}" \
-	"restic_tag" "${RESTIC_TAG:-}" || true
+last_run_extras=(
+	"repository" "${MASKED_REPO}"
+	"backup_root_dir" "${BACKUP_ROOT_DIR:-}"
+	"restic_tag" "${RESTIC_TAG:-}"
+)
+if [ -n "${BACKUP_STATS_SNAPSHOT_ID}" ]; then
+	last_run_extras+=("snapshot_id" "${BACKUP_STATS_SNAPSHOT_ID}")
+fi
+if [ -n "${BACKUP_STATS_FILES_NEW}" ]; then
+	last_run_extras+=(
+		"files_new" "${BACKUP_STATS_FILES_NEW}"
+		"files_changed" "${BACKUP_STATS_FILES_CHANGED}"
+		"files_unmodified" "${BACKUP_STATS_FILES_UNMODIFIED}"
+	)
+fi
+if [ -n "${BACKUP_STATS_BYTES_ADDED}" ]; then
+	last_run_extras+=(
+		"bytes_added" "${BACKUP_STATS_BYTES_ADDED}"
+		"bytes_stored" "${BACKUP_STATS_BYTES_STORED}"
+	)
+fi
+
+write_last_run_json "backup" "${backupRC}" "${start}" "${end}" "${last_run_extras[@]}"
+
+notify_webhook "backup" "${backupRC}" "${start}" "${end}" "${last_run_extras[@]}" || true
 
 # Send mail notification (on failure if MAILX_ON_ERROR=ON, else always when MAILX_RCPT set)
 if [ -n "${MAILX_RCPT}" ] && {
