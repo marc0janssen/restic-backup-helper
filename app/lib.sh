@@ -377,6 +377,17 @@ parse_restic_backup_stats() {
 	fi
 }
 
+# Return 0 (true) when RESTIC_AUTO_UNLOCK is explicitly set to ON
+# (case-insensitive), 1 otherwise. Used by /bin/backup and /bin/check to
+# decide whether to fire `restic unlock` after a failed run. Default OFF
+# is the safer choice for repositories shared across multiple hosts: an
+# automatic unlock could clear another host's legitimate lock and let two
+# hosts mutate the repository concurrently.
+should_auto_unlock() {
+	local val="${RESTIC_AUTO_UNLOCK:-OFF}"
+	[[ "${val^^}" == "ON" ]]
+}
+
 # Populate the global RESTIC_CACERT_ARGS array with --cacert flags derived from
 # the RESTIC_CACERT environment variable. Empty array when RESTIC_CACERT is
 # unset; warns (without aborting) when set but the file is not readable so the

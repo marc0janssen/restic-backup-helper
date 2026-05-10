@@ -77,8 +77,12 @@ if [ "$checkRC" -eq 0 ]; then
 	log "✅ Check Successful"
 else
 	log "❌ Check Failed with Status ${checkRC}"
-	log "🔓 Unlocking repository..."
-	restic "${RESTIC_CACERT_ARGS[@]}" unlock || true
+	if should_auto_unlock; then
+		log "🔓 Unlocking repository (RESTIC_AUTO_UNLOCK=ON)..."
+		restic "${RESTIC_CACERT_ARGS[@]}" unlock || true
+	else
+		log "ℹ️ Skipping automatic 'restic unlock' (RESTIC_AUTO_UNLOCK!=ON). Inspect with 'restic list locks' and run 'restic unlock' manually if the lock is stale, or set RESTIC_AUTO_UNLOCK=ON to restore the previous default behaviour."
+	fi
 	copyErrorLog
 fi
 

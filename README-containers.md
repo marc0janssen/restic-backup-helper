@@ -12,21 +12,23 @@ Scheduled [Restic](https://restic.net) backups, optional `restic check`, optiona
 
 ## Release
 
-release: 1.11.25-0.18.1
+release: 1.12.0-0.18.1
 
 **Stable**
 
 ```shell
 docker pull marc0janssen/restic-backup-helper:latest
-docker pull marc0janssen/restic-backup-helper:1.11.25-0.18.1
+docker pull marc0janssen/restic-backup-helper:1.12.0-0.18.1
 ```
 
 **Development (experimental)**
 
 ```shell
 docker pull marc0janssen/restic-backup-helper:develop
-docker pull marc0janssen/restic-backup-helper:1.11.25-0.18.1-dev
+docker pull marc0janssen/restic-backup-helper:1.12.0-0.18.1-dev
 ```
+
+> **Upgrading from 1.11.x?** Automatic `restic unlock` after backup/check failures is now opt-in (`RESTIC_AUTO_UNLOCK=ON`). New default leaves stale locks alone (safer for multi-host repos). See the GitHub README env table.
 
 ---
 
@@ -35,7 +37,7 @@ docker pull marc0janssen/restic-backup-helper:1.11.25-0.18.1-dev
 | Tag | Meaning |
 | --- | --- |
 | `latest` | Current stable |
-| `<semver>-<restic>` | Pinned stable (helper version + Restic base), e.g. `1.11.25-0.18.1` |
+| `<semver>-<restic>` | Pinned stable (helper version + Restic base), e.g. `1.12.0-0.18.1` |
 | `develop` | Latest testing build |
 | `<semver>-<restic>-dev` | Pinned testing image |
 

@@ -91,8 +91,12 @@ if [ "$backupRC" -eq 0 ]; then
 	log "✅ Backup Successful"
 else
 	log "❌ Backup Failed with Status ${backupRC}"
-	log "🔓 Unlocking repository..."
-	restic "${RESTIC_CACERT_ARGS[@]}" unlock || true
+	if should_auto_unlock; then
+		log "🔓 Unlocking repository (RESTIC_AUTO_UNLOCK=ON)..."
+		restic "${RESTIC_CACERT_ARGS[@]}" unlock || true
+	else
+		log "ℹ️ Skipping automatic 'restic unlock' (RESTIC_AUTO_UNLOCK!=ON). Inspect with 'restic list locks' and run 'restic unlock' manually if the lock is stale, or set RESTIC_AUTO_UNLOCK=ON to restore the previous default behaviour."
+	fi
 	copyErrorLog
 fi
 
@@ -112,8 +116,12 @@ if [ "$backupRC" -eq 0 ] && [ -n "${RESTIC_FORGET_ARGS:-}" ]; then
 		log "✅ Forget Successful"
 	else
 		log "❌ Forget Failed with Status ${rc}"
-		log "🔓 Unlocking repository..."
-		restic "${RESTIC_CACERT_ARGS[@]}" unlock || true
+		if should_auto_unlock; then
+			log "🔓 Unlocking repository (RESTIC_AUTO_UNLOCK=ON)..."
+			restic "${RESTIC_CACERT_ARGS[@]}" unlock || true
+		else
+			log "ℹ️ Skipping automatic 'restic unlock' (RESTIC_AUTO_UNLOCK!=ON); see backup-failure log entry above for guidance."
+		fi
 		copyErrorLog
 	fi
 fi

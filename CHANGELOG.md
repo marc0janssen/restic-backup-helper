@@ -2,6 +2,17 @@
 
 ## Restic Backup Helper
 
+### 1.12.0-0.18.1 (2026-05-10)
+
+#### Added
+
+- **`RESTIC_AUTO_UNLOCK`** (default `OFF`): controls whether `/bin/backup` and `/bin/check` automatically run `restic unlock` after a non-zero exit. Set to `ON` to restore the historical default; the new safer default leaves the lock in place so the next run logs an explicit hint and the operator can inspect with `restic list locks` first.
+- **`/bin/lib.sh`**: `should_auto_unlock` helper.
+
+#### Changed (behaviour change — read before upgrading)
+
+- **Automatic `restic unlock` after backup / check failures is now opt-in** (`RESTIC_AUTO_UNLOCK=ON`). Previously every non-zero `restic backup` / `restic forget` / `restic check` call was followed by `restic unlock`, which on a repository shared across multiple hosts could clear another host's legitimate lock and let two hosts mutate the repository concurrently. The new default logs `ℹ️ Skipping automatic 'restic unlock' (RESTIC_AUTO_UNLOCK!=ON)` with a one-line remediation hint instead. Single-host users who relied on auto-unlock to recover from their own crashed jobs should set `RESTIC_AUTO_UNLOCK=ON` explicitly. The `restic unlock --remove-all` call in `/entry.sh` after a failed `restic init` is unchanged because the lock can only have been created by the failing init attempt itself.
+
 ### 1.11.25-0.18.1 (2026-05-10)
 
 #### Fixed

@@ -58,12 +58,14 @@ If this image saves you time, you can [leave a tip on Ko-fi](https://ko-fi.com/m
 
 ## Image tags and release
 
-release: 1.11.25-0.18.1
+release: 1.12.0-0.18.1
 
 | Train | When to use | Example pull |
 | --- | --- | --- |
-| **Stable** | Production | `docker pull marc0janssen/restic-backup-helper:latest` or pinned `marc0janssen/restic-backup-helper:1.11.25-0.18.1` |
-| **Testing** | Pre-release / CI | `docker pull marc0janssen/restic-backup-helper:develop` or `marc0janssen/restic-backup-helper:1.11.25-0.18.1-dev` |
+| **Stable** | Production | `docker pull marc0janssen/restic-backup-helper:latest` or pinned `marc0janssen/restic-backup-helper:1.12.0-0.18.1` |
+| **Testing** | Pre-release / CI | `docker pull marc0janssen/restic-backup-helper:develop` or `marc0janssen/restic-backup-helper:1.12.0-0.18.1-dev` |
+
+> **Upgrading from 1.11.x?** Automatic `restic unlock` after backup / check failures is now **opt-in** via `RESTIC_AUTO_UNLOCK=ON`. The new default leaves the lock alone (safer for repositories shared across multiple hosts). See the env table below and the [Troubleshooting](#troubleshooting) section for the migration hint.
 
 Pinned tags let you lock both **helper semver** and **Restic base** (`<semver>-<restic>`).
 
@@ -138,6 +140,7 @@ Defaults below match **`Dockerfile`** unless noted. Empty default means unset/bl
 | `RESTIC_CACHE_DIR` | `/.cache/restic` | Restic cache directory. |
 | `RESTIC_CACERT` | *(empty)* | When set to a path inside the container that points to a readable PEM bundle, the entrypoint and worker scripts automatically pass `--cacert "$RESTIC_CACERT"` to every `restic` invocation (`backup`, `check`, `forget`, `unlock`, the startup `cat config` probe and `init`). When set but the file is unreadable, a warning is logged and the flag is omitted; **`config-check`** treats the same condition as a hard error. You can still add extra `--cacert` flags via `RESTIC_JOB_ARGS` / `RESTIC_CHECK_ARGS` if you need additional trust roots. |
 | `RESTIC_CHECK_REPOSITORY_STATUS` | `ON` | On startup, probe with `restic cat config`; auto-`restic init` only when the probe exits `10` (repo missing). Other non-zero exits (auth, network, TLS, …) abort startup with restic stderr in the container log. Set to anything other than `ON` to skip both the probe and the auto-init. |
+| `RESTIC_AUTO_UNLOCK` | `OFF` | When `ON`, `/bin/backup` and `/bin/check` run `restic unlock` after a non-zero restic exit (the historical 1.11.x default). When unset or `OFF`, the lock is **not** touched and a one-line hint is logged instead — recommended for repositories shared across multiple hosts where an automatic unlock could clear another host's legitimate lock. The `restic unlock --remove-all` call in `/entry.sh` after a failed `restic init` is unaffected because that lock can only have been created by the failing init attempt itself. |
 
 ### Backup job
 
@@ -500,6 +503,8 @@ On Kubernetes, mount a `Secret` as a volume (or use `subPath`) and set `RESTIC_P
 | TLS / certificate errors against the repository or a corporate proxy | Mount the PEM bundle into the container and set **`RESTIC_CACERT`** to its path. The flag is appended to every restic invocation automatically; `config-check` will fail when the path is unreadable. |
 | Webhook never reaches the endpoint and the cron log is silent | Confirm **`WEBHOOK_URL`** is set inside the container (`docker exec … env | grep WEBHOOK`); container logs only show `scheme://host/...`. Test connectivity from inside the container: `docker exec -ti … curl -fsS -X POST -H 'Content-Type: application/json' -d '{"test":true}' "$WEBHOOK_URL"`. |
 | Hook never returns / blocks the next cron run | Set **`HOOK_TIMEOUT`** to a positive integer (seconds). The hook is wrapped in `timeout`; exit `124` is logged as a timeout but does not fail the underlying restic job. |
+| `restic` reports a stale lock (`unable to create lock in backend: repository is already locked`) after a previous failed run | List with `docker exec … restic list locks` and confirm the lock host/PID is yours, then `docker exec … restic unlock`. Since 1.12.0 the helper no longer auto-unlocks after a failure (safer for multi-host repos); set **`RESTIC_AUTO_UNLOCK=ON`** to restore the previous behaviour if you only ever back up from one host. |
+| Cron tick runs but `/var/log/cron.log` shows `⏭ <job> skipped: previous run still active` | The previous backup/check/sync/rotate is still holding its `flock`. Confirm the long-running PID inside the container (`docker exec … ps -ef`) and either wait, kill it, or widen the cron interval. |
 | Cron “wrong timezone” | Set **`TZ`** and restart the container. |
 | Rclone auth breaks | Ensure `rclone.conf` is writable if the backend refreshes tokens. |
 | Permission denied on source | Match UID/GID or ACLs on mounted volumes; avoid overly broad `:privileged` unless required. |
