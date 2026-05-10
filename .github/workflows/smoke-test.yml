@@ -16,6 +16,7 @@ jobs:
       - name: Run runtime smoke test
         run: |
           chmod +x ./scripts/ci-smoke-test.sh
+          chmod +x ./ci/smoke-hooks/*.sh
           ./scripts/ci-smoke-test.sh
 
       - name: Collect smoke logs on failure

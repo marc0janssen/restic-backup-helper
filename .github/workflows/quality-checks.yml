@@ -7,7 +7,7 @@ on:
 jobs:
   shell-quality:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
 
     steps:
       - name: Checkout
@@ -16,9 +16,33 @@ jobs:
           fetch-depth: 0
 
       - name: Install quality tools
+        env:
+          ACTIONLINT_VERSION: v1.7.9
+          HADOLINT_VERSION: v2.14.0
         run: |
+          set -eux
           sudo apt-get update
-          sudo apt-get install -y shellcheck shfmt
+          sudo apt-get install -y shellcheck shfmt yamllint
+
+          ARCH="$(uname -m)"
+          case "${ARCH}" in
+            x86_64) AL_ARCH=amd64; HL_DL=Linux-x86_64 ;;
+            aarch64) AL_ARCH=arm64; HL_DL=Linux-arm64 ;;
+            *)
+              echo "Unsupported runner architecture: ${ARCH}" >&2
+              exit 1
+              ;;
+          esac
+
+          curl -fsSL "https://github.com/rhysd/actionlint/releases/download/${ACTIONLINT_VERSION}/actionlint_${ACTIONLINT_VERSION#v}_linux_${AL_ARCH}.tar.gz" | sudo tar xz -C /usr/local/bin actionlint
+          sudo chmod +x /usr/local/bin/actionlint
+
+          curl -fsSL -o /tmp/hadolint "https://github.com/hadolint/hadolint/releases/download/${HADOLINT_VERSION}/hadolint-${HL_DL}"
+          sudo install -m755 /tmp/hadolint /usr/local/bin/hadolint
+
+          actionlint -version
+          hadolint --version
+          yamllint --version
 
       - name: Run shell quality checks
         env:

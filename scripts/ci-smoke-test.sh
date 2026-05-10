@@ -45,6 +45,9 @@ main() {
 
 	trap cleanup EXIT
 
+	# Ensure hook stubs are executable for bind-mount (lost +x on some checkouts).
+	chmod +x ./ci/smoke-hooks/*.sh
+
 	log_info "Starting smoke stack (platform ${smoke_platform})"
 	export DOCKER_DEFAULT_PLATFORM="${smoke_platform}"
 	docker compose -f ci/docker-compose.smoke.yml up -d --build
@@ -54,6 +57,10 @@ main() {
 		docker compose -f ci/docker-compose.smoke.yml logs --no-color || true
 		exit 1
 	fi
+
+	log_info "Seeding smoke volume (backup source + bisync dirs)"
+	docker compose -f ci/docker-compose.smoke.yml exec -T "${service}" \
+		sh -c 'mkdir -p /data/backup_src /data/sync_a /data/sync_b && printf "%s\n" smoke-ci > /data/backup_src/smoke.txt && printf "%s\n" bisync-a > /data/sync_a/a.txt'
 
 	log_info "Checking restic binary"
 	docker compose -f ci/docker-compose.smoke.yml exec -T "${service}" restic version
@@ -65,7 +72,33 @@ main() {
 	log_info "Running config-check"
 	docker compose -f ci/docker-compose.smoke.yml run --rm --no-deps "${service}" config-check
 
-	log_info "Smoke test passed"
+	log_info "Running backup (includes hooks + optional forget)"
+	docker compose -f ci/docker-compose.smoke.yml exec -T "${service}" /bin/backup
+
+	log_info "Verifying snapshots exist"
+	docker compose -f ci/docker-compose.smoke.yml exec -T "${service}" \
+		sh -c 'restic snapshots >/dev/null'
+
+	log_info "Running repository check"
+	docker compose -f ci/docker-compose.smoke.yml exec -T "${service}" /bin/check
+
+	log_info "Running bisync (local pair)"
+	docker compose -f ci/docker-compose.smoke.yml exec -T "${service}" /bin/bisync
+
+	log_info "Verifying bisync replicated file"
+	docker compose -f ci/docker-compose.smoke.yml exec -T "${service}" \
+		sh -c 'test -f /data/sync_b/a.txt'
+
+	log_info "Triggering cron.log rotation path"
+	docker compose -f ci/docker-compose.smoke.yml exec -T "${service}" \
+		sh -c 'printf x >> /var/log/cron.log'
+	docker compose -f ci/docker-compose.smoke.yml exec -T "${service}" /bin/rotate_log
+
+	log_info "Verifying rotation archive created"
+	docker compose -f ci/docker-compose.smoke.yml exec -T "${service}" \
+		sh -c 'ls /var/log/cron_log_*.tar.gz >/dev/null'
+
+	log_info "Smoke test passed (backup, check, bisync, rotate_log, hooks, forget policy)"
 }
 
 main "$@"

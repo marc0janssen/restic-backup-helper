@@ -3,7 +3,6 @@
 #
 # Required at runtime at minimum: RESTIC_REPOSITORY, RESTIC_PASSWORD, RESTIC_TAG.
 #
-version: '3'
 
 services:
   restic-remote:

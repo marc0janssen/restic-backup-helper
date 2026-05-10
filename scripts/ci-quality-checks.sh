@@ -123,6 +123,85 @@ run_version_metadata_guard() {
 	rm -f "${changed_files}"
 }
 
+run_yamllint() {
+	yaml_tmp="$(mktemp)"
+	git ls-files | grep -E '\.(yml|yaml)$' | grep -v '^\.nzbgetvpn-reference/' >"${yaml_tmp}" || true
+
+	if [ ! -s "${yaml_tmp}" ]; then
+		log_info "No YAML files matched for yamllint"
+		rm -f "${yaml_tmp}"
+		return 0
+	fi
+
+	log_info "Running yamllint on tracked YAML files"
+	if command -v yamllint >/dev/null 2>&1; then
+		yamllint_impl=1
+	elif python3 -m yamllint -h >/dev/null 2>&1; then
+		yamllint_impl=2
+	else
+		log_crit "Missing yamllint (apt install yamllint, or: pip install yamllint and ensure python3 -m yamllint works)"
+		rm -f "${yaml_tmp}"
+		exit 1
+	fi
+
+	while IFS= read -r yaml_file; do
+		[ -z "${yaml_file}" ] && continue
+		case "${yamllint_impl}" in
+		1)
+			yamllint -c .yamllint "${yaml_file}"
+			;;
+		2)
+			python3 -m yamllint -c .yamllint "${yaml_file}"
+			;;
+		esac
+	done <"${yaml_tmp}"
+	rm -f "${yaml_tmp}"
+}
+
+run_actionlint() {
+	require_cmd actionlint
+	log_info "Running actionlint on .github/workflows"
+	actionlint
+}
+
+run_hadolint() {
+	log_info "Running hadolint on Dockerfile"
+	if command -v hadolint >/dev/null 2>&1; then
+		hadolint --config .hadolint.yaml Dockerfile
+		return 0
+	fi
+	if command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then
+		docker run --rm -i \
+			-v "$(pwd)/.hadolint.yaml:/.hadolint.yaml:ro" \
+			-v "$(pwd)/Dockerfile:/Dockerfile:ro" \
+			hadolint/hadolint hadolint --config /.hadolint.yaml /Dockerfile
+		return 0
+	fi
+	log_crit "Missing hadolint (install release binary or Docker with image hadolint/hadolint)"
+	exit 1
+}
+
+run_compose_config_validate() {
+	if ! command -v docker >/dev/null 2>&1; then
+		log_info "Skipping Docker Compose config validation (docker not installed)"
+		return 0
+	fi
+	if ! docker info >/dev/null 2>&1; then
+		log_info "Skipping Docker Compose config validation (docker daemon unavailable)"
+		return 0
+	fi
+
+	log_info "Validating Docker Compose files (docker compose config -q)"
+	docker compose -f ci/docker-compose.smoke.yml config -q
+
+	(
+		export RESTIC_REPOSITORY=ci-quality-dummy
+		export RESTIC_PASSWORD=ci-quality-dummy
+		export RESTIC_TAG=ci-quality-dummy
+		docker compose -f scripts/docker-compose.yml config -q
+	)
+}
+
 run_conventional_commit_lint() {
 	default_pattern='^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\([a-z0-9._/-]+\))?(!)?: .+'
 	commit_pattern="${CI_CONVENTIONAL_COMMIT_PATTERN:-${default_pattern}}"
@@ -166,6 +245,11 @@ main() {
 	run_conflict_marker_check
 	run_readme_size_guard
 	run_version_metadata_guard
+
+	run_yamllint
+	run_actionlint
+	run_hadolint
+	run_compose_config_validate
 
 	log_info "Collecting tracked shell scripts"
 	git ls-files "*.sh" >"${file_list}"
