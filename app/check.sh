@@ -31,13 +31,7 @@ build_restic_cacert_args
 # Clear log files
 rm -f "${LAST_LOGFILE}" "${LAST_MAIL_LOGFILE}"
 
-# Check if pre-check script exists and execute it
-if [ -f "/hooks/pre-check.sh" ]; then
-	log "🚀 Starting pre-check script..."
-	/hooks/pre-check.sh
-else
-	log "ℹ️ Pre-check script not found..."
-fi
+run_hook "pre-check"
 
 # Record start time
 start=$(date +%s)
@@ -104,12 +98,6 @@ if [ -n "${MAILX_RCPT}" ] && {
 	fi
 fi
 
-# Check if post-check script exists and execute it
-if [ -f "/hooks/post-check.sh" ]; then
-	log "🚀 Starting post-check script..."
-	/hooks/post-check.sh "$checkRC"
-else
-	log "ℹ️ Post-check script not found..."
-fi
+run_hook "post-check" "$checkRC" || true
 
 exit "$checkRC"

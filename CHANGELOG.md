@@ -2,6 +2,17 @@
 
 ## Restic Backup Helper
 
+### 1.11.19-0.18.1 (2026-05-10)
+
+#### Added
+
+- **Hook runner** (`/bin/lib.sh::run_hook`): centralised hook invocation for `/hooks/{pre,post}-{backup,check,sync}.sh` with consistent start, exit code and duration logging plus an optional **`HOOK_TIMEOUT`** (seconds; default `0` = no timeout). When set to a positive integer, hooks are wrapped in `timeout`; an exit code of `124` is logged prominently as a timeout. Non-executable hooks are reported as errors instead of silently doing nothing.
+- **`HOOK_TIMEOUT`** environment variable (default `0`).
+
+#### Changed
+
+- **`/bin/backup`**, **`/bin/check`**, **`/bin/bisync`**: replace the six inlined hook checks with `run_hook` calls. Behaviour with `HOOK_TIMEOUT=0` is equivalent to the previous implementation; with a positive timeout, long-running hooks no longer block backups indefinitely.
+
 ### 1.11.18-0.18.1 (2026-05-10)
 
 #### Added

@@ -142,6 +142,66 @@ write_last_run_json() {
 	} >"${tmp}" && mv -f "${tmp}" "${target}"
 }
 
+# Run an optional /hooks/<phase>.sh script with consistent logging and an
+# optional timeout. Returns 0 (and logs an info message) when the hook script
+# does not exist, so callers do not need pre-existence checks.
+#
+# Usage:
+#   run_hook <phase> [arg ...]
+#
+# Behaviour:
+#   - Hook path: /hooks/<phase>.sh
+#   - When HOOK_TIMEOUT is unset, empty or 0: run without a timeout (unchanged
+#     historical behaviour).
+#   - When HOOK_TIMEOUT is a positive integer: wrap the hook in `timeout
+#     ${HOOK_TIMEOUT}s`. The `timeout` exit code 124 (timed out) is logged
+#     prominently as an error.
+#   - Logs hook start, exit code and duration via log()/errorlog().
+run_hook() {
+	local phase="$1"
+	shift
+	local hook="/hooks/${phase}.sh"
+	local hook_timeout="${HOOK_TIMEOUT:-0}"
+	local hook_start hook_end hook_duration hook_rc
+
+	if [ ! -f "${hook}" ]; then
+		log "ℹ️ Hook ${phase} not found (${hook})"
+		return 0
+	fi
+	if [ ! -x "${hook}" ]; then
+		errorlog "❌ Hook ${phase} is not executable (${hook}); skipping."
+		return 126
+	fi
+
+	if [[ ! "${hook_timeout}" =~ ^[0-9]+$ ]]; then
+		errorlog "⚠️ HOOK_TIMEOUT='${hook_timeout}' is not a non-negative integer; running ${phase} without a timeout."
+		hook_timeout="0"
+	fi
+
+	hook_start=$(date +%s)
+	if [ "${hook_timeout}" -gt 0 ]; then
+		log "🚀 Running hook ${phase} (timeout ${hook_timeout}s)..."
+		timeout "${hook_timeout}s" "${hook}" "$@"
+		hook_rc=$?
+	else
+		log "🚀 Running hook ${phase}..."
+		"${hook}" "$@"
+		hook_rc=$?
+	fi
+	hook_end=$(date +%s)
+	hook_duration=$((hook_end - hook_start))
+
+	if [ "${hook_rc}" -eq 0 ]; then
+		log "✅ Hook ${phase} completed in ${hook_duration}s (exit 0)"
+	elif [ "${hook_rc}" -eq 124 ] && [ "${hook_timeout}" -gt 0 ]; then
+		errorlog "❌ Hook ${phase} timed out after ${hook_timeout}s (exit 124, ran ${hook_duration}s)"
+	else
+		errorlog "❌ Hook ${phase} failed in ${hook_duration}s (exit ${hook_rc})"
+	fi
+
+	return "${hook_rc}"
+}
+
 # Populate the global RESTIC_CACERT_ARGS array with --cacert flags derived from
 # the RESTIC_CACERT environment variable. Empty array when RESTIC_CACERT is
 # unset; warns (without aborting) when set but the file is not readable so the

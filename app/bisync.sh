@@ -34,13 +34,7 @@ fi
 # Clear log files
 rm -f "${LAST_LOGFILE}" "${LAST_MAIL_LOGFILE}"
 
-# Check if pre-sync script exists and execute it
-if [ -f "/hooks/pre-sync.sh" ]; then
-	log "🚀 Starting pre-sync script..."
-	/hooks/pre-sync.sh
-else
-	log "ℹ️ Pre-sync script not found..."
-fi
+run_hook "pre-sync"
 
 # Note sync start
 log "🔄 Starting Sync at $(date +"%Y-%m-%d %a %H:%M:%S")"
@@ -197,12 +191,6 @@ if [ -n "${MAILX_RCPT}" ] && [ "$syncHasError" -ne 0 ]; then
 	fi
 fi
 
-# Check if post-sync script exists and execute it
-if [ -f "/hooks/post-sync.sh" ]; then
-	log "🚀 Starting post-sync script..."
-	/hooks/post-sync.sh "$overallRC"
-else
-	log "ℹ️ Post-sync script not found..."
-fi
+run_hook "post-sync" "$overallRC" || true
 
 exit "$overallRC"

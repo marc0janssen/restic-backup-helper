@@ -54,12 +54,12 @@ If this image saves you time, you can [leave a tip on Ko-fi](https://ko-fi.com/m
 
 ## Image tags and release
 
-release: 1.11.18-0.18.1
+release: 1.11.19-0.18.1
 
 | Train | When to use | Example pull |
 | --- | --- | --- |
-| **Stable** | Production | `docker pull marc0janssen/restic-backup-helper:latest` or pinned `marc0janssen/restic-backup-helper:1.11.18-0.18.1` |
-| **Testing** | Pre-release / CI | `docker pull marc0janssen/restic-backup-helper:develop` or `marc0janssen/restic-backup-helper:1.11.18-0.18.1-dev` |
+| **Stable** | Production | `docker pull marc0janssen/restic-backup-helper:latest` or pinned `marc0janssen/restic-backup-helper:1.11.19-0.18.1` |
+| **Testing** | Pre-release / CI | `docker pull marc0janssen/restic-backup-helper:develop` or `marc0janssen/restic-backup-helper:1.11.19-0.18.1-dev` |
 
 Pinned tags let you lock both **helper semver** and **Restic base** (`<semver>-<restic>`).
 
@@ -182,6 +182,12 @@ Defaults below match **`Dockerfile`** unless noted. Empty default means unset/bl
 | `CRON_LOG_MAX_SIZE` | `1048576` | Rotate when `cron.log` exceeds this size (bytes). |
 | `MAX_CRON_LOG_ARCHIVES` | `5` | Keep this many compressed archives `cron_log_<timestamp>.tar.gz`. |
 
+### Hooks
+
+| Variable | Default | Description |
+| --- | --- | --- |
+| `HOOK_TIMEOUT` | `0` | When `> 0`, wraps each `/hooks/*.sh` invocation in `timeout ${HOOK_TIMEOUT}s`. Exit code `124` (timed out) is logged prominently as an error. `0` keeps the historical behaviour of no enforced timeout. |
+
 ### OpenStack Swift (when using `swift:` repository)
 
 | Variable | Default |
@@ -228,7 +234,7 @@ Mount scripts into **`/hooks`**:
 | `/hooks/pre-sync.sh` | Before sync batch |
 | `/hooks/post-sync.sh` | After sync batch; receives **aggregate exit code** as `$1` |
 
-Hooks must be executable inside the container (`chmod +x`).
+Hooks must be executable inside the container (`chmod +x`). Set **`HOOK_TIMEOUT`** to a positive integer to wrap each invocation in `timeout ${HOOK_TIMEOUT}s`; the runner logs `pre-*`/`post-*` start, exit code and duration in a uniform format and reports timeouts (exit `124`) and missing executable bits as errors.
 
 ---
 

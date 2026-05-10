@@ -28,7 +28,7 @@ Ideas and planned enhancements for **restic-backup-helper**. Ordering is not str
 - [x] First-class **`RESTIC_CACERT`** wiring in backup/check/entrypoint restic calls: append `--cacert "$RESTIC_CACERT"` automatically when set/readable; warn at runtime and error in `config-check` when set but unreadable — 1.11.17-0.18.1.
 - [ ] Optional **separate cron for `prune`** (decouple retention from post-backup `forget`).
 - [x] **`RESTIC_PASSWORD_FILE`** + **Docker/Kubernetes secrets** as primary examples in README / Compose samples — 1.11.3-0.18.1.
-- [ ] Pre/post **hook timeouts** and clearer logging of hook exit codes (today hooks run without enforced timeout).
+- [x] Pre/post **hook timeouts** and clearer logging of hook exit codes via `HOOK_TIMEOUT` (default `0` = no timeout) and `/bin/lib.sh::run_hook` — 1.11.19-0.18.1.
 - [ ] Make **repository startup probe** distinguish missing repository from transient failures: only run `restic init` when Restic clearly reports a missing repo; fail loudly on auth/network/DNS errors.
 - [ ] Review **automatic `restic unlock`** behaviour after backup/check errors; consider opt-in `RESTIC_AUTO_UNLOCK=ON` or safer stale-lock handling for multi-host repositories.
 - [ ] Improve cron **`flock -n` skipped-run logging** so an overlapping run records a clear "previous run still active, skipped" message instead of only a raw flock exit.
@@ -78,7 +78,7 @@ Ideas and planned enhancements for **restic-backup-helper**. Ordering is not str
 - [x] Introduce shared runtime helper library (`app/lib.sh` copied to `/bin/lib.sh`) for logging, `copyErrorLog`, repository masking — 1.11.16-0.18.1.
 - [x] Remove obsolete commented **`RESTIC_PUBLICKEY`** / `CACERT_OPTION` code now that `RESTIC_CACERT` is the documented path — 1.11.15-0.18.1.
 - [ ] Add `set -euo pipefail` (or a carefully reviewed equivalent) to runtime worker scripts where practical, preserving deliberate exit-code handling around Restic/Rclone commands.
-- [ ] Add a generic **hook runner** helper (in `/bin/lib.sh`) with executable checks, timeout support and consistent logging of hook start, exit code and duration.
+- [x] Generic **hook runner** in `/bin/lib.sh` with executable checks, timeout support (`HOOK_TIMEOUT`) and consistent logging of hook start, exit code and duration — 1.11.19-0.18.1.
 - [ ] Reduce duplicated mail-notification logic between backup/check/sync (move into `/bin/lib.sh`) while preserving existing `MAILX_ON_ERROR` behaviour.
 
 ---
