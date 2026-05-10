@@ -47,9 +47,11 @@ If this image saves you time, you can [leave a tip on Ko-fi](https://ko-fi.com/m
 - **Scheduled backup** via `/bin/backup` (cron expression `BACKUP_CRON`), with optional **snapshot policy** (`RESTIC_FORGET_ARGS` runs `restic forget` after a successful backup).
 - **Scheduled integrity check** via `/bin/check` when `CHECK_CRON` is non-empty.
 - **Scheduled Rclone bisync** via `/bin/bisync` when `SYNC_CRON` and a valid `SYNC_JOB_FILE` are configured.
-- **Repository probe on startup**: when `RESTIC_CHECK_REPOSITORY_STATUS=ON`, the entrypoint runs `restic snapshots`; if the repo is missing it attempts `restic init` (requires a valid `RESTIC_PASSWORD` / `RESTIC_PASSWORD_FILE`).
-- **Configuration check**: run `docker run … config-check` with the same env as production to validate credentials and backup paths without starting cron (CI-friendly).
+- **Repository probe on startup**: when `RESTIC_CHECK_REPOSITORY_STATUS=ON`, the entrypoint probes with `restic cat config` and only auto-runs `restic init` when the probe exits **10** (repository does not exist). Other non-zero exits (wrong password, network, DNS, TLS, auth) log restic stderr and abort startup so a transient failure cannot accidentally re-init a healthy remote.
+- **Configuration check**: run `docker run … config-check` with the same env as production to validate credentials, backup paths, `RCLONE_CONFIG` and `RESTIC_CACERT` readability without starting cron (CI-friendly).
 - **Concurrency**: each job uses `flock` on a dedicated lock file so overlapping runs do not corrupt state.
+- **Observability**: each run writes `/var/log/last-{backup,check,sync}.json` and, when `WEBHOOK_URL` is set, POSTs the same JSON document to your monitoring endpoint (healthchecks.io, Slack, Discord, Gotify, ntfy, …).
+- **Hooks**: optional `/hooks/{pre,post}-{backup,check,sync}.sh` scripts run before/after each job, with consistent start/exit-code/duration logging and an optional `HOOK_TIMEOUT`.
 - **Based on** [`restic/restic`](https://hub.docker.com/r/restic/restic) Alpine image; Restic version follows the `FROM restic/restic:<tag>` line in this repo’s `Dockerfile`.
 
 ---
@@ -134,8 +136,8 @@ Defaults below match **`Dockerfile`** unless noted. Empty default means unset/bl
 | `RESTIC_PASSWORD_FILE` | *(empty)* | File inside the container containing the password (Restic standard). |
 | `RESTIC_TAG` | `automated` | **Required** tag passed to `restic backup` (`--tag=…`). |
 | `RESTIC_CACHE_DIR` | `/.cache/restic` | Restic cache directory. |
-| `RESTIC_CACERT` | *(empty)* | When set to a path inside the container that points to a readable PEM bundle, the entrypoint and worker scripts automatically pass `--cacert "$RESTIC_CACERT"` to all `restic` invocations (`backup`, `check`, `forget`, `unlock`, the startup `snapshots` probe and `init`). When set but the file is unreadable, a warning is logged and the flag is omitted; **`config-check`** treats the same condition as a hard error. You can still add extra `--cacert` flags via `RESTIC_JOB_ARGS` / `RESTIC_CHECK_ARGS` if you need additional trust roots. |
-| `RESTIC_CHECK_REPOSITORY_STATUS` | `ON` | On startup, probe repo (`restic snapshots`); init if missing. Set to anything else to skip probe/init. |
+| `RESTIC_CACERT` | *(empty)* | When set to a path inside the container that points to a readable PEM bundle, the entrypoint and worker scripts automatically pass `--cacert "$RESTIC_CACERT"` to every `restic` invocation (`backup`, `check`, `forget`, `unlock`, the startup `cat config` probe and `init`). When set but the file is unreadable, a warning is logged and the flag is omitted; **`config-check`** treats the same condition as a hard error. You can still add extra `--cacert` flags via `RESTIC_JOB_ARGS` / `RESTIC_CHECK_ARGS` if you need additional trust roots. |
+| `RESTIC_CHECK_REPOSITORY_STATUS` | `ON` | On startup, probe with `restic cat config`; auto-`restic init` only when the probe exits `10` (repo missing). Other non-zero exits (auth, network, TLS, …) abort startup with restic stderr in the container log. Set to anything other than `ON` to skip both the probe and the auto-init. |
 
 ### Backup job
 
@@ -157,7 +159,7 @@ Defaults below match **`Dockerfile`** unless noted. Empty default means unset/bl
 
 | Variable | Default | Description |
 | --- | --- | --- |
-| `NFS_TARGET` | *(empty)* | If set, entrypoint runs `mount -o nolock -v "$NFS_TARGET" /mnt/restic`. Intended workflow keeps `RESTIC_REPOSITORY` at default `/mnt/restic`. |
+| `NFS_TARGET` | *(empty)* | If set, entrypoint runs `mount -o nolock -v "$NFS_TARGET" /mnt/restic`. **Container aborts with exit `1` if the mount fails** so jobs do not run against an empty `/mnt/restic`. Intended workflow keeps `RESTIC_REPOSITORY` at default `/mnt/restic`. |
 
 ### Rclone sync (bisync)
 
@@ -245,7 +247,7 @@ Mount scripts into **`/hooks`**:
 | `/hooks/pre-sync.sh` | Before sync batch |
 | `/hooks/post-sync.sh` | After sync batch; receives **aggregate exit code** as `$1` |
 
-Hooks must be executable inside the container (`chmod +x`). Set **`HOOK_TIMEOUT`** to a positive integer to wrap each invocation in `timeout ${HOOK_TIMEOUT}s`; the runner logs `pre-*`/`post-*` start, exit code and duration in a uniform format and reports timeouts (exit `124`) and missing executable bits as errors.
+Hooks must be executable inside the container (`chmod +x`); a hook present but **not executable** is reported as an error in the cron log instead of silently doing nothing. Set **`HOOK_TIMEOUT`** to a positive integer to wrap each invocation in `timeout ${HOOK_TIMEOUT}s`; the runner logs `pre-*`/`post-*` start, exit code and duration in a uniform format and reports timeouts (exit `124`) prominently. Hook exit codes are logged but do **not** propagate to the worker exit code (the cron job is still considered successful when the underlying restic/rclone command succeeded).
 
 ---
 
@@ -423,8 +425,18 @@ Replace container name as needed.
 ```shell
 docker exec -ti restic-backup-helper /bin/backup
 docker exec -ti restic-backup-helper /bin/check
+docker exec -ti restic-backup-helper /bin/bisync
+docker exec -ti restic-backup-helper /bin/rotate_log
 docker exec -ti restic-backup-helper restic snapshots
 docker exec -ti restic-backup-helper restic restore latest --target /restore
+```
+
+Triggering any worker manually executes the **same code path** as the cron job: hooks (`/hooks/*.sh`), `RESTIC_CACERT` wiring, `/var/log/last-<job>.json`, mail and webhook notifications all fire. Useful for end-to-end verification after changing env vars.
+
+Inspect the latest structured run summary directly from the container:
+
+```shell
+docker exec -ti restic-backup-helper cat /var/log/last-backup.json
 ```
 
 **Configuration check** — validate env and critical paths before relying on cron (exits `0` or `1`; does not run `restic backup`):
@@ -484,6 +496,10 @@ On Kubernetes, mount a `Secret` as a volume (or use `subPath`) and set `RESTIC_P
 | Backup exits immediately / “Missing RESTIC_TAG” | Export **`RESTIC_TAG`**. |
 | Empty or wrong backup content | Set **`BACKUP_ROOT_DIR`** and/or **`RESTIC_JOB_ARGS`** paths intentionally; empty both yields a degenerate `restic backup` invocation. |
 | Backup logs “success” but `restic snapshots` shows zero or empty snapshots | Verify the host volume that backs **`BACKUP_ROOT_DIR`** is actually mounted into the container, the path inside the container exists, and the user has read access. A misspelled bind mount or an unmounted source produces a successful but empty backup. |
+| Container exits at startup with “Repository probe failed for ‘…’ with exit code N” | Restic could reach restic but the repository is unhealthy (`12` = wrong password, other = network/DNS/TLS/auth). Read the restic stderr in the container log; the entrypoint deliberately refuses to run `restic init` to avoid masking a transient failure. As a last resort, set `RESTIC_CHECK_REPOSITORY_STATUS=OFF` to bypass the probe (you lose the auto-init safety net). |
+| TLS / certificate errors against the repository or a corporate proxy | Mount the PEM bundle into the container and set **`RESTIC_CACERT`** to its path. The flag is appended to every restic invocation automatically; `config-check` will fail when the path is unreadable. |
+| Webhook never reaches the endpoint and the cron log is silent | Confirm **`WEBHOOK_URL`** is set inside the container (`docker exec … env | grep WEBHOOK`); container logs only show `scheme://host/...`. Test connectivity from inside the container: `docker exec -ti … curl -fsS -X POST -H 'Content-Type: application/json' -d '{"test":true}' "$WEBHOOK_URL"`. |
+| Hook never returns / blocks the next cron run | Set **`HOOK_TIMEOUT`** to a positive integer (seconds). The hook is wrapped in `timeout`; exit `124` is logged as a timeout but does not fail the underlying restic job. |
 | Cron “wrong timezone” | Set **`TZ`** and restart the container. |
 | Rclone auth breaks | Ensure `rclone.conf` is writable if the backend refreshes tokens. |
 | Permission denied on source | Match UID/GID or ACLs on mounted volumes; avoid overly broad `:privileged` unless required. |
