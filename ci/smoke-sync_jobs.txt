@@ -1,0 +1,2 @@
+# CI smoke: local bisync pair on the smoke volume (same filesystem paths).
+/data/sync_a;/data/sync_b

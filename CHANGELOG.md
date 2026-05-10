@@ -2,6 +2,119 @@
 
 ## Restic Backup Helper
 
+### 1.11.9-0.18.1 (2026-05-10)
+
+#### Fixed
+
+- **CI smoke test**: wait until **`restic init`** has finished (`restic` repo `config` present) before seeding and **`/bin/backup`** — avoids racing the entrypoint (`Running` was true while `entry.sh` still ran snapshots/init).
+
+### 1.11.8-0.18.1 (2026-05-10)
+
+#### Changed
+
+- **Quality CI**: extend `scripts/ci-quality-checks.sh` with **yamllint** (tracked `*.yml` / `*.yaml`; falls back to `python3 -m yamllint` when the CLI is absent), **actionlint** (GitHub Actions), **hadolint** (`Dockerfile` + `.hadolint.yaml`; falls back to **`hadolint/hadolint`** when the binary is absent but Docker works), and **`docker compose … config -q`** on `ci/docker-compose.smoke.yml` and `scripts/docker-compose.yml` (Compose validation skips when Docker is unavailable). Workflow installs pinned **actionlint** and **hadolint** binaries for `amd64` / `arm64`; job timeout **20** minutes. Added **`.yamllint`**.
+- **Example Compose**: remove obsolete top-level **`version`** key from `scripts/docker-compose.yml` (Compose V2).
+
+### 1.11.7-0.18.1 (2026-05-10)
+
+#### Changed
+
+- **CI smoke workflow**: run `chmod +x ./ci/smoke-hooks/*.sh` before the smoke script so hook stubs are executable on the runner (redundant with `ci-smoke-test.sh`, explicit in YAML).
+
+### 1.11.6-0.18.1 (2026-05-09)
+
+#### Changed
+
+- **CI smoke test**: exercise **`/bin/backup`** (with **`RESTIC_FORGET_ARGS`** so forget/prune runs), **`/bin/check`**, **`/bin/bisync`** (local directory pair + `ci/smoke-sync_jobs.txt`), **`/bin/rotate_log`** (low `CRON_LOG_MAX_SIZE` for deterministic rotation), mounted **hook stubs** under `ci/smoke-hooks`, snapshot verification, and bisync file replication check. NFS and real mail delivery remain out of scope for CI.
+
+### 1.11.5-0.18.1 (2026-05-09)
+
+#### Changed
+
+- **CI**: upgrade `actions/upload-artifact` from v4 to **v6** (runs on Node.js 24; avoids deprecated Node 20 action runtime).
+
+### 1.11.4-0.18.1 (2026-05-09)
+
+#### Changed
+
+- **Release metadata**: align `README.md` and `README-containers.md` release lines and pinned pull examples with `VERSION` and the Restic base tag in `Dockerfile` (CI versioning guard).
+
+### 1.11.3-0.18.1 (2026-05-09)
+
+#### Added
+
+- **`config-check`** entrypoint mode: validate `RESTIC_REPOSITORY`, repository auth (`RESTIC_PASSWORD` or readable `RESTIC_PASSWORD_FILE`), `RESTIC_TAG`, backup paths (`BACKUP_ROOT_DIR` / `RESTIC_JOB_ARGS`), readable `RCLONE_CONFIG` when using `rclone:` repositories; warn when `SYNC_CRON` is set without a non-empty `SYNC_JOB_FILE`. Exits before cron, NFS mount, or repository init (CI-friendly).
+- **Dependabot** (weekly) for GitHub Actions workflow dependency updates (`.github/dependabot.yml`).
+
+#### Changed
+
+- **`backup.sh`**: prominent warning when both `BACKUP_ROOT_DIR` and `RESTIC_JOB_ARGS` are empty (degenerate `restic backup` without paths).
+- **Docs**: Compose **HEALTHCHECK** examples (weak `restic version` vs strong `restic cat config`), **`RESTIC_PASSWORD_FILE`** with Docker Compose secrets and a minimal Kubernetes pattern, private-registry **`NO_PROXY`** troubleshooting, **`config-check`** usage.
+- **CI smoke**: `docker compose … run … config-check`; smoke compose sets `RESTIC_TAG` and `BACKUP_ROOT_DIR` for validation.
+
+### 1.11.2-0.18.1 (2026-05-09)
+
+#### Changed
+
+- Expanded **BACKLOG.md** with grouped future ideas (observability, Restic ops, security, UX, sync, scale, docs/CI).
+
+### 1.11.1-0.18.1 (2026-05-09)
+
+#### Security
+
+- **Mail:** invoke `mail` with a quoted `"${MAILX_RCPT}"` recipient instead of `sh -c … ${MAILX_RCPT}` to prevent command injection from a malicious env value.
+- **Samples:** remove hardcoded repository/SMTP passwords from `scripts/docker-compose.yml` and `config/msmtprc`; require `.env` / local edits for secrets.
+- **Compose healthcheck** uses `restic cat config` with repository settings from container env (no baked URL).
+- **Trivy:** ignore **AVD-DS-0002** (non-root `USER`)—root is intentional for FUSE/NFS/cron in this image class; document mitigations in README.
+
+### 1.11.0-0.18.1 (2026-05-09)
+
+#### Changed
+
+- Rewrote **README.md** and **README-containers.md**: accurate defaults from the image, full environment matrix, hooks, volumes, compose patterns, backend notes (S3, SFTP, Rclone, Swift, NFS), logging, mail, sync behaviour, and operations (backup, check, restore, mount). Added CI status badges to Docker Hub readme alignment.
+
+### 1.10.5-0.18.1 (2026-05-09)
+
+#### Changed
+
+- `ci-quality-checks.sh`: use `continue` in versioning guard `case` branch so `shfmt` output matches across Ubuntu CI vs local toolchains (no empty `;;` arm).
+
+### 1.10.4-0.18.1 (2026-05-09)
+
+#### Changed
+
+- Publish full `scripts/update-restic-base.sh` (VERSION patch, README/CHANGELOG, `VERSION_RESTIC` defaults) and align drift-radar messaging; `ci-quality-checks.sh` shfmt fix for empty `case` branch.
+
+### 1.10.3-0.18.1 (2026-05-09)
+
+#### Changed
+
+- Ignore Trivy **AVD-DS-0031** for the Dockerfile: empty `ENV` placeholders for runtime secrets are intentional, not leaked build-time credentials.
+
+### 1.10.2-0.18.1 (2026-05-09)
+
+#### Changed
+
+- `scripts/update-restic-base.sh` now bumps `VERSION` (patch), refreshes README release lines, prepends `CHANGELOG`, and syncs `VERSION_RESTIC` defaults when the Restic base tag changes (so drift/automation PRs satisfy the CI versioning guard).
+
+### 1.10.1-0.18.1 (2026-05-09)
+
+#### Added
+
+- GitHub Actions workflows aligned with `marc0janssen/nzbgetvpn`: quality checks (`shellcheck`, `shfmt`), Docker smoke test, Trivy security scan, release orchestration on tags, and weekly drift radar for `restic/restic` base image updates.
+
+### 1.10.0-0.18.1 (2026-05-09)
+
+#### Added
+
+- `README-containers.md` for Docker Hub (`docker pushrm --file`).
+- `AGENTS.md` for coding agents; optional `build.env` / `build-testing.env`; `build-testing-local.sh` with env precedence fixes.
+- Release metadata in images via `ARG`/`ENV RESTIC_BACKUP_HELPER_RELEASE` and OCI labels (no repository `.release` file).
+
+#### Changed
+
+- Build scripts: shared `scripts/build-common.sh`, env loading and `RESTIC_BACKUP_HELPER_RELEASE` build-arg on all publish builds.
+
 ### 1.9.97-0.18.1 (2025-09-28)
 
 #### Changed
