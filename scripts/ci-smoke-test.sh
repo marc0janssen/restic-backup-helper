@@ -39,6 +39,27 @@ wait_for_container_running() {
 	return 1
 }
 
+# Wait until entry.sh has finished restic snapshots/init (Running is true before init completes).
+wait_for_restic_repository_ready() {
+	local service="$1"
+	local attempts="${2:-90}"
+	local sleep_secs="${3:-2}"
+	local i
+
+	for ((i = 1; i <= attempts; i += 1)); do
+		if docker compose -f ci/docker-compose.smoke.yml exec -T "${service}" \
+			sh -c 'test -f "${RESTIC_REPOSITORY:-/data/repo}/config"' 2>/dev/null; then
+			log_info "Restic repository is initialized (${RESTIC_REPOSITORY:-/data/repo})"
+			return 0
+		fi
+		sleep "${sleep_secs}"
+	done
+
+	log_crit "Restic repository did not become ready (missing config) within timeout"
+	docker compose -f ci/docker-compose.smoke.yml logs --no-color "${service}" || true
+	return 1
+}
+
 main() {
 	local service="restic-smoke"
 	local smoke_platform="${SMOKE_PLATFORM:-linux/amd64}"
@@ -55,6 +76,10 @@ main() {
 	if ! wait_for_container_running "${service}"; then
 		log_crit "Smoke startup failed"
 		docker compose -f ci/docker-compose.smoke.yml logs --no-color || true
+		exit 1
+	fi
+
+	if ! wait_for_restic_repository_ready "${service}"; then
 		exit 1
 	fi
 

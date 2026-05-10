@@ -2,6 +2,12 @@
 
 ## Restic Backup Helper
 
+### 1.11.9-0.18.1 (2026-05-10)
+
+#### Fixed
+
+- **CI smoke test**: wait until **`restic init`** has finished (`restic` repo `config` present) before seeding and **`/bin/backup`** — avoids racing the entrypoint (`Running` was true while `entry.sh` still ran snapshots/init).
+
 ### 1.11.8-0.18.1 (2026-05-10)
 
 #### Changed
