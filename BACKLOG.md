@@ -80,7 +80,7 @@ Ideas and planned enhancements for **restic-backup-helper**. Ordering is not str
 - [x] Remove obsolete commented **`RESTIC_PUBLICKEY`** / `CACERT_OPTION` code now that `RESTIC_CACERT` is the documented path — 1.11.15-0.18.1.
 - [ ] Add `set -euo pipefail` (or a carefully reviewed equivalent) to runtime worker scripts where practical, preserving deliberate exit-code handling around Restic/Rclone commands.
 - [x] Generic **hook runner** in `/bin/lib.sh` with executable checks, timeout support (`HOOK_TIMEOUT`) and consistent logging of hook start, exit code and duration — 1.11.19-0.18.1.
-- [ ] Reduce duplicated mail-notification logic between backup/check/sync (move into `/bin/lib.sh`) while preserving existing `MAILX_ON_ERROR` behaviour.
+- [x] Reduce duplicated mail-notification logic between backup/check/sync into `/bin/lib.sh::notify_mail`; preserves `MAILX_ON_ERROR` semantics and bisync's "only on irrecoverable error" pattern via an optional third arg — 1.11.23-0.18.1.
 
 ---
 

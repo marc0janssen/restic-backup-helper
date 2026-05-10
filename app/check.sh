@@ -90,17 +90,7 @@ write_last_run_json "check" "${checkRC}" "${start}" "${end}" \
 notify_webhook "check" "${checkRC}" "${start}" "${end}" \
 	"repository" "${MASKED_REPO}" || true
 
-# Send mail notification (on failure if MAILX_ON_ERROR=ON, else always when MAILX_RCPT set)
-if [ -n "${MAILX_RCPT}" ] && {
-	[ "${MAILX_ON_ERROR^^}" != "ON" ] || { [ "${MAILX_ON_ERROR^^}" == "ON" ] && [ "$checkRC" -ne 0 ]; }
-}; then
-	log "📧 Sending email notification to ${MAILX_RCPT}..."
-	if mail -v -s "Result of the last ${HOSTNAME} check run on ${MASKED_REPO}" "${MAILX_RCPT}" <"${LAST_LOGFILE}" >"${LAST_MAIL_LOGFILE}" 2>&1; then
-		log "✅ Mail notification successfully sent"
-	else
-		log "❌ Sending mail notification FAILED. Check ${LAST_MAIL_LOGFILE} for further information."
-	fi
-fi
+notify_mail "Result of the last ${HOSTNAME} check run on ${MASKED_REPO}" "${checkRC}" || true
 
 run_hook "post-check" "$checkRC" || true
 

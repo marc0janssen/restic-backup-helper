@@ -186,15 +186,9 @@ notify_webhook "sync" "${overallRC}" "${syncRunStart}" "${syncRunEnd}" \
 	"sync_jobs_processed" "${syncJobsProcessed}" \
 	"sync_jobs_failed" "${syncJobsFailed}" || true
 
-# Send mail notification
-if [ -n "${MAILX_RCPT}" ] && [ "$syncHasError" -ne 0 ]; then
-	log "📧 Sending email notification to ${MAILX_RCPT}..."
-	if mail -v -s "Result of the last ${HOSTNAME} sync" "${MAILX_RCPT}" <"${LAST_LOGFILE}" >"${LAST_MAIL_LOGFILE}" 2>&1; then
-		log "✅ Mail notification successfully sent"
-	else
-		errorlog "❌ Sending mail notification FAILED. Check ${LAST_MAIL_LOGFILE} for further information."
-	fi
-fi
+# Sync mails only when at least one job recorded an unrecoverable error
+# (independent of MAILX_ON_ERROR), so force the error-only mode on notify_mail.
+notify_mail "Result of the last ${HOSTNAME} sync" "${syncHasError}" "ON" || true
 
 run_hook "post-sync" "$overallRC" || true
 

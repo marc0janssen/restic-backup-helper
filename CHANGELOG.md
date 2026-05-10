@@ -2,6 +2,13 @@
 
 ## Restic Backup Helper
 
+### 1.11.23-0.18.1 (2026-05-10)
+
+#### Changed
+
+- **Mail notification dedup**: extract the per-worker mail block into **`/bin/lib.sh::notify_mail`**. `/bin/backup`, `/bin/check` and `/bin/bisync` now share one implementation that honours `MAILX_RCPT`, `MAILX_ON_ERROR` and `LAST_LOGFILE` / `LAST_MAIL_LOGFILE` consistently. Behaviour is preserved: backup and check mail per run unless `MAILX_ON_ERROR=ON` (then only on failures); sync still mails only when a job recorded an unrecoverable error (the new helper accepts an optional third `error_only_override` argument that bisync passes as `"ON"`). Mail-send failures are logged via `errorlog` (always echoed) but never propagate to the worker exit code, so a flaky mail relay cannot fail an otherwise-successful backup.
+- **`/bin/lib.sh`**: new `notify_mail <subject> <exit_code> [error_only_override]` helper. Closes the lib.sh refactor opened in 1.11.16.
+
 ### 1.11.22-0.18.1 (2026-05-10)
 
 #### Added

@@ -142,17 +142,7 @@ write_last_run_json "backup" "${backupRC}" "${start}" "${end}" "${last_run_extra
 
 notify_webhook "backup" "${backupRC}" "${start}" "${end}" "${last_run_extras[@]}" || true
 
-# Send mail notification (on failure if MAILX_ON_ERROR=ON, else always when MAILX_RCPT set)
-if [ -n "${MAILX_RCPT}" ] && {
-	[ "${MAILX_ON_ERROR^^}" != "ON" ] || { [ "${MAILX_ON_ERROR^^}" == "ON" ] && [ "$backupRC" -ne 0 ]; }
-}; then
-	log "📧 Sending email notification to ${MAILX_RCPT}..."
-	if mail -v -s "Result of the last ${HOSTNAME} backup run on ${MASKED_REPO}" "${MAILX_RCPT}" <"${LAST_LOGFILE}" >"${LAST_MAIL_LOGFILE}" 2>&1; then
-		log "✅ Mail notification successfully sent"
-	else
-		log "❌ Sending mail notification FAILED. Check ${LAST_MAIL_LOGFILE} for further information."
-	fi
-fi
+notify_mail "Result of the last ${HOSTNAME} backup run on ${MASKED_REPO}" "${backupRC}" || true
 
 run_hook "post-backup" "$backupRC" || true
 

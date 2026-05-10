@@ -212,6 +212,52 @@ notify_webhook() {
 	return "${curl_rc}"
 }
 
+# Send a mail notification for a worker run via msmtp/mailx. Honours MAILX_RCPT
+# (no-op when unset) and MAILX_ON_ERROR (when set to ON, only mail on non-zero
+# exit_code). Uses LAST_LOGFILE as the mail body (must already be populated by
+# the caller) and LAST_MAIL_LOGFILE to capture mailx's verbose stderr/stdout.
+#
+# Usage:
+#   notify_mail <subject> <exit_code> [error_only_override]
+#
+# The caller is responsible for masking sensitive values in the subject. Mail
+# delivery failures are logged but never propagate to the worker exit code so a
+# misconfigured msmtp / unreachable relay cannot turn an otherwise-successful
+# backup into a failed one.
+#
+# error_only_override (optional, third positional arg): when set to "ON" the
+# helper behaves as if MAILX_ON_ERROR=ON regardless of the env value. This
+# preserves the historical bisync semantics ("mail only when at least one job
+# failed irrecoverably") without requiring a global env flip per worker.
+notify_mail() {
+	local subject="$1"
+	local exit_code="$2"
+	local on_error="${3:-${MAILX_ON_ERROR:-OFF}}"
+	local rcpt="${MAILX_RCPT:-}"
+	local mail_log="${LAST_MAIL_LOGFILE:-/dev/null}"
+
+	if [ -z "${rcpt}" ]; then
+		return 0
+	fi
+	if [[ "${on_error^^}" == "ON" ]] && [ "${exit_code}" -eq 0 ]; then
+		return 0
+	fi
+	if [ -z "${LAST_LOGFILE:-}" ] || [ ! -f "${LAST_LOGFILE}" ]; then
+		errorlog "❌ notify_mail: LAST_LOGFILE is unset or missing; cannot send mail."
+		return 1
+	fi
+
+	log "📧 Sending email notification to ${rcpt}..."
+	if mail -v -s "${subject}" "${rcpt}" <"${LAST_LOGFILE}" >"${mail_log}" 2>&1; then
+		log "✅ Mail notification successfully sent"
+		return 0
+	else
+		local rc=$?
+		errorlog "❌ Sending mail notification FAILED. Check ${mail_log} for further information."
+		return "${rc}"
+	fi
+}
+
 # Run an optional /hooks/<phase>.sh script with consistent logging and an
 # optional timeout. Returns 0 (and logs an info message) when the hook script
 # does not exist, so callers do not need pre-existence checks.
