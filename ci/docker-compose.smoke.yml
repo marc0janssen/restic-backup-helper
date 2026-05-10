@@ -1,0 +1,34 @@
+services:
+  restic-smoke:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+      args:
+        RESTIC_BACKUP_HELPER_RELEASE: ci-smoke
+    image: restic-backup-helper:ci-smoke
+    container_name: restic-smoke
+    environment:
+      RESTIC_REPOSITORY: /data/repo
+      RESTIC_PASSWORD: ci-smoke-test-password-not-for-production
+      RESTIC_TAG: ci-smoke
+      BACKUP_ROOT_DIR: /data/backup_src
+      RESTIC_FORGET_ARGS: "--keep-last 10 --prune"
+      RESTIC_CHECK_REPOSITORY_STATUS: "ON"
+      BACKUP_CRON: "0 0 31 2 *"
+      CHECK_CRON: ""
+      SYNC_CRON: ""
+      SYNC_JOB_FILE: /config/sync_jobs.txt
+      SYNC_VERBOSE: "ON"
+      ROTATE_LOG_CRON: "0 0 31 2 *"
+      # Low threshold so one-byte append triggers archive path in /bin/rotate_log (CI only).
+      CRON_LOG_MAX_SIZE: "1"
+      MAX_CRON_LOG_ARCHIVES: "3"
+    volumes:
+      - restic-smoke-data:/data
+      - ./smoke-sync_jobs.txt:/config/sync_jobs.txt:ro
+      - ./smoke-hooks:/hooks:ro
+    command: ["tail", "-fn0", "/var/log/cron.log"]
+    restart: "no"
+
+volumes:
+  restic-smoke-data:

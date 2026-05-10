@@ -1,0 +1,4 @@
+# Hadolint — Alpine image intentionally uses unpinned apk packages (upstream style).
+ignored:
+  - DL3018 # Pin versions in apk add
+  - DL3019 # Use COPY instead of ADD

@@ -1,0 +1,101 @@
+name: Release Orchestration
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  release-readiness:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      security-events: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Install quality tools
+        env:
+          ACTIONLINT_VERSION: v1.7.9
+          HADOLINT_VERSION: v2.14.0
+        run: |
+          set -eux
+          sudo apt-get update
+          sudo apt-get install -y shellcheck shfmt yamllint
+
+          ARCH="$(uname -m)"
+          case "${ARCH}" in
+            x86_64) AL_ARCH=amd64; HL_DL=Linux-x86_64 ;;
+            aarch64) AL_ARCH=arm64; HL_DL=Linux-arm64 ;;
+            *)
+              echo "Unsupported runner architecture: ${ARCH}" >&2
+              exit 1
+              ;;
+          esac
+
+          curl -fsSL "https://github.com/rhysd/actionlint/releases/download/${ACTIONLINT_VERSION}/actionlint_${ACTIONLINT_VERSION#v}_linux_${AL_ARCH}.tar.gz" | sudo tar xz -C /usr/local/bin actionlint
+          sudo chmod +x /usr/local/bin/actionlint
+
+          curl -fsSL -o /tmp/hadolint "https://github.com/hadolint/hadolint/releases/download/${HADOLINT_VERSION}/hadolint-${HL_DL}"
+          sudo install -m755 /tmp/hadolint /usr/local/bin/hadolint
+
+          actionlint -version
+          hadolint --version
+          yamllint --version
+
+      - name: Run quality checks
+        env:
+          CI_CONVENTIONAL_COMMIT_RANGE: HEAD~20..HEAD
+        run: |
+          chmod +x ./scripts/ci-quality-checks.sh
+          ./scripts/ci-quality-checks.sh
+
+      - name: Run smoke test
+        run: |
+          chmod +x ./scripts/ci-smoke-test.sh
+          ./scripts/ci-smoke-test.sh
+
+      - name: Run Trivy SARIF scan
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          format: sarif
+          output: trivy-results.sarif
+          trivyignores: .trivyignore
+          ignore-unfixed: true
+          severity: CRITICAL,HIGH,MEDIUM,LOW
+          scanners: vuln,misconfig,secret
+
+      - name: Upload Trivy SARIF
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-results.sarif
+
+      - name: Enforce release security gate
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          format: table
+          output: trivy-release-gate.txt
+          exit-code: 1
+          trivyignores: .trivyignore
+          ignore-unfixed: true
+          severity: CRITICAL,HIGH
+          scanners: vuln,misconfig,secret
+
+      - name: Upload release diagnostics
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: release-orchestration-diagnostics
+          path: |
+            trivy-results.sarif
+            trivy-release-gate.txt
