@@ -12,20 +12,20 @@ Scheduled [Restic](https://restic.net) backups, optional `restic check`, optiona
 
 ## Release
 
-release: 1.11.9-0.18.1
+release: 1.11.10-0.18.1
 
 **Stable**
 
 ```shell
 docker pull marc0janssen/restic-backup-helper:latest
-docker pull marc0janssen/restic-backup-helper:1.11.9-0.18.1
+docker pull marc0janssen/restic-backup-helper:1.11.10-0.18.1
 ```
 
 **Development (experimental)**
 
 ```shell
 docker pull marc0janssen/restic-backup-helper:develop
-docker pull marc0janssen/restic-backup-helper:1.11.9-0.18.1-dev
+docker pull marc0janssen/restic-backup-helper:1.11.11-0.18.1-dev
 ```
 
 ---
