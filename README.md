@@ -59,12 +59,12 @@ If this image saves you time, you can [leave a tip on Ko-fi](https://ko-fi.com/m
 
 ## Image tags and release
 
-release: 1.13.0-0.18.1
+release: 1.13.1-0.18.1
 
 | Train | When to use | Example pull |
 | --- | --- | --- |
-| **Stable** | Production | `docker pull marc0janssen/restic-backup-helper:latest` or pinned `marc0janssen/restic-backup-helper:1.13.0-0.18.1` |
-| **Testing** | Pre-release / CI | `docker pull marc0janssen/restic-backup-helper:develop` or `marc0janssen/restic-backup-helper:1.13.0-0.18.1-dev` |
+| **Stable** | Production | `docker pull marc0janssen/restic-backup-helper:latest` or pinned `marc0janssen/restic-backup-helper:1.13.1-0.18.1` |
+| **Testing** | Pre-release / CI | `docker pull marc0janssen/restic-backup-helper:develop` or `marc0janssen/restic-backup-helper:1.13.1-0.18.1-dev` |
 
 > **Upgrading from 1.11.x?** Automatic `restic unlock` after backup / check failures is now **opt-in** via `RESTIC_AUTO_UNLOCK=ON` (since 1.12.0). The new default leaves the lock alone (safer for repositories shared across multiple hosts). See the env table below and the [Troubleshooting](#troubleshooting) section for the migration hint.
 
@@ -267,39 +267,123 @@ Hooks must be executable inside the container (`chmod +x`); a hook present but *
 
 ## Examples: Docker Compose
 
-Use a `.env` file or Docker secrets for `RESTIC_PASSWORD`; avoid committing secrets.
+This is a **complete reference** stack that exercises every option exposed by the image. Comment out (or delete) the sections you do not need; the **only** strictly required keys are `RESTIC_REPOSITORY`, a password (`RESTIC_PASSWORD_FILE` or `RESTIC_PASSWORD`), `RESTIC_TAG`, `BACKUP_CRON` and a backup source mounted into the container. Use a `.env` file (gitignored) or Docker secrets for credentials — never commit `restic.password`, `rclone.conf`, `msmtprc`, or webhook tokens.
 
 ```yaml
+# docker-compose.yml — reference stack with all options; trim to taste.
+# Required at runtime at minimum: RESTIC_REPOSITORY, a password, RESTIC_TAG, BACKUP_CRON.
+
 services:
-  restic:
+  restic-backup:
     image: marc0janssen/restic-backup-helper:latest
     container_name: restic-backup-helper
-    hostname: backup-node
+    hostname: backup-node            # appears in mail subjects, JSON summaries, webhook payloads
     restart: unless-stopped
+
+    # Needed for `restic mount` (FUSE) and reading source paths under tight ACLs.
     cap_add:
       - DAC_READ_SEARCH
       - SYS_ADMIN
     devices:
       - /dev/fuse
+
+    # Non-secret defaults can live in restic.env (gitignored). Secrets belong in `secrets:` below.
     env_file:
       - restic.env
+
     environment:
-      RESTIC_REPOSITORY: ${RESTIC_REPOSITORY}
+      # ─── Restic core ───────────────────────────────────────────────────────────
+      RESTIC_REPOSITORY: ${RESTIC_REPOSITORY:?set in restic.env or shell}
+      # Preferred: mount the password as a Docker secret and point Restic at the file.
+      RESTIC_PASSWORD_FILE: /run/secrets/restic_password
+      # Fallback (less secure, kept here for clarity):
+      # RESTIC_PASSWORD: ${RESTIC_PASSWORD}
       RESTIC_TAG: ${RESTIC_TAG:-daily}
-      BACKUP_CRON: ${BACKUP_CRON:-0 2 * * *}
+      RESTIC_CACHE_DIR: /.cache/restic
+      # RESTIC_CACERT: /config/ca-bundle.pem   # set when using a private CA / corp proxy
+      RESTIC_CHECK_REPOSITORY_STATUS: "ON"     # probe with `restic cat config`, auto-init only on exit 10
+      # RESTIC_AUTO_UNLOCK: "ON"               # opt-in; only safe when ONE host writes to this repo
+
+      # ─── Backup job (always runs) ──────────────────────────────────────────────
+      BACKUP_CRON: "0 2 * * *"
       BACKUP_ROOT_DIR: /data
-      CHECK_CRON: ${CHECK_CRON:-37 3 * * 0}
-      TZ: ${TZ:-Europe/Amsterdam}
+      RESTIC_JOB_ARGS: "--exclude-file /config/exclude_files.txt --one-file-system"
+      RESTIC_FORGET_ARGS: "--keep-daily 7 --keep-weekly 5 --keep-monthly 12 --keep-yearly 10"
+
+      # ─── Optional: scheduled integrity check ───────────────────────────────────
+      CHECK_CRON: "37 3 * * 0"                 # weekly; leave empty to disable
+      # RESTIC_CHECK_ARGS: "--read-data-subset 5%"
+
+      # ─── Optional: standalone prune (decoupled from forget) ────────────────────
+      PRUNE_CRON: "0 4 * * 0"                  # weekly; leave empty to disable
+      RESTIC_PRUNE_ARGS: "--max-unused 10%"
+
+      # ─── Optional: Rclone bisync ───────────────────────────────────────────────
+      RCLONE_CONFIG: /config/rclone.conf
+      SYNC_JOB_FILE: /config/sync_jobs.txt
+      SYNC_JOB_ARGS: "--exclude-from /config/exclude_sync.txt"
+      SYNC_CRON: "*/30 * * * *"                # leave empty to disable sync
+      SYNC_VERBOSE: "ON"
+
+      # ─── Optional: NFS-mounted repo target (then keep RESTIC_REPOSITORY=/mnt/restic) ─
+      # NFS_TARGET: "nfs-server:/export/restic"
+
+      # ─── Mail notifications (msmtp via /etc/msmtprc) ───────────────────────────
+      MAILX_RCPT: ops@example.com
+      MAILX_ON_ERROR: "ON"                     # OFF = mail every run; ON = only on failure
+
+      # ─── Webhook notifications (healthchecks.io / Slack / Gotify / ntfy / …) ───
+      WEBHOOK_URL: https://hc-ping.com/00000000-0000-0000-0000-000000000000
+      # WEBHOOK_HEADER_AUTH: "Bearer your-token"   # never echoed in logs
+      WEBHOOK_TIMEOUT: "15"
+      WEBHOOK_ON_ERROR: "OFF"                  # OFF = post every run; ON = only on failure
+
+      # ─── Hooks (/hooks/{pre,post}-{backup,check,prune,sync}.sh) ────────────────
+      HOOK_TIMEOUT: "300"                      # seconds; 0 = no enforced timeout
+
+      # ─── Log rotation (/var/log/cron.log) ──────────────────────────────────────
+      ROTATE_LOG_CRON: "0 0 * * 6"
+      CRON_LOG_MAX_SIZE: "1048576"             # 1 MiB
+      MAX_CRON_LOG_ARCHIVES: "5"
+
+      # ─── Locale / time ─────────────────────────────────────────────────────────
+      TZ: Europe/Amsterdam
+
+    secrets:
+      - restic_password
+
     volumes:
-      - ./config:/config
-      - ./hooks:/hooks
-      - backup-logs:/var/log
-      - /srv/documents:/data:ro
+      - /etc/localtime:/etc/localtime:ro
+      - ./config:/config:ro                    # rclone.conf, exclude lists, sync_jobs.txt, ca-bundle.pem
+      - ./config/msmtprc:/etc/msmtprc:ro       # only needed when MAILX_RCPT is set
+      - ./hooks:/hooks:ro                      # only needed when you ship hook scripts
+      - backup-logs:/var/log                   # persists last-*.json, cron.log, archives
+      - restic-cache:/.cache/restic            # speeds up subsequent backups
+      - /srv/documents:/data:ro                # backup source — adjust to taste
+      # - /mnt/restic:/mnt/restic              # uncomment for local/NFS repo target
+      # - ./restore:/restore                   # convention for `restic restore --target /restore`
+      # - ~/.ssh:/root/.ssh:ro                 # only needed for sftp: repositories
+
+    healthcheck:
+      # Strong probe — fails when credentials or repo reachability break.
+      test: ["CMD-SHELL", "restic cat config >/dev/null 2>&1 || exit 1"]
+      interval: 15m
+      timeout: 30s
+      start_period: 1m
+      start_interval: 10s
+
     command: ["tail", "-fn0", "/var/log/cron.log"]
+
+secrets:
+  restic_password:
+    file: ./restic.password                    # gitignored; chmod 600 on the host
 
 volumes:
   backup-logs:
+  restic-cache:
 ```
+
+A runnable, less commented variant lives at [`scripts/docker-compose.yml`](scripts/docker-compose.yml) for quick `docker compose up` testing.
 
 **Health checks:** choose how hard you want Compose to probe the repository.
 
@@ -313,7 +397,7 @@ healthcheck:
   retries: 3
 ```
 
-- **Strong** — fails if credentials or repository reachability break (uses `RESTIC_*` env inside the container; compare [`scripts/docker-compose.yml`](scripts/docker-compose.yml)):
+- **Strong** — fails if credentials or repository reachability break (uses `RESTIC_*` env inside the container; same as the reference stack above):
 
 ```yaml
 healthcheck:

@@ -2,6 +2,13 @@
 
 ## Restic Backup Helper
 
+### 1.13.1-0.18.1 (2026-05-10)
+
+#### Changed
+
+- **`/entry.sh`**: log an explicit `ℹ️ <name> cron disabled (<VAR> empty)` line for each optional cron (`CHECK_CRON`, `SYNC_CRON`, `PRUNE_CRON`) instead of silently skipping it. Operators can now confirm at a glance which schedules are active without grepping for absences in the startup log. No functional change to scheduling itself; backup and rotate cron lines still print as before.
+- **Compose docs/examples**: replaced the abbreviated README Compose example with a comprehensive reference stack that lists every supported environment variable (Restic core, backup, optional check/prune/sync, mail, webhook, hooks, log rotation, locale), shows the recommended `RESTIC_PASSWORD_FILE` + Docker secrets pattern, and documents which volumes are required vs. optional. Refreshed `scripts/docker-compose.yml` as the lighter runnable starter with the same current options.
+
 ### 1.13.0-0.18.1 (2026-05-10)
 
 #### Added

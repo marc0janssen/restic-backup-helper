@@ -1,49 +1,113 @@
-# Example Compose stack — copy to your host and provide secrets via a `.env` file
-# (same directory) or exported variables. Do not commit `.env`.
+# Example Compose stack - copy to your host and provide values via `.env`
+# (same directory) or exported variables. Do not commit `.env`, real secrets,
+# rclone.conf, or msmtp credentials.
 #
-# Required at runtime at minimum: RESTIC_REPOSITORY, RESTIC_PASSWORD, RESTIC_TAG.
-#
+# Required at runtime at minimum:
+# - RESTIC_REPOSITORY
+# - ./restic.password (or switch to RESTIC_PASSWORD in environment)
+# - RESTIC_TAG
+# - BACKUP_CRON
+# - at least one source volume mounted at BACKUP_ROOT_DIR
 
 services:
-  restic-remote:
-    container_name: restic-remote
+  restic-backup:
     image: marc0janssen/restic-backup-helper:latest
-    healthcheck:
-      # Uses RESTIC_* env inside the container (no repo URL in this file).
-      test: ["CMD-SHELL", "restic cat config || exit 1"]
-      interval: 15m
-      timeout: 10s
-      start_period: 1m
-      start_interval: 10s
-    restart: always
-    hostname: supernode
+    container_name: restic-backup-helper
+    hostname: ${RESTIC_HOSTNAME:-backup-node}
+    restart: unless-stopped
+
+    # Needed for `restic mount` and for reading source paths under tight ACLs.
     cap_add:
       - DAC_READ_SEARCH
       - SYS_ADMIN
     devices:
       - /dev/fuse
+
     environment:
-      - RESTIC_REPOSITORY=${RESTIC_REPOSITORY}
-      - RESTIC_PASSWORD=${RESTIC_PASSWORD}
-      - RESTIC_TAG=${RESTIC_TAG:-daily}
-      - RESTIC_FORGET_ARGS=--prune --keep-hourly 24 --keep-daily 7 --keep-weekly 5 --keep-monthly 12 --keep-yearly 10
-      - RESTIC_JOB_ARGS=--exclude-file /config/exclude_files.txt
-      - BACKUP_CRON=0 1,13 * * *
-      - BACKUP_ROOT_DIR=/volume1/data
-      - MAILX_RCPT=your_mail@here.tld
-      - MAILX_ON_ERROR=OFF
-      - CHECK_CRON=37 1 1 * *
-      - RCLONE_CONFIG=/config/rclone.conf
-      - SYNC_JOB_FILE=/config/sync_jobs.txt
-      - SYNC_JOB_ARGS=--exclude-from exclude_sync.txt
-      - SYNC_CRON=*/10 * * * *
-      - SYNC_VERBOSE=ON
-      - TZ=Europe/Amsterdam
+      # Restic core
+      RESTIC_REPOSITORY: ${RESTIC_REPOSITORY:?set RESTIC_REPOSITORY in .env or shell}
+      RESTIC_PASSWORD_FILE: /run/secrets/restic_password
+      # RESTIC_PASSWORD: ${RESTIC_PASSWORD} # less secure fallback
+      RESTIC_TAG: ${RESTIC_TAG:-daily}
+      RESTIC_CACHE_DIR: ${RESTIC_CACHE_DIR:-/.cache/restic}
+      RESTIC_CACERT: ${RESTIC_CACERT:-}
+      RESTIC_CHECK_REPOSITORY_STATUS: ${RESTIC_CHECK_REPOSITORY_STATUS:-ON}
+      RESTIC_AUTO_UNLOCK: ${RESTIC_AUTO_UNLOCK:-OFF}
+
+      # Backup job
+      BACKUP_CRON: ${BACKUP_CRON:-0 2 * * *}
+      BACKUP_ROOT_DIR: ${BACKUP_ROOT_DIR:-/data}
+      RESTIC_JOB_ARGS: ${RESTIC_JOB_ARGS:---exclude-file /config/exclude_files.txt}
+      RESTIC_FORGET_ARGS: ${RESTIC_FORGET_ARGS:---keep-daily 7 --keep-weekly 5 --keep-monthly 12 --keep-yearly 10}
+
+      # Optional check job
+      CHECK_CRON: ${CHECK_CRON:-37 3 * * 0}
+      RESTIC_CHECK_ARGS: ${RESTIC_CHECK_ARGS:-}
+
+      # Optional standalone prune job
+      PRUNE_CRON: ${PRUNE_CRON:-0 4 * * 0}
+      RESTIC_PRUNE_ARGS: ${RESTIC_PRUNE_ARGS:---max-unused 10%}
+
+      # Optional Rclone bisync job
+      RCLONE_CONFIG: ${RCLONE_CONFIG:-/config/rclone.conf}
+      SYNC_JOB_FILE: ${SYNC_JOB_FILE:-/config/sync_jobs.txt}
+      SYNC_JOB_ARGS: ${SYNC_JOB_ARGS:---exclude-from /config/exclude_sync.txt}
+      SYNC_CRON: ${SYNC_CRON:-}
+      SYNC_VERBOSE: ${SYNC_VERBOSE:-ON}
+
+      # Optional NFS repository mount; usually keep RESTIC_REPOSITORY=/mnt/restic.
+      NFS_TARGET: ${NFS_TARGET:-}
+
+      # Optional mail notifications via /etc/msmtprc.
+      MAILX_RCPT: ${MAILX_RCPT:-}
+      MAILX_ON_ERROR: ${MAILX_ON_ERROR:-ON}
+
+      # Optional webhook notifications.
+      WEBHOOK_URL: ${WEBHOOK_URL:-}
+      WEBHOOK_HEADER_AUTH: ${WEBHOOK_HEADER_AUTH:-}
+      WEBHOOK_TIMEOUT: ${WEBHOOK_TIMEOUT:-15}
+      WEBHOOK_ON_ERROR: ${WEBHOOK_ON_ERROR:-OFF}
+
+      # Optional hook timeout in seconds; 0 disables timeout enforcement.
+      HOOK_TIMEOUT: ${HOOK_TIMEOUT:-300}
+
+      # Log rotation
+      ROTATE_LOG_CRON: ${ROTATE_LOG_CRON:-0 0 * * 6}
+      CRON_LOG_MAX_SIZE: ${CRON_LOG_MAX_SIZE:-1048576}
+      MAX_CRON_LOG_ARCHIVES: ${MAX_CRON_LOG_ARCHIVES:-5}
+
+      # Locale / time
+      TZ: ${TZ:-Europe/Amsterdam}
+
+    secrets:
+      - restic_password
+
+    healthcheck:
+      # Strong probe: fails when credentials or repository reachability break.
+      test: ["CMD-SHELL", "restic cat config >/dev/null 2>&1 || exit 1"]
+      interval: 15m
+      timeout: 30s
+      start_period: 1m
+      start_interval: 10s
+
     volumes:
       - /etc/localtime:/etc/localtime:ro
-      - /path/to/your/hooks:/hooks
-      - /path/to/your/log:/var/log
-      - /path/to/your/restore:/restore
-      - /path/to/your/config/:/config
-      - /path/to/your/config/msmtprc:/etc/msmtprc
-      - /volume1/data:/volume1/data
+      - ./config:/config:ro
+      - ./config/msmtprc:/etc/msmtprc:ro
+      - ./hooks:/hooks:ro
+      - backup-logs:/var/log
+      - restic-cache:/.cache/restic
+      - /srv/documents:/data:ro
+      # - /mnt/restic:/mnt/restic
+      # - ./restore:/restore
+      # - ~/.ssh:/root/.ssh:ro
+
+    command: ["tail", "-fn0", "/var/log/cron.log"]
+
+secrets:
+  restic_password:
+    file: ./restic.password
+
+volumes:
+  backup-logs:
+  restic-cache:

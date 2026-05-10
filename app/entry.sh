@@ -150,16 +150,22 @@ fi
 echo "⏰ Setting up backup cron job with expression: ${BACKUP_CRON:-}"
 echo "${BACKUP_CRON:-} /bin/locked_run backup /var/run/cron.lock /bin/backup >> /var/log/cron.log 2>&1" >/var/spool/cron/crontabs/root
 
-# Setup check cron job if specified
+# Setup check cron job if specified; otherwise log explicitly that the
+# optional schedule is disabled so operators can confirm what is (and isn't)
+# scheduled at a glance instead of discovering the silent skip later.
 if [ -n "${CHECK_CRON:-}" ]; then
 	echo "⏰ Setting up check cron job with expression: ${CHECK_CRON}"
 	echo "${CHECK_CRON} /bin/locked_run check /var/run/check.lock /bin/check >> /var/log/cron.log 2>&1" >>/var/spool/cron/crontabs/root
+else
+	echo "ℹ️ Check cron disabled (CHECK_CRON empty)"
 fi
 
 # Setup sync cron job if specified
 if [ -n "${SYNC_CRON:-}" ]; then
 	echo "⏰ Setting up sync cron job with expression: ${SYNC_CRON}"
 	echo "${SYNC_CRON} /bin/locked_run bisync /var/run/bisync.lock /bin/bisync >> /var/log/cron.log 2>&1" >>/var/spool/cron/crontabs/root
+else
+	echo "ℹ️ Sync cron disabled (SYNC_CRON empty)"
 fi
 
 # Setup standalone prune cron job if specified (decouples retention from
@@ -167,6 +173,8 @@ fi
 if [ -n "${PRUNE_CRON:-}" ]; then
 	echo "⏰ Setting up prune cron job with expression: ${PRUNE_CRON}"
 	echo "${PRUNE_CRON} /bin/locked_run prune /var/run/prune.lock /bin/prune >> /var/log/cron.log 2>&1" >>/var/spool/cron/crontabs/root
+else
+	echo "ℹ️ Prune cron disabled (PRUNE_CRON empty)"
 fi
 
 echo "⏰ Setting up rotate log cron job with expression: ${ROTATE_LOG_CRON:-}"
