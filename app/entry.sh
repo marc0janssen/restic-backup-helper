@@ -98,26 +98,42 @@ fi
 if [ "${RESTIC_CHECK_REPOSITORY_STATUS}" == "ON" ]; then
 	echo "🔍 Checking repository status..."
 
-	restic "${RESTIC_CACERT_ARGS[@]}" snapshots &>/dev/null
-	status=$?
-	echo "ℹ️ Repository check status: $status"
+	# Use `restic cat config` for the probe: it returns exit code 10 when the
+	# repository does not exist (a stable contract since restic 0.13). Other
+	# non-zero codes (12 wrong password, 1 generic, network/DNS, etc.) must NOT
+	# trigger a blind `restic init`, which would either fail loudly or, worse,
+	# corrupt expectations on a healthy remote that is briefly unreachable.
+	probe_output="$(restic "${RESTIC_CACERT_ARGS[@]}" cat config 2>&1 >/dev/null)"
+	probe_status=$?
+	echo "ℹ️ Repository probe status: ${probe_status}"
 
-	# Initialize repository if it doesn't exist
-	if [ $status -ne 0 ]; then
-		echo "🆕 Restic repository '${MASKED_REPO}' does not exist. Running restic init."
+	case "${probe_status}" in
+	0)
+		echo "✅ Restic repository '${MASKED_REPO}' attached and accessible."
+		;;
+	10)
+		echo "🆕 Restic repository '${MASKED_REPO}' does not exist (probe exit 10). Running restic init."
 		restic "${RESTIC_CACERT_ARGS[@]}" init
 		init_status=$?
-		echo "ℹ️ Repository initialization status: $init_status"
+		echo "ℹ️ Repository initialization status: ${init_status}"
 
-		if [ $init_status -ne 0 ]; then
+		if [ "${init_status}" -ne 0 ]; then
 			echo "❌ Failed to initialize the repository: '${MASKED_REPO}'"
 			echo "🔓 Unlocking the repository: '${MASKED_REPO}'"
 			restic "${RESTIC_CACERT_ARGS[@]}" unlock --remove-all
 			exit 1
 		fi
-	else
-		echo "✅ Restic repository '${MASKED_REPO}' attached and accessible."
-	fi
+		;;
+	*)
+		echo "❌ Repository probe failed for '${MASKED_REPO}' with exit code ${probe_status}; not running 'restic init' to avoid masking a transient failure (auth, network, DNS, TLS, ...)."
+		if [ -n "${probe_output}" ]; then
+			echo "ℹ️ Restic stderr from probe:"
+			printf '%s\n' "${probe_output}"
+		fi
+		echo "ℹ️ Set RESTIC_CHECK_REPOSITORY_STATUS to anything other than ON to skip this probe (and the auto-init)."
+		exit 1
+		;;
+	esac
 else
 	echo "✅ Assuming repository '${MASKED_REPO}' is online..."
 fi

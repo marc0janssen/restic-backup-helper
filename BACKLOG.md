@@ -29,7 +29,7 @@ Ideas and planned enhancements for **restic-backup-helper**. Ordering is not str
 - [ ] Optional **separate cron for `prune`** (decouple retention from post-backup `forget`).
 - [x] **`RESTIC_PASSWORD_FILE`** + **Docker/Kubernetes secrets** as primary examples in README / Compose samples — 1.11.3-0.18.1.
 - [x] Pre/post **hook timeouts** and clearer logging of hook exit codes via `HOOK_TIMEOUT` (default `0` = no timeout) and `/bin/lib.sh::run_hook` — 1.11.19-0.18.1.
-- [ ] Make **repository startup probe** distinguish missing repository from transient failures: only run `restic init` when Restic clearly reports a missing repo; fail loudly on auth/network/DNS errors.
+- [x] **Repository startup probe** distinguishes missing repository from transient failures: uses `restic cat config` and only runs `restic init` on exit code 10; aborts startup loudly with restic stderr on other non-zero exits — 1.11.20-0.18.1.
 - [ ] Review **automatic `restic unlock`** behaviour after backup/check errors; consider opt-in `RESTIC_AUTO_UNLOCK=ON` or safer stale-lock handling for multi-host repositories.
 - [ ] Improve cron **`flock -n` skipped-run logging** so an overlapping run records a clear "previous run still active, skipped" message instead of only a raw flock exit.
 

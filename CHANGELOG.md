@@ -2,6 +2,12 @@
 
 ## Restic Backup Helper
 
+### 1.11.20-0.18.1 (2026-05-10)
+
+#### Fixed
+
+- **Startup repository probe** (`/entry.sh` with `RESTIC_CHECK_REPOSITORY_STATUS=ON`): switch from `restic snapshots` to `restic cat config` and key the auto-`restic init` decision on **exit code 10** (repository does not exist) instead of "any non-zero status". Transient failures such as wrong password (12), network/DNS, TLS or auth errors now log the restic stderr output and abort startup with `exit 1` instead of silently re-initializing a healthy remote. Set `RESTIC_CHECK_REPOSITORY_STATUS` to anything other than `ON` to bypass both the probe and the auto-init.
+
 ### 1.11.19-0.18.1 (2026-05-10)
 
 #### Added
