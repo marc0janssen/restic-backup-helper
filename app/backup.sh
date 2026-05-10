@@ -120,6 +120,12 @@ write_last_run_json "backup" "${backupRC}" "${start}" "${end}" \
 	"backup_root_dir" "${BACKUP_ROOT_DIR:-}" \
 	"restic_tag" "${RESTIC_TAG:-}"
 
+# POST the same payload to WEBHOOK_URL when configured (no-op otherwise).
+notify_webhook "backup" "${backupRC}" "${start}" "${end}" \
+	"repository" "${MASKED_REPO}" \
+	"backup_root_dir" "${BACKUP_ROOT_DIR:-}" \
+	"restic_tag" "${RESTIC_TAG:-}" || true
+
 # Send mail notification (on failure if MAILX_ON_ERROR=ON, else always when MAILX_RCPT set)
 if [ -n "${MAILX_RCPT}" ] && {
 	[ "${MAILX_ON_ERROR^^}" != "ON" ] || { [ "${MAILX_ON_ERROR^^}" == "ON" ] && [ "$backupRC" -ne 0 ]; }

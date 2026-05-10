@@ -33,10 +33,12 @@ If this image saves you time, you can [leave a tip on Ko-fi](https://ko-fi.com/m
 11. [Optional Rclone sync jobs](#optional-rclone-sync-jobs)
 12. [Mail notifications](#mail-notifications)
 13. [Log rotation](#log-rotation)
-14. [Manual operations](#manual-operations)
-15. [Security](#security)
-16. [Troubleshooting](#troubleshooting)
-17. [Further reading](#further-reading)
+14. [Webhook notifications](#webhook-notifications)
+15. [Per-run JSON summaries](#per-run-json-summaries)
+16. [Manual operations](#manual-operations)
+17. [Security](#security)
+18. [Troubleshooting](#troubleshooting)
+19. [Further reading](#further-reading)
 
 ---
 
@@ -54,12 +56,12 @@ If this image saves you time, you can [leave a tip on Ko-fi](https://ko-fi.com/m
 
 ## Image tags and release
 
-release: 1.11.20-0.18.1
+release: 1.11.21-0.18.1
 
 | Train | When to use | Example pull |
 | --- | --- | --- |
-| **Stable** | Production | `docker pull marc0janssen/restic-backup-helper:latest` or pinned `marc0janssen/restic-backup-helper:1.11.20-0.18.1` |
-| **Testing** | Pre-release / CI | `docker pull marc0janssen/restic-backup-helper:develop` or `marc0janssen/restic-backup-helper:1.11.20-0.18.1-dev` |
+| **Stable** | Production | `docker pull marc0janssen/restic-backup-helper:latest` or pinned `marc0janssen/restic-backup-helper:1.11.21-0.18.1` |
+| **Testing** | Pre-release / CI | `docker pull marc0janssen/restic-backup-helper:develop` or `marc0janssen/restic-backup-helper:1.11.21-0.18.1-dev` |
 
 Pinned tags let you lock both **helper semver** and **Restic base** (`<semver>-<restic>`).
 
@@ -173,6 +175,15 @@ Defaults below match **`Dockerfile`** unless noted. Empty default means unset/bl
 | --- | --- | --- |
 | `MAILX_RCPT` | *(empty)* | If set, backup/check can mail logs (see [Mail notifications](#mail-notifications)). |
 | `MAILX_ON_ERROR` | `OFF` | When `ON`, backup and check only send mail after a **failed** run. Sync mails only when at least one job error occurred (see scripts). |
+
+### Webhook
+
+| Variable | Default | Description |
+| --- | --- | --- |
+| `WEBHOOK_URL` | *(empty)* | When set, backup/check/sync POST the same JSON document as `/var/log/last-<job>.json` (see [Webhook notifications](#webhook-notifications)). |
+| `WEBHOOK_HEADER_AUTH` | *(empty)* | Sent verbatim as `Authorization: <value>` (e.g. `Bearer …`, `Token …`). Not echoed in logs. |
+| `WEBHOOK_TIMEOUT` | `10` | Curl `--max-time` in seconds. Non-positive values fall back to 10. |
+| `WEBHOOK_ON_ERROR` | `OFF` | When `ON`, only fire on non-zero job exit codes (mirrors `MAILX_ON_ERROR`). |
 
 ### Log rotation (`/var/log/cron.log`)
 
@@ -363,6 +374,31 @@ Mount msmtp configuration so `/usr/sbin/sendmail` (symlinked to `msmtp`) can rel
 ## Log rotation
 
 `/bin/rotate_log` compresses oversized `cron.log` to `/var/log/cron_log_<timestamp>.tar.gz` and trims old archives. Tune `ROTATE_LOG_CRON`, `CRON_LOG_MAX_SIZE`, and `MAX_CRON_LOG_ARCHIVES`.
+
+---
+
+## Webhook notifications
+
+Set **`WEBHOOK_URL`** to a fully-qualified HTTP/HTTPS endpoint and the workers will POST the **same JSON document** as `/var/log/last-<job>.json` (see [Per-run JSON summaries](#per-run-json-summaries) for the schema) after each run. This pairs with the file sink so you have both a pull and a push interface — choose either or both depending on your monitoring stack.
+
+| Setting | Behaviour |
+| --- | --- |
+| `WEBHOOK_URL` unset | No-op; nothing is posted. |
+| `WEBHOOK_URL` set, `WEBHOOK_ON_ERROR=OFF` (default) | POST after every run regardless of exit code. |
+| `WEBHOOK_URL` set, `WEBHOOK_ON_ERROR=ON` | POST only when the job exited with a non-zero code. |
+| `WEBHOOK_HEADER_AUTH` set | Added as `Authorization: <value>` (`Bearer …`, `Token …`, etc.). Value is never echoed to logs. |
+| `WEBHOOK_TIMEOUT` (default `10`) | Curl `--max-time` in seconds; a hung endpoint cannot block a backup. |
+
+Failures (curl non-zero exit, HTTP non-2xx, timeout) are logged as errors but **never propagate to the worker exit code**, so a flaky webhook endpoint will not turn an otherwise-successful backup into a failed one. Container logs only show `scheme://host/...` for the configured URL — per-recipient secrets in path/query (healthchecks.io UUIDs, Slack/Discord webhook tokens, ntfy topic names, …) are not echoed.
+
+Compatible out of the box with **healthchecks.io**, **Slack** / **Discord** / **Mattermost incoming webhooks**, **Gotify**, **ntfy**, **Apprise** receivers, and any custom HTTPS endpoint that accepts a JSON POST.
+
+```yaml
+environment:
+  WEBHOOK_URL: https://hc-ping.com/00000000-0000-0000-0000-000000000000
+  WEBHOOK_ON_ERROR: "OFF"
+  WEBHOOK_TIMEOUT: "15"
+```
 
 ---
 

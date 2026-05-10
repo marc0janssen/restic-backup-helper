@@ -86,6 +86,10 @@ log "🏁 Finished check at $(date +"%Y-%m-%d %a %H:%M:%S") after ${minutes}m ${
 write_last_run_json "check" "${checkRC}" "${start}" "${end}" \
 	"repository" "${MASKED_REPO}"
 
+# POST the same payload to WEBHOOK_URL when configured (no-op otherwise).
+notify_webhook "check" "${checkRC}" "${start}" "${end}" \
+	"repository" "${MASKED_REPO}" || true
+
 # Send mail notification (on failure if MAILX_ON_ERROR=ON, else always when MAILX_RCPT set)
 if [ -n "${MAILX_RCPT}" ] && {
 	[ "${MAILX_ON_ERROR^^}" != "ON" ] || { [ "${MAILX_ON_ERROR^^}" == "ON" ] && [ "$checkRC" -ne 0 ]; }

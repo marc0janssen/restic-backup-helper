@@ -2,6 +2,21 @@
 
 ## Restic Backup Helper
 
+### 1.11.21-0.18.1 (2026-05-10)
+
+#### Added
+
+- **Webhook notifications**: when **`WEBHOOK_URL`** is set, `/bin/backup`, `/bin/check` and `/bin/bisync` POST the same JSON document that is written to `/var/log/last-<job>.json` to the configured endpoint after each run. New environment variables:
+  - `WEBHOOK_URL` (default empty) — enables webhook delivery when set.
+  - `WEBHOOK_HEADER_AUTH` (default empty) — sent verbatim as `Authorization: <value>` (e.g. `Bearer …`, `Token …`).
+  - `WEBHOOK_TIMEOUT` (default `10`) — curl `--max-time` in seconds; non-positive values fall back to 10s.
+  - `WEBHOOK_ON_ERROR` (default `OFF`) — when `ON`, only fire on non-zero exit codes (mirrors `MAILX_ON_ERROR`).
+- **`/bin/lib.sh`**: `render_last_run_json`, `notify_webhook` and `mask_webhook_url` helpers. The mask logs only `scheme://host/...` so per-recipient secrets in path/query (healthchecks.io UUIDs, Slack/Discord webhook tokens, ntfy topic names, ...) never end up in container logs. Curl failures are logged as errors but do not propagate to the worker exit code, so a flaky webhook endpoint never fails an otherwise-successful backup.
+
+#### Changed
+
+- **`/bin/lib.sh`**: extract `render_last_run_json` from `write_last_run_json` so file and HTTP sinks share one schema.
+
 ### 1.11.20-0.18.1 (2026-05-10)
 
 #### Fixed

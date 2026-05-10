@@ -97,25 +97,24 @@ iso8601_local() {
 	date -d "@$1" +"%Y-%m-%dT%H:%M:%S%z" 2>/dev/null || date +"%Y-%m-%dT%H:%M:%S%z"
 }
 
-# Write a per-job last-run JSON document to /var/log/last-<job>.json. Intended
-# for external monitoring (no daemons or push gateways needed).
+# Render the per-job last-run JSON document to stdout. Shared between
+# write_last_run_json (file sink) and notify_webhook (HTTP sink) so both
+# surfaces stay in sync.
 #
 # Usage:
-#   write_last_run_json <job> <exit_code> <start_epoch> <end_epoch> [extra_key extra_value ...]
+#   render_last_run_json <job> <exit_code> <start_epoch> <end_epoch> [extra_key extra_value ...]
 #
 # Always-included fields: job, hostname, release, started_at, finished_at,
 # duration_seconds, exit_code. Extra positional pairs are added as string
-# fields (already JSON-escaped) so callers can attach details such as
-# "repository" (masked), "snapshot_id", "sync_jobs_processed", etc.
-write_last_run_json() {
+# fields (JSON-escaped) so callers can attach details such as "repository"
+# (masked), "snapshot_id", "sync_jobs_processed", etc.
+render_last_run_json() {
 	local job="$1"
 	local exit_code="$2"
 	local start_epoch="$3"
 	local end_epoch="$4"
 	shift 4
 
-	local target="/var/log/last-${job}.json"
-	local tmp="${target}.tmp"
 	local started finished duration release hostname
 	started="$(iso8601_local "${start_epoch}")"
 	finished="$(iso8601_local "${end_epoch}")"
@@ -123,23 +122,94 @@ write_last_run_json() {
 	release="${RESTIC_BACKUP_HELPER_RELEASE:-unknown}"
 	hostname="${HOSTNAME:-$(hostname 2>/dev/null || echo unknown)}"
 
-	{
-		printf '{\n'
-		printf '  "job": "%s",\n' "$(json_escape "${job}")"
-		printf '  "hostname": "%s",\n' "$(json_escape "${hostname}")"
-		printf '  "release": "%s",\n' "$(json_escape "${release}")"
-		printf '  "started_at": "%s",\n' "$(json_escape "${started}")"
-		printf '  "finished_at": "%s",\n' "$(json_escape "${finished}")"
-		printf '  "duration_seconds": %d,\n' "${duration}"
-		# Optional string extras. Numbers should be passed as strings; consumers
-		# can coerce. Keeps the writer dependency-free.
-		while [ "$#" -ge 2 ]; do
-			printf '  "%s": "%s",\n' "$(json_escape "$1")" "$(json_escape "$2")"
-			shift 2
-		done
-		printf '  "exit_code": %d\n' "${exit_code}"
-		printf '}\n'
-	} >"${tmp}" && mv -f "${tmp}" "${target}"
+	printf '{\n'
+	printf '  "job": "%s",\n' "$(json_escape "${job}")"
+	printf '  "hostname": "%s",\n' "$(json_escape "${hostname}")"
+	printf '  "release": "%s",\n' "$(json_escape "${release}")"
+	printf '  "started_at": "%s",\n' "$(json_escape "${started}")"
+	printf '  "finished_at": "%s",\n' "$(json_escape "${finished}")"
+	printf '  "duration_seconds": %d,\n' "${duration}"
+	# Optional string extras. Numbers should be passed as strings; consumers
+	# can coerce. Keeps the renderer dependency-free.
+	while [ "$#" -ge 2 ]; do
+		printf '  "%s": "%s",\n' "$(json_escape "$1")" "$(json_escape "$2")"
+		shift 2
+	done
+	printf '  "exit_code": %d\n' "${exit_code}"
+	printf '}\n'
+}
+
+# Write a per-job last-run JSON document to /var/log/last-<job>.json (atomic
+# tmp+mv). See render_last_run_json for the field schema.
+write_last_run_json() {
+	local job="$1"
+	local target="/var/log/last-${job}.json"
+	local tmp="${target}.tmp"
+	render_last_run_json "$@" >"${tmp}" && mv -f "${tmp}" "${target}"
+}
+
+# Mask a webhook URL down to scheme+host for log messages so per-recipient
+# secrets in path/query (healthchecks.io UUIDs, Slack webhook tokens, ntfy
+# topic names, ...) never end up in container logs.
+mask_webhook_url() {
+	local url="$1"
+	local masked
+	masked="$(printf '%s' "${url}" | sed -nE 's#^(https?://[^/?#]+).*#\1/...#p')"
+	if [ -n "${masked}" ]; then
+		printf '%s' "${masked}"
+	else
+		printf '***'
+	fi
+}
+
+# POST the same JSON document as write_last_run_json to WEBHOOK_URL. No-op
+# when WEBHOOK_URL is unset. Honours WEBHOOK_ON_ERROR (only fire on non-zero
+# exit when set to ON), WEBHOOK_TIMEOUT (curl --max-time, default 10s) and
+# the optional WEBHOOK_HEADER_AUTH (added as Authorization header). Curl
+# failures are logged as errors but never propagate to the worker exit code.
+notify_webhook() {
+	local job="$1"
+	local exit_code="$2"
+	local url="${WEBHOOK_URL:-}"
+	local on_error="${WEBHOOK_ON_ERROR:-OFF}"
+	local timeout="${WEBHOOK_TIMEOUT:-10}"
+	local payload curl_args=() curl_output curl_rc masked
+
+	if [ -z "${url}" ]; then
+		return 0
+	fi
+	if [[ "${on_error^^}" == "ON" ]] && [ "${exit_code}" -eq 0 ]; then
+		return 0
+	fi
+	if [[ ! "${timeout}" =~ ^[1-9][0-9]*$ ]]; then
+		errorlog "⚠️ WEBHOOK_TIMEOUT='${timeout}' is not a positive integer; using 10s."
+		timeout=10
+	fi
+
+	payload="$(render_last_run_json "$@")"
+	masked="$(mask_webhook_url "${url}")"
+
+	curl_args=(
+		--silent --show-error --fail
+		--max-time "${timeout}"
+		--header "Content-Type: application/json"
+		--data "${payload}"
+	)
+	if [ -n "${WEBHOOK_HEADER_AUTH:-}" ]; then
+		curl_args+=(--header "Authorization: ${WEBHOOK_HEADER_AUTH}")
+		log "📡 Posting ${job} webhook to ${masked} (timeout ${timeout}s, auth header set)..."
+	else
+		log "📡 Posting ${job} webhook to ${masked} (timeout ${timeout}s)..."
+	fi
+
+	if curl_output="$(curl "${curl_args[@]}" "${url}" 2>&1)"; then
+		curl_rc=0
+		log "✅ Webhook delivered (HTTP 2xx)"
+	else
+		curl_rc=$?
+		errorlog "❌ Webhook delivery to ${masked} failed (curl exit ${curl_rc}): ${curl_output}"
+	fi
+	return "${curl_rc}"
 }
 
 # Run an optional /hooks/<phase>.sh script with consistent logging and an

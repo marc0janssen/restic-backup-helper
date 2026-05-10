@@ -15,7 +15,7 @@ Ideas and planned enhancements for **restic-backup-helper**. Ordering is not str
 
 ## Observability & notifications
 
-- [ ] Optional **webhook** after backup / check / sync (HTTPS POST with exit code, duration, hostname; configurable URL + optional secret header).
+- [x] **Webhook** notifications after backup / check / sync via `WEBHOOK_URL` (POSTs the same JSON document as `/var/log/last-<job>.json`); supports `WEBHOOK_HEADER_AUTH`, `WEBHOOK_TIMEOUT` (default 10s) and `WEBHOOK_ON_ERROR` (only on non-zero exit) — 1.11.21-0.18.1.
 - [x] **`last-run.json`** under `/var/log` for backup / check / sync with job name, timestamps, duration, exit code, hostname and job-specific details (repository (masked), backup root, sync job counts) — 1.11.18-0.18.1. Snapshot-ID parsing is a follow-up.
 - [ ] **Prometheus** metrics endpoint or simple **node_exporter textfile** companion doc (push gateway pattern).
 - [ ] Optional richer backup/check mail subjects using structured Restic output where practical (duration, status, bytes changed and snapshot ID).

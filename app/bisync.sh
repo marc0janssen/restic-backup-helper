@@ -181,6 +181,11 @@ write_last_run_json "sync" "${overallRC}" "${syncRunStart}" "${syncRunEnd}" \
 	"sync_jobs_processed" "${syncJobsProcessed}" \
 	"sync_jobs_failed" "${syncJobsFailed}"
 
+# POST the same payload to WEBHOOK_URL when configured (no-op otherwise).
+notify_webhook "sync" "${overallRC}" "${syncRunStart}" "${syncRunEnd}" \
+	"sync_jobs_processed" "${syncJobsProcessed}" \
+	"sync_jobs_failed" "${syncJobsFailed}" || true
+
 # Send mail notification
 if [ -n "${MAILX_RCPT}" ] && [ "$syncHasError" -ne 0 ]; then
 	log "📧 Sending email notification to ${MAILX_RCPT}..."
