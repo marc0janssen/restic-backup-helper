@@ -56,8 +56,38 @@ if [ "${1:-}" = "config-check" ]; then
 	exit $?
 fi
 
-# Masked variables with ******
-MASKED_REPO=$(echo "${RESTIC_REPOSITORY}" | sed -E 's#(https://[^:]+:)[^@]+(@)#\1***\2#')
+# Mask repository credentials before logging.
+# Same implementation as in /bin/backup and /bin/check; consolidate via app/lib.sh later.
+mask_repository() {
+	local repo="$1"
+	local rest="$repo"
+	local masked=""
+	local before after last_part prefix
+
+	while [[ "$rest" == *"@"* ]]; do
+		before="${rest%%@*}"
+		after="${rest#*@}"
+		last_part="${before##*/}"
+
+		if [[ "$before" == *":"* && "$last_part" == *":"* ]]; then
+			prefix="${before%:*}"
+			masked+="${prefix}:***@"
+		else
+			masked+="${before}@"
+		fi
+
+		rest="$after"
+	done
+
+	masked+="$rest"
+	printf '%s' "$masked"
+}
+
+if [ -n "${RESTIC_REPOSITORY}" ]; then
+	MASKED_REPO="$(mask_repository "${RESTIC_REPOSITORY}")"
+else
+	MASKED_REPO="${RESTIC_REPOSITORY}"
+fi
 
 # Releasestring (ingesteld bij image build via build-arg, zie Dockerfile)
 RELEASE="${RESTIC_BACKUP_HELPER_RELEASE:-unknown}"
@@ -71,13 +101,13 @@ echo "🚀 Starting container Restic Backup Helper '${HOSTNAME}' on: $(date '+%Y
 echo "📦 Release: ${RELEASE}"
 echo ""
 
-# If the RESTIC_PUBLICKEY variable is set, add the --cacert option with its value; otherwise, leave it empty.
-#[ -n "${RESTIC_PUBLICKEY}" ] && CACERT_OPTION="--cacert ${RESTIC_PUBLICKEY}" || CACERT_OPTION=""
-
 # Mount NFS if target is specified
 if [ -n "${NFS_TARGET}" ]; then
 	echo "📂 Mounting NFS based on NFS_TARGET: ${NFS_TARGET}"
-	mount -o nolock -v "${NFS_TARGET}" /mnt/restic
+	if ! mount -o nolock -v "${NFS_TARGET}" /mnt/restic; then
+		echo "❌ NFS mount failed for target '${NFS_TARGET}' on /mnt/restic; aborting startup."
+		exit 1
+	fi
 fi
 
 # Check if repository exists

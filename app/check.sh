@@ -63,9 +63,6 @@ log() {
 	logLast "${message}"
 }
 
-# If the RESTIC_PUBLICKEY variable is set, add the --cacert option with its value; otherwise, leave it empty.
-#[ -n "${RESTIC_PUBLICKEY}" ] && CACERT_OPTION="--cacert ${RESTIC_PUBLICKEY}" || CACERT_OPTION=""
-
 # Clear log files
 rm -f "${LAST_CHECK_LOGFILE}" "${LAST_MAIL_LOGFILE}"
 
@@ -82,7 +79,6 @@ start=$(date +%s)
 
 # Note check start
 log "🔍 Starting Check at $(date +"%Y-%m-%d %a %H:%M:%S")"
-#log "Starting Check at $(date)" >> "${LAST_CHECK_LOGFILE}"
 
 # Log environment variables
 logLast "RELEASE: ${RELEASE}"

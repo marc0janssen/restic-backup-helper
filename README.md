@@ -54,12 +54,12 @@ If this image saves you time, you can [leave a tip on Ko-fi](https://ko-fi.com/m
 
 ## Image tags and release
 
-release: 1.11.14-0.18.1
+release: 1.11.15-0.18.1
 
 | Train | When to use | Example pull |
 | --- | --- | --- |
-| **Stable** | Production | `docker pull marc0janssen/restic-backup-helper:latest` or pinned `marc0janssen/restic-backup-helper:1.11.14-0.18.1` |
-| **Testing** | Pre-release / CI | `docker pull marc0janssen/restic-backup-helper:develop` or `marc0janssen/restic-backup-helper:1.11.14-0.18.1-dev` |
+| **Stable** | Production | `docker pull marc0janssen/restic-backup-helper:latest` or pinned `marc0janssen/restic-backup-helper:1.11.15-0.18.1` |
+| **Testing** | Pre-release / CI | `docker pull marc0janssen/restic-backup-helper:develop` or `marc0janssen/restic-backup-helper:1.11.15-0.18.1-dev` |
 
 Pinned tags let you lock both **helper semver** and **Restic base** (`<semver>-<restic>`).
 
@@ -427,6 +427,7 @@ On Kubernetes, mount a `Secret` as a volume (or use `subPath`) and set `RESTIC_P
 | --- | --- |
 | Backup exits immediately / “Missing RESTIC_TAG” | Export **`RESTIC_TAG`**. |
 | Empty or wrong backup content | Set **`BACKUP_ROOT_DIR`** and/or **`RESTIC_JOB_ARGS`** paths intentionally; empty both yields a degenerate `restic backup` invocation. |
+| Backup logs “success” but `restic snapshots` shows zero or empty snapshots | Verify the host volume that backs **`BACKUP_ROOT_DIR`** is actually mounted into the container, the path inside the container exists, and the user has read access. A misspelled bind mount or an unmounted source produces a successful but empty backup. |
 | Cron “wrong timezone” | Set **`TZ`** and restart the container. |
 | Rclone auth breaks | Ensure `rclone.conf` is writable if the backend refreshes tokens. |
 | Permission denied on source | Match UID/GID or ACLs on mounted volumes; avoid overly broad `:privileged` unless required. |

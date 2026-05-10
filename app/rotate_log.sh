@@ -35,6 +35,20 @@ logLast "ROTATE_LOG_CRON: ${ROTATE_LOG_CRON}"
 logLast "CRON_LOG_MAX_SIZE: ${CRON_LOG_MAX_SIZE}"
 logLast "MAX_CRON_LOG_ARCHIVES: ${MAX_CRON_LOG_ARCHIVES}"
 
+is_positive_int() {
+	[[ "${1:-}" =~ ^[1-9][0-9]*$ ]]
+}
+
+if ! is_positive_int "${CRON_LOG_MAX_SIZE}"; then
+	log "❌ CRON_LOG_MAX_SIZE must be a positive integer (got '${CRON_LOG_MAX_SIZE}')."
+	exit 1
+fi
+
+if ! is_positive_int "${MAX_CRON_LOG_ARCHIVES}"; then
+	log "❌ MAX_CRON_LOG_ARCHIVES must be a positive integer (got '${MAX_CRON_LOG_ARCHIVES}')."
+	exit 1
+fi
+
 # Create archive directory if it doesn't exist
 if [ ! -d "$ARCHIVE_DIR" ]; then
 	mkdir -p "$ARCHIVE_DIR"
@@ -52,16 +66,22 @@ FILE_SIZE=$(stat -c%s "$LOG_FILE")
 
 # Rotate log if size exceeds maximum
 if [ "$FILE_SIZE" -ge "${CRON_LOG_MAX_SIZE}" ]; then
-	# Create timestamp for archive name
 	TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
+	ARCHIVE_NAME="cron_log_${TIMESTAMP}.tar.gz"
+	ARCHIVE_PATH="${ARCHIVE_DIR}/${ARCHIVE_NAME}"
+	LOG_BASENAME="$(basename "${LOG_FILE}")"
+	LOG_DIR="$(dirname "${LOG_FILE}")"
 
-	# Create tar archive
-	tar -czf "$ARCHIVE_DIR/cron_log_$TIMESTAMP.tar.gz" "${LOG_FILE}" >/dev/null 2>&1
-
-	# Clear the log file
-	: >"$LOG_FILE"
-
-	log "🔄 Log file rotated and archived as cron_log_$TIMESTAMP.tar.gz..."
+	# Archive with relative path so extraction does not recreate /var/log/...
+	if tar -C "${LOG_DIR}" -czf "${ARCHIVE_PATH}" "${LOG_BASENAME}" >/dev/null 2>&1; then
+		# Only truncate after a successful archive to avoid losing log data on tar failure.
+		: >"$LOG_FILE"
+		log "🔄 Log file rotated and archived as ${ARCHIVE_NAME}..."
+	else
+		log "❌ Failed to create archive ${ARCHIVE_PATH}; cron.log left intact."
+		rm -f "${ARCHIVE_PATH}"
+		exit 1
+	fi
 
 	# Remove oldest archives if we have more than ENV MAX_CRON_LOG_ARCHIVES
 	ARCHIVE_COUNT=$(find "$ARCHIVE_DIR" -maxdepth 1 -type f -name 'cron_log_*.tar.gz' 2>/dev/null | wc -l | tr -d '[:space:]')

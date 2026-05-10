@@ -2,6 +2,20 @@
 
 ## Restic Backup Helper
 
+### 1.11.15-0.18.1 (2026-05-10)
+
+#### Fixed
+
+- **`/bin/rotate_log`**: archive **`cron.log`** with a relative path (`tar -C /var/log ... cron.log`) so extracted archives no longer recreate `/var/log/...`, and only truncate the live log after the `tar` archive is created successfully (previous behaviour could lose log data on archive failure).
+- **`/entry.sh`**: fail fast and exit non-zero when **`NFS_TARGET`** is set but the `mount` call fails, instead of continuing to schedule jobs that would silently fail later.
+- **`/entry.sh`**: reuse the same repository credential masking helper as `/bin/backup` and `/bin/check` so startup logs no longer expose embedded credentials in non-`https://` repository URLs (`s3:`, `sftp:`, `swift:`, `rclone:`).
+
+#### Changed
+
+- **`/bin/rotate_log`**: validate **`CRON_LOG_MAX_SIZE`** and **`MAX_CRON_LOG_ARCHIVES`** as positive integers and exit with a clear error otherwise, instead of failing inside `[`/`-ge` comparisons.
+- **`/entry.sh`**, **`/bin/backup`**, **`/bin/check`**: drop obsolete commented-out **`RESTIC_PUBLICKEY`** / `CACERT_OPTION` lines now that custom CA usage is documented through `RESTIC_CACERT` / `--cacert` in `RESTIC_JOB_ARGS` and `RESTIC_CHECK_ARGS`.
+- **README**: troubleshooting entry for *successful but empty backup* (mounted source missing or wrong path).
+
 ### 1.11.14-0.18.1 (2026-05-10)
 
 #### Changed

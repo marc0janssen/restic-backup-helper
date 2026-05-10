@@ -63,9 +63,6 @@ log() {
 	logLast "${message}"
 }
 
-# If the RESTIC_PUBLICKEY variable is set, add the --cacert option with its value; otherwise, leave it empty.
-#[ -n "${RESTIC_PUBLICKEY}" ] && CACERT_OPTION="--cacert ${RESTIC_PUBLICKEY}" || CACERT_OPTION=""
-
 # Clear log files
 rm -f "${LAST_LOGFILE}" "${LAST_MAIL_LOGFILE}"
 
