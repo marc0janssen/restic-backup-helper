@@ -52,7 +52,11 @@ COPY /app/backup.sh /bin/backup
 COPY /app/check.sh /bin/check
 COPY /app/bisync.sh /bin/bisync
 COPY /app/rotate_log.sh /bin/rotate_log
-COPY ./.release /.release
+# Baked at build: ./build.sh passes --build-arg (no repo .release file).
+ARG RESTIC_BACKUP_HELPER_RELEASE=unknown
+LABEL org.opencontainers.image.title="restic-backup-helper" \
+	org.opencontainers.image.version="${RESTIC_BACKUP_HELPER_RELEASE}"
+ENV RESTIC_BACKUP_HELPER_RELEASE=${RESTIC_BACKUP_HELPER_RELEASE}
 RUN chmod 755 /entry.sh /bin/backup /bin/check /bin/bisync /bin/rotate_log
 
 # set sendmail-path

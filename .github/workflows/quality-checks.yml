@@ -1,0 +1,71 @@
+name: Quality Checks
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  shell-quality:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Install quality tools
+        env:
+          ACTIONLINT_VERSION: v1.7.9
+          HADOLINT_VERSION: v2.14.0
+        run: |
+          set -eux
+          sudo apt-get update
+          sudo apt-get install -y shellcheck shfmt yamllint
+
+          ARCH="$(uname -m)"
+          case "${ARCH}" in
+            x86_64) AL_ARCH=amd64; HL_DL=Linux-x86_64 ;;
+            aarch64) AL_ARCH=arm64; HL_DL=Linux-arm64 ;;
+            *)
+              echo "Unsupported runner architecture: ${ARCH}" >&2
+              exit 1
+              ;;
+          esac
+
+          curl -fsSL "https://github.com/rhysd/actionlint/releases/download/${ACTIONLINT_VERSION}/actionlint_${ACTIONLINT_VERSION#v}_linux_${AL_ARCH}.tar.gz" | sudo tar xz -C /usr/local/bin actionlint
+          sudo chmod +x /usr/local/bin/actionlint
+
+          curl -fsSL -o /tmp/hadolint "https://github.com/hadolint/hadolint/releases/download/${HADOLINT_VERSION}/hadolint-${HL_DL}"
+          sudo install -m755 /tmp/hadolint /usr/local/bin/hadolint
+
+          actionlint -version
+          hadolint --version
+          yamllint --version
+
+      - name: Run shell quality checks
+        env:
+          CI_CONVENTIONAL_COMMIT_LINT: ${{ vars.CI_CONVENTIONAL_COMMIT_LINT || 'false' }}
+          CI_CONVENTIONAL_COMMIT_RANGE: ${{ github.event_name == 'pull_request' && format('{0}..{1}', github.event.pull_request.base.sha, github.sha) || 'HEAD~20..HEAD' }}
+        run: |
+          chmod +x ./scripts/ci-quality-checks.sh
+          ./scripts/ci-quality-checks.sh
+
+      - name: Collect diagnostics on failure
+        if: failure()
+        run: |
+          {
+            echo "## git status --short"
+            git status --short
+            echo
+            echo "## git diff --stat"
+            git diff --stat
+          } > quality-failure-diagnostics.txt
+
+      - name: Upload quality diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v6
+        with:
+          name: quality-failure-diagnostics
+          path: quality-failure-diagnostics.txt

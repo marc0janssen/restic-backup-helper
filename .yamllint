@@ -1,0 +1,11 @@
+# Yamllint config — GitHub Actions uses keys like `on:` (truthy rule).
+extends: default
+
+rules:
+  line-length:
+    max: 240
+    level: warning
+  truthy:
+    check-keys: false
+  comments-indentation: disable
+  document-start: disable
