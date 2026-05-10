@@ -78,7 +78,7 @@ Ideas and planned enhancements for **restic-backup-helper**. Ordering is not str
 
 - [x] Introduce shared runtime helper library (`app/lib.sh` copied to `/bin/lib.sh`) for logging, `copyErrorLog`, repository masking — 1.11.16-0.18.1.
 - [x] Remove obsolete commented **`RESTIC_PUBLICKEY`** / `CACERT_OPTION` code now that `RESTIC_CACERT` is the documented path — 1.11.15-0.18.1.
-- [ ] Add `set -euo pipefail` (or a carefully reviewed equivalent) to runtime worker scripts where practical, preserving deliberate exit-code handling around Restic/Rclone commands.
+- [x] Add `set -Eeuo pipefail` to runtime workers (`/entry.sh`, `/bin/backup`, `/bin/check`, `/bin/bisync`, `/bin/rotate_log`) and `lib.sh::run_hook` / `parse_restic_backup_stats`; restic and rclone invocations wrapped in `if/else` to preserve exit-code handling around forget / unlock / recovery / mail / webhook branches — 1.11.24-0.18.1.
 - [x] Generic **hook runner** in `/bin/lib.sh` with executable checks, timeout support (`HOOK_TIMEOUT`) and consistent logging of hook start, exit code and duration — 1.11.19-0.18.1.
 - [x] Reduce duplicated mail-notification logic between backup/check/sync into `/bin/lib.sh::notify_mail`; preserves `MAILX_ON_ERROR` semantics and bisync's "only on irrecoverable error" pattern via an optional third arg — 1.11.23-0.18.1.
 

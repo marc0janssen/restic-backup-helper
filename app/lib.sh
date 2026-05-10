@@ -295,14 +295,22 @@ run_hook() {
 	fi
 
 	hook_start=$(date +%s)
+	# Use if/else so callers running with `set -e` do not abort on a
+	# non-zero hook exit before we capture its rc and log the duration.
 	if [ "${hook_timeout}" -gt 0 ]; then
 		log "🚀 Running hook ${phase} (timeout ${hook_timeout}s)..."
-		timeout "${hook_timeout}s" "${hook}" "$@"
-		hook_rc=$?
+		if timeout "${hook_timeout}s" "${hook}" "$@"; then
+			hook_rc=0
+		else
+			hook_rc=$?
+		fi
 	else
 		log "🚀 Running hook ${phase}..."
-		"${hook}" "$@"
-		hook_rc=$?
+		if "${hook}" "$@"; then
+			hook_rc=0
+		else
+			hook_rc=$?
+		fi
 	fi
 	hook_end=$(date +%s)
 	hook_duration=$((hook_end - hook_start))
@@ -346,21 +354,23 @@ parse_restic_backup_stats() {
 
 	[ -n "${log}" ] && [ -f "${log}" ] || return 0
 
+	# `|| true` keeps the helper safe when the caller has `set -o pipefail`
+	# and grep finds no matches (returns 1) for a partial / failed run.
 	local line
 
-	line="$(grep -E 'snapshot [a-f0-9]+ saved' "${log}" 2>/dev/null | tail -n 1)"
+	line="$(grep -E 'snapshot [a-f0-9]+ saved' "${log}" 2>/dev/null | tail -n 1 || true)"
 	if [ -n "${line}" ]; then
 		BACKUP_STATS_SNAPSHOT_ID="$(printf '%s' "${line}" | sed -nE 's/.*snapshot ([a-f0-9]+) saved.*/\1/p')"
 	fi
 
-	line="$(grep -E '^Files:[[:space:]]+[0-9]+ new,' "${log}" 2>/dev/null | tail -n 1)"
+	line="$(grep -E '^Files:[[:space:]]+[0-9]+ new,' "${log}" 2>/dev/null | tail -n 1 || true)"
 	if [ -n "${line}" ]; then
 		BACKUP_STATS_FILES_NEW="$(printf '%s' "${line}" | sed -nE 's/^Files:[[:space:]]+([0-9]+) new,[[:space:]]+([0-9]+) changed,[[:space:]]+([0-9]+) unmodified.*/\1/p')"
 		BACKUP_STATS_FILES_CHANGED="$(printf '%s' "${line}" | sed -nE 's/^Files:[[:space:]]+([0-9]+) new,[[:space:]]+([0-9]+) changed,[[:space:]]+([0-9]+) unmodified.*/\2/p')"
 		BACKUP_STATS_FILES_UNMODIFIED="$(printf '%s' "${line}" | sed -nE 's/^Files:[[:space:]]+([0-9]+) new,[[:space:]]+([0-9]+) changed,[[:space:]]+([0-9]+) unmodified.*/\3/p')"
 	fi
 
-	line="$(grep -E '^Added to the repository:' "${log}" 2>/dev/null | tail -n 1)"
+	line="$(grep -E '^Added to the repository:' "${log}" 2>/dev/null | tail -n 1 || true)"
 	if [ -n "${line}" ]; then
 		BACKUP_STATS_BYTES_ADDED="$(printf '%s' "${line}" | sed -nE 's/^Added to the repository:[[:space:]]+(.+)[[:space:]]+\((.+) stored\).*/\1/p')"
 		BACKUP_STATS_BYTES_STORED="$(printf '%s' "${line}" | sed -nE 's/^Added to the repository:[[:space:]]+(.+)[[:space:]]+\((.+) stored\).*/\2/p')"

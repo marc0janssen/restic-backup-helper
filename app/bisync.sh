@@ -6,6 +6,8 @@
 # Description: Script for performing bisync with Rclone
 # =========================================================
 
+set -Eeuo pipefail
+
 # Define log files
 LAST_LOGFILE="/var/log/sync-last.log"
 LAST_ERROR_LOGFILE="/var/log/sync-error-last.log"
@@ -20,7 +22,7 @@ LOG_VERBOSE="${SYNC_VERBOSE:-OFF}"
 RELEASE="${RESTIC_BACKUP_HELPER_RELEASE:-unknown}"
 
 # Check if the file exists and is not empty
-if [ ! -s "${SYNC_JOB_FILE}" ]; then
+if [ ! -s "${SYNC_JOB_FILE:-}" ]; then
 	errorlog "❌ The sync job file is empty or does not exist"
 	exit 1
 fi
@@ -34,20 +36,22 @@ fi
 # Clear log files
 rm -f "${LAST_LOGFILE}" "${LAST_MAIL_LOGFILE}"
 
-run_hook "pre-sync"
+# Pre-hook is informational; never abort the sync batch on a failing pre-hook
+# (matches historical behaviour before `set -e`).
+run_hook "pre-sync" || true
 
 # Note sync start
 log "🔄 Starting Sync at $(date +"%Y-%m-%d %a %H:%M:%S")"
 
 # Log environment variables
 logLast "RELEASE: ${RELEASE}"
-logLast "SYNC_CRON: ${SYNC_CRON}"
+logLast "SYNC_CRON: ${SYNC_CRON:-}"
 logLast "SYNC_JOB_FILE: ${SYNC_JOB_FILE}"
-logLast "SYNC_JOB_ARGS: ${SYNC_JOB_ARGS}"
+logLast "SYNC_JOB_ARGS: ${SYNC_JOB_ARGS:-}"
 
 # Split the sync job args into an array while stripping any --resync flag
 SYNC_JOB_ARGS_ARRAY=()
-if [[ -n "${SYNC_JOB_ARGS}" ]]; then
+if [[ -n "${SYNC_JOB_ARGS:-}" ]]; then
 	read -r -a RAW_SYNC_JOB_ARGS <<<"${SYNC_JOB_ARGS}"
 	for arg in "${RAW_SYNC_JOB_ARGS[@]}"; do
 		[[ "${arg}" == "--resync" ]] && continue
@@ -82,8 +86,13 @@ while IFS= read -r line; do
 	log "🔀 Performing sync of ${SYNC_SOURCE} <-> ${SYNC_DESTINATION}..."
 	rclone_cmd=(rclone bisync "${SYNC_SOURCE}" "${SYNC_DESTINATION}")
 	rclone_cmd+=("${SYNC_JOB_ARGS_ARRAY[@]}")
-	"${rclone_cmd[@]}" >>"${LAST_LOGFILE}" 2>&1
-	syncRC=$?
+	# if/else captures rclone's exit code without aborting under `set -e`
+	# so the recovery branch and per-job accounting can still run.
+	if "${rclone_cmd[@]}" >>"${LAST_LOGFILE}" 2>&1; then
+		syncRC=0
+	else
+		syncRC=$?
+	fi
 	logLast "Finished sync at $(date +"%Y-%m-%d %a %H:%M:%S")"
 
 	# Error handling
@@ -101,8 +110,11 @@ while IFS= read -r line; do
 		log "🔄 Step 1: Updating from ${SYNC_SOURCE} to ${SYNC_DESTINATION}"
 		rclone_copy_cmd=(rclone copy "${SYNC_SOURCE}" "${SYNC_DESTINATION}" --update)
 		rclone_copy_cmd+=("${SYNC_JOB_ARGS_ARRAY[@]}")
-		"${rclone_copy_cmd[@]}" >>"${LAST_LOGFILE}" 2>&1
-		copy1RC=$?
+		if "${rclone_copy_cmd[@]}" >>"${LAST_LOGFILE}" 2>&1; then
+			copy1RC=0
+		else
+			copy1RC=$?
+		fi
 		if [ $copy1RC -ne 0 ]; then
 			syncHasError=1
 			if [ $overallRC -eq 0 ]; then
@@ -114,8 +126,11 @@ while IFS= read -r line; do
 		log "🔄 Step 2: Updating from ${SYNC_DESTINATION} to ${SYNC_SOURCE}"
 		rclone_copy_cmd=(rclone copy "${SYNC_DESTINATION}" "${SYNC_SOURCE}" --update)
 		rclone_copy_cmd+=("${SYNC_JOB_ARGS_ARRAY[@]}")
-		"${rclone_copy_cmd[@]}" >>"${LAST_LOGFILE}" 2>&1
-		copy2RC=$?
+		if "${rclone_copy_cmd[@]}" >>"${LAST_LOGFILE}" 2>&1; then
+			copy2RC=0
+		else
+			copy2RC=$?
+		fi
 		if [ $copy2RC -ne 0 ]; then
 			syncHasError=1
 			if [ $overallRC -eq 0 ]; then
@@ -128,8 +143,11 @@ while IFS= read -r line; do
 			log "🔄 Step 3: Performing full resync between ${SYNC_SOURCE} and ${SYNC_DESTINATION}"
 			rclone_cmd=(rclone bisync "${SYNC_SOURCE}" "${SYNC_DESTINATION}" --resync)
 			rclone_cmd+=("${SYNC_JOB_ARGS_ARRAY[@]}")
-			"${rclone_cmd[@]}" >>"${LAST_LOGFILE}" 2>&1
-			syncRC=$?
+			if "${rclone_cmd[@]}" >>"${LAST_LOGFILE}" 2>&1; then
+				syncRC=0
+			else
+				syncRC=$?
+			fi
 
 			if [ $syncRC -eq 0 ]; then
 				errorlog "✅ Recovery Successful - All steps completed"
@@ -188,7 +206,7 @@ notify_webhook "sync" "${overallRC}" "${syncRunStart}" "${syncRunEnd}" \
 
 # Sync mails only when at least one job recorded an unrecoverable error
 # (independent of MAILX_ON_ERROR), so force the error-only mode on notify_mail.
-notify_mail "Result of the last ${HOSTNAME} sync" "${syncHasError}" "ON" || true
+notify_mail "Result of the last ${HOSTNAME:-} sync" "${syncHasError}" "ON" || true
 
 run_hook "post-sync" "$overallRC" || true
 

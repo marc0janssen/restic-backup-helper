@@ -7,6 +7,8 @@
 # Old log files are compressed using tar and only the MAX_CRON_LOG_ARCHIVES most recent archives are kept.
 # =========================================================
 
+set -Eeuo pipefail
+
 # Define variables
 LAST_LOGFILE="/var/log/rotate-last.log"
 LOG_FILE="/var/log/cron.log"
@@ -22,21 +24,21 @@ rm -f "${LAST_LOGFILE}"
 log "📋 Starting rotation check at $(date +"%Y-%m-%d %a %H:%M:%S")..."
 
 # Log environment variables
-logLast "ROTATE_LOG_CRON: ${ROTATE_LOG_CRON}"
-logLast "CRON_LOG_MAX_SIZE: ${CRON_LOG_MAX_SIZE}"
-logLast "MAX_CRON_LOG_ARCHIVES: ${MAX_CRON_LOG_ARCHIVES}"
+logLast "ROTATE_LOG_CRON: ${ROTATE_LOG_CRON:-}"
+logLast "CRON_LOG_MAX_SIZE: ${CRON_LOG_MAX_SIZE:-}"
+logLast "MAX_CRON_LOG_ARCHIVES: ${MAX_CRON_LOG_ARCHIVES:-}"
 
 is_positive_int() {
 	[[ "${1:-}" =~ ^[1-9][0-9]*$ ]]
 }
 
-if ! is_positive_int "${CRON_LOG_MAX_SIZE}"; then
-	log "❌ CRON_LOG_MAX_SIZE must be a positive integer (got '${CRON_LOG_MAX_SIZE}')."
+if ! is_positive_int "${CRON_LOG_MAX_SIZE:-}"; then
+	log "❌ CRON_LOG_MAX_SIZE must be a positive integer (got '${CRON_LOG_MAX_SIZE:-}')."
 	exit 1
 fi
 
-if ! is_positive_int "${MAX_CRON_LOG_ARCHIVES}"; then
-	log "❌ MAX_CRON_LOG_ARCHIVES must be a positive integer (got '${MAX_CRON_LOG_ARCHIVES}')."
+if ! is_positive_int "${MAX_CRON_LOG_ARCHIVES:-}"; then
+	log "❌ MAX_CRON_LOG_ARCHIVES must be a positive integer (got '${MAX_CRON_LOG_ARCHIVES:-}')."
 	exit 1
 fi
 

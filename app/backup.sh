@@ -6,6 +6,8 @@
 # Description: Script for performing backups with Restic
 # =========================================================
 
+set -Eeuo pipefail
+
 # Define log files
 LAST_LOGFILE="/var/log/backup-last.log"
 LAST_ERROR_LOGFILE="/var/log/backup-error-last.log"
@@ -14,10 +16,10 @@ LAST_MAIL_LOGFILE="/var/log/backup-mail-last.log"
 # shellcheck source=lib.sh
 . /bin/lib.sh
 
-if [ -n "${RESTIC_REPOSITORY}" ]; then
+if [ -n "${RESTIC_REPOSITORY:-}" ]; then
 	MASKED_REPO=$(mask_repository "${RESTIC_REPOSITORY}")
 else
-	MASKED_REPO="${RESTIC_REPOSITORY}"
+	MASKED_REPO="${RESTIC_REPOSITORY:-}"
 fi
 
 # Releasestring: ENV gezet bij image build (build-arg)
@@ -29,7 +31,9 @@ build_restic_cacert_args
 # Clear log files
 rm -f "${LAST_LOGFILE}" "${LAST_MAIL_LOGFILE}"
 
-run_hook "pre-backup"
+# Pre-hook is informational; never abort the backup on a failing pre-hook
+# (matches historical behaviour before `set -e`).
+run_hook "pre-backup" || true
 
 # Record start time
 start=$(date +%s)
@@ -39,11 +43,11 @@ log "🔄 Starting Backup at $(date +"%Y-%m-%d %a %H:%M:%S")"
 
 # Log environment variables
 logLast "RELEASE: ${RELEASE}"
-logLast "BACKUP_CRON: ${BACKUP_CRON}"
-logLast "BACKUP_ROOT_DIR: ${BACKUP_ROOT_DIR}"
-logLast "RESTIC_TAG: ${RESTIC_TAG}"
-logLast "RESTIC_FORGET_ARGS: ${RESTIC_FORGET_ARGS}"
-logLast "RESTIC_JOB_ARGS: ${RESTIC_JOB_ARGS}"
+logLast "BACKUP_CRON: ${BACKUP_CRON:-}"
+logLast "BACKUP_ROOT_DIR: ${BACKUP_ROOT_DIR:-}"
+logLast "RESTIC_TAG: ${RESTIC_TAG:-}"
+logLast "RESTIC_FORGET_ARGS: ${RESTIC_FORGET_ARGS:-}"
+logLast "RESTIC_JOB_ARGS: ${RESTIC_JOB_ARGS:-}"
 logLast "RESTIC_CACERT: ${RESTIC_CACERT:-}"
 logLast "RESTIC_REPOSITORY: ${MASKED_REPO}"
 
@@ -52,9 +56,9 @@ if [ -z "${BACKUP_ROOT_DIR:-}" ] && [ -z "${RESTIC_JOB_ARGS:-}" ]; then
 fi
 
 # Perform backup
-if [ -n "${BACKUP_ROOT_DIR}" ]; then
+if [ -n "${BACKUP_ROOT_DIR:-}" ]; then
 	log "📦 Performing backup of ${BACKUP_ROOT_DIR}..."
-elif [ -n "${RESTIC_JOB_ARGS}" ]; then
+elif [ -n "${RESTIC_JOB_ARGS:-}" ]; then
 	log "📦 Performing backup using RESTIC_JOB_ARGS..."
 else
 	log "📦 Performing backup with restic defaults..."
@@ -62,19 +66,24 @@ fi
 
 backup_cmd=(backup)
 
-if [ -n "${RESTIC_JOB_ARGS}" ]; then
+if [ -n "${RESTIC_JOB_ARGS:-}" ]; then
 	read -r -a restic_job_args <<<"${RESTIC_JOB_ARGS}"
 	backup_cmd+=("${restic_job_args[@]}")
 fi
 
 backup_cmd+=("--tag=${RESTIC_TAG?"Missing environment variable RESTIC_TAG"}")
 
-if [ -n "${BACKUP_ROOT_DIR}" ]; then
+if [ -n "${BACKUP_ROOT_DIR:-}" ]; then
 	backup_cmd+=("${BACKUP_ROOT_DIR}")
 fi
 
-restic "${RESTIC_CACERT_ARGS[@]}" "${backup_cmd[@]}" >>"${LAST_LOGFILE}" 2>&1
-backupRC=$?
+# if/else captures restic's exit code without aborting under `set -e` —
+# downstream forget / unlock / mail / webhook all need backupRC.
+if restic "${RESTIC_CACERT_ARGS[@]}" "${backup_cmd[@]}" >>"${LAST_LOGFILE}" 2>&1; then
+	backupRC=0
+else
+	backupRC=$?
+fi
 logLast "Finished backup at $(date +"%Y-%m-%d %a %H:%M:%S")"
 
 # Error handling
@@ -83,16 +92,19 @@ if [ "$backupRC" -eq 0 ]; then
 else
 	log "❌ Backup Failed with Status ${backupRC}"
 	log "🔓 Unlocking repository..."
-	restic "${RESTIC_CACERT_ARGS[@]}" unlock
+	restic "${RESTIC_CACERT_ARGS[@]}" unlock || true
 	copyErrorLog
 fi
 
 # Execute forget if backup was successful and RESTIC_FORGET_ARGS is set
-if [ "$backupRC" -eq 0 ] && [ -n "${RESTIC_FORGET_ARGS}" ]; then
+if [ "$backupRC" -eq 0 ] && [ -n "${RESTIC_FORGET_ARGS:-}" ]; then
 	log "🧹 Forgetting old snapshots based on: ${RESTIC_FORGET_ARGS}"
 	read -r -a forget_args <<<"${RESTIC_FORGET_ARGS}"
-	restic "${RESTIC_CACERT_ARGS[@]}" forget "${forget_args[@]}" >>"${LAST_LOGFILE}" 2>&1
-	rc=$?
+	if restic "${RESTIC_CACERT_ARGS[@]}" forget "${forget_args[@]}" >>"${LAST_LOGFILE}" 2>&1; then
+		rc=0
+	else
+		rc=$?
+	fi
 	logLast "Finished forget at $(date +"%Y-%m-%d %a %H:%M:%S")"
 
 	# Error handling for forget
@@ -101,7 +113,7 @@ if [ "$backupRC" -eq 0 ] && [ -n "${RESTIC_FORGET_ARGS}" ]; then
 	else
 		log "❌ Forget Failed with Status ${rc}"
 		log "🔓 Unlocking repository..."
-		restic "${RESTIC_CACERT_ARGS[@]}" unlock
+		restic "${RESTIC_CACERT_ARGS[@]}" unlock || true
 		copyErrorLog
 	fi
 fi
@@ -142,7 +154,7 @@ write_last_run_json "backup" "${backupRC}" "${start}" "${end}" "${last_run_extra
 
 notify_webhook "backup" "${backupRC}" "${start}" "${end}" "${last_run_extras[@]}" || true
 
-notify_mail "Result of the last ${HOSTNAME} backup run on ${MASKED_REPO}" "${backupRC}" || true
+notify_mail "Result of the last ${HOSTNAME:-} backup run on ${MASKED_REPO}" "${backupRC}" || true
 
 run_hook "post-backup" "$backupRC" || true
 

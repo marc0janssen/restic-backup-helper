@@ -2,6 +2,13 @@
 
 ## Restic Backup Helper
 
+### 1.11.24-0.18.1 (2026-05-10)
+
+#### Changed
+
+- **Strict-mode shell hygiene**: `/entry.sh`, `/bin/backup`, `/bin/check`, `/bin/bisync` and `/bin/rotate_log` now run under **`set -Eeuo pipefail`**. Every reference to a possibly-unset env var (`BACKUP_CRON`, `BACKUP_ROOT_DIR`, `RESTIC_TAG`, `RESTIC_FORGET_ARGS`, `RESTIC_JOB_ARGS`, `RESTIC_CHECK_ARGS`, `CHECK_CRON`, `SYNC_CRON`, `SYNC_JOB_FILE`, `SYNC_JOB_ARGS`, `NFS_TARGET`, `RESTIC_CHECK_REPOSITORY_STATUS`, `ROTATE_LOG_CRON`, `CRON_LOG_MAX_SIZE`, `MAX_CRON_LOG_ARCHIVES`, `HOSTNAME`, …) now uses `${VAR:-}` so missing config produces a clear validation error instead of a `unbound variable` crash. Restic and Rclone invocations are wrapped in `if/else` so non-zero exits are captured into `backupRC` / `checkRC` / `syncRC` / `copy1RC` / `copy2RC` (with the same downstream forget / unlock / mail / webhook / recovery branches as before). Fire-and-forget commands (`restic unlock`) and pre-hooks (`run_hook "pre-*"`) get an explicit `|| true` so they cannot abort the worker. **No user-visible output changes.**
+- **`/bin/lib.sh`**: `run_hook` captures hook exit codes via `if/else` instead of `cmd; rc=$?` so duration logging and the timeout-vs-failure distinction still happen when a hook fails under `set -e` in the caller. `parse_restic_backup_stats` adds `|| true` to its `grep | tail` substitutions so missing log lines (failed runs) do not abort the caller under `pipefail`.
+
 ### 1.11.23-0.18.1 (2026-05-10)
 
 #### Changed
