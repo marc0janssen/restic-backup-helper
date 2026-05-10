@@ -2,6 +2,12 @@
 
 ## Restic Backup Helper
 
+### 1.11.14-0.18.1 (2026-05-10)
+
+#### Changed
+
+- **`./build.sh`** / **`./build-testing.sh`** (via `scripts/build-common.sh`): no longer increment **`VERSION`** or **`sed`**-edit README files. Image tags and **`RESTIC_BACKUP_HELPER_RELEASE`** use the current **`VERSION`** plus **`VERSION_RESTIC`** (and `-dev` for testing). **`Dockerfile`** `FROM` is still updated from **`VERSION_RESTIC`**. Align **`VERSION`**, changelogs, and README release lines manually before release; **`scripts/update-restic-base.sh`** unchanged for Restic base bumps.
+
 ### 1.11.9-0.18.1 (2026-05-10)
 
 #### Fixed

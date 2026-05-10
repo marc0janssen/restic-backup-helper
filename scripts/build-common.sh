@@ -5,7 +5,7 @@ _COMMON_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${_COMMON_DIR}/.." && pwd)"
 VERSION_FILE="${REPO_ROOT}/VERSION"
 
-# Set by bump_version_and_release for use by callers.
+# Set by set_release_from_version for use by callers (image tag / build-arg).
 RESTIC_NEW_RELEASE=""
 
 # DOCKER_IMAGE_REPO, BUILD_PLATFORM en VERSION_RESTIC: géén defaults hier —
@@ -95,46 +95,19 @@ patch_dockerfile_restic_base() {
 	rm -f "${dockerfile}.bak"
 }
 
-patch_readme_stable() {
-	local rel="$1"
-	local readme
-	for readme in "${REPO_ROOT}/README.md" "${REPO_ROOT}/README-containers.md"; do
-		[[ -f "${readme}" ]] || continue
-		sed -i.bak "s/release:.*/release: ${rel}/" "${readme}"
-		# Address uses single-quoted regex so '$' is not expanded by bash.
-		sed -i.bak '/restic-backup-helper:[0-9.]*-[0-9.]*$/s/restic-backup-helper:[0-9.]*-[0-9.]*/restic-backup-helper:'"${rel}"'/' "${readme}"
-		rm -f "${readme}.bak"
-	done
-}
-
-patch_readme_testing() {
-	local rel="$1"
-	local readme
-	for readme in "${REPO_ROOT}/README.md" "${REPO_ROOT}/README-containers.md"; do
-		[[ -f "${readme}" ]] || continue
-		sed -i.bak "s#restic-backup-helper:[0-9.]*-[0-9.]*-dev#restic-backup-helper:${rel}#g" "${readme}"
-		rm -f "${readme}.bak"
-	done
-}
-
 # Args: optional dev suffix — "-dev" for testing train, empty for stable.
-bump_version_and_release() {
+# Does not modify VERSION or README; tag is <semver from VERSION>-<VERSION_RESTIC><suffix>.
+set_release_from_version() {
 	local dev_suffix="${1:-}"
+	local image_version
 
-	local image_version major minor patch new_version new_release
 	image_version="$(read_image_version)"
 	if ! is_semver "${image_version}"; then
 		echo "VERSION must contain a semver like 1.0.0 (got '${image_version}')" >&2
 		exit 1
 	fi
 
-	IFS='.' read -r major minor patch <<<"${image_version}"
-	patch=$((patch + 1))
-	new_version="${major}.${minor}.${patch}"
-	new_release="${new_version}-${VERSION_RESTIC}${dev_suffix}"
-
-	printf '%s\n' "${new_version}" >"${VERSION_FILE}"
-	RESTIC_NEW_RELEASE="${new_release}"
+	RESTIC_NEW_RELEASE="${image_version}-${VERSION_RESTIC}${dev_suffix}"
 }
 
 run_stable_build() {
@@ -150,9 +123,8 @@ run_stable_build() {
 		exit 1
 	fi
 
-	bump_version_and_release ""
+	set_release_from_version ""
 
-	patch_readme_stable "${RESTIC_NEW_RELEASE}"
 	patch_dockerfile_restic_base
 
 	docker buildx build --no-cache --platform "${BUILD_PLATFORM}" --push \
@@ -180,9 +152,8 @@ run_testing_build() {
 		exit 1
 	fi
 
-	bump_version_and_release "-dev"
+	set_release_from_version "-dev"
 
-	patch_readme_testing "${RESTIC_NEW_RELEASE}"
 	patch_dockerfile_restic_base
 
 	docker buildx build --no-cache --platform "${BUILD_PLATFORM}" --push \
