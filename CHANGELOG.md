@@ -2,6 +2,18 @@
 
 ## Restic Backup Helper
 
+### 1.11.17-0.18.1 (2026-05-10)
+
+#### Added
+
+- **First-class `RESTIC_CACERT` wiring**: when **`RESTIC_CACERT`** points to a readable PEM bundle inside the container, `--cacert "$RESTIC_CACERT"` is automatically appended to every `restic` invocation in `/entry.sh` (`snapshots` probe, `init`, `unlock --remove-all`), `/bin/backup` (`backup`, `forget`, `unlock`) and `/bin/check` (`check`, `unlock`). Users no longer need to embed `--cacert` in `RESTIC_JOB_ARGS` / `RESTIC_CHECK_ARGS`. When `RESTIC_CACERT` is set but the file is unreadable, a warning is logged at runtime and the flag is omitted; **`config-check`** treats the same condition as a hard error.
+- **`/bin/lib.sh`**: `build_restic_cacert_args` helper populates the shared `RESTIC_CACERT_ARGS` array consumed by the workers and the entrypoint.
+
+#### Changed
+
+- **README**: refreshed `RESTIC_CACERT` description to reflect the automatic wiring.
+- **`/bin/backup`** and **`/bin/check`** now log `RESTIC_CACERT` alongside the other restic environment variables for traceability (the path itself, no certificate content).
+
 ### 1.11.16-0.18.1 (2026-05-10)
 
 #### Changed

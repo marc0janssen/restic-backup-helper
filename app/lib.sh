@@ -76,3 +76,19 @@ copyErrorLog() {
 		cp "${src}" "${dst}"
 	fi
 }
+
+# Populate the global RESTIC_CACERT_ARGS array with --cacert flags derived from
+# the RESTIC_CACERT environment variable. Empty array when RESTIC_CACERT is
+# unset; warns (without aborting) when set but the file is not readable so the
+# downstream restic invocation surfaces its own TLS error.
+build_restic_cacert_args() {
+	RESTIC_CACERT_ARGS=()
+	if [ -z "${RESTIC_CACERT:-}" ]; then
+		return 0
+	fi
+	if [ -r "${RESTIC_CACERT}" ]; then
+		RESTIC_CACERT_ARGS=(--cacert "${RESTIC_CACERT}")
+	else
+		errorlog "⚠️ RESTIC_CACERT is set but file is not readable: ${RESTIC_CACERT}; --cacert flag not added."
+	fi
+}

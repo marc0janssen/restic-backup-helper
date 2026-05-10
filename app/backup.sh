@@ -23,6 +23,9 @@ fi
 # Releasestring: ENV gezet bij image build (build-arg)
 RELEASE="${RESTIC_BACKUP_HELPER_RELEASE:-unknown}"
 
+# Build --cacert flags from RESTIC_CACERT (no-op when unset).
+build_restic_cacert_args
+
 # Clear log files
 rm -f "${LAST_LOGFILE}" "${LAST_MAIL_LOGFILE}"
 
@@ -47,6 +50,7 @@ logLast "BACKUP_ROOT_DIR: ${BACKUP_ROOT_DIR}"
 logLast "RESTIC_TAG: ${RESTIC_TAG}"
 logLast "RESTIC_FORGET_ARGS: ${RESTIC_FORGET_ARGS}"
 logLast "RESTIC_JOB_ARGS: ${RESTIC_JOB_ARGS}"
+logLast "RESTIC_CACERT: ${RESTIC_CACERT:-}"
 logLast "RESTIC_REPOSITORY: ${MASKED_REPO}"
 
 if [ -z "${BACKUP_ROOT_DIR:-}" ] && [ -z "${RESTIC_JOB_ARGS:-}" ]; then
@@ -75,7 +79,7 @@ if [ -n "${BACKUP_ROOT_DIR}" ]; then
 	backup_cmd+=("${BACKUP_ROOT_DIR}")
 fi
 
-restic "${backup_cmd[@]}" >>"${LAST_LOGFILE}" 2>&1
+restic "${RESTIC_CACERT_ARGS[@]}" "${backup_cmd[@]}" >>"${LAST_LOGFILE}" 2>&1
 backupRC=$?
 logLast "Finished backup at $(date +"%Y-%m-%d %a %H:%M:%S")"
 
@@ -85,7 +89,7 @@ if [ "$backupRC" -eq 0 ]; then
 else
 	log "❌ Backup Failed with Status ${backupRC}"
 	log "🔓 Unlocking repository..."
-	restic unlock
+	restic "${RESTIC_CACERT_ARGS[@]}" unlock
 	copyErrorLog
 fi
 
@@ -93,7 +97,7 @@ fi
 if [ "$backupRC" -eq 0 ] && [ -n "${RESTIC_FORGET_ARGS}" ]; then
 	log "🧹 Forgetting old snapshots based on: ${RESTIC_FORGET_ARGS}"
 	read -r -a forget_args <<<"${RESTIC_FORGET_ARGS}"
-	restic forget "${forget_args[@]}" >>"${LAST_LOGFILE}" 2>&1
+	restic "${RESTIC_CACERT_ARGS[@]}" forget "${forget_args[@]}" >>"${LAST_LOGFILE}" 2>&1
 	rc=$?
 	logLast "Finished forget at $(date +"%Y-%m-%d %a %H:%M:%S")"
 
@@ -103,7 +107,7 @@ if [ "$backupRC" -eq 0 ] && [ -n "${RESTIC_FORGET_ARGS}" ]; then
 	else
 		log "❌ Forget Failed with Status ${rc}"
 		log "🔓 Unlocking repository..."
-		restic unlock
+		restic "${RESTIC_CACERT_ARGS[@]}" unlock
 		copyErrorLog
 	fi
 fi

@@ -25,7 +25,7 @@ Ideas and planned enhancements for **restic-backup-helper**. Ordering is not str
 
 ## Restic & scheduling
 
-- [ ] First-class **`RESTIC_CACERT`** wiring in backup/check entry paths: append `--cacert "$RESTIC_CACERT"` automatically when set/readable instead of relying only on `RESTIC_JOB_ARGS` / `RESTIC_CHECK_ARGS`.
+- [x] First-class **`RESTIC_CACERT`** wiring in backup/check/entrypoint restic calls: append `--cacert "$RESTIC_CACERT"` automatically when set/readable; warn at runtime and error in `config-check` when set but unreadable — 1.11.17-0.18.1.
 - [ ] Optional **separate cron for `prune`** (decouple retention from post-backup `forget`).
 - [x] **`RESTIC_PASSWORD_FILE`** + **Docker/Kubernetes secrets** as primary examples in README / Compose samples — 1.11.3-0.18.1.
 - [ ] Pre/post **hook timeouts** and clearer logging of hook exit codes (today hooks run without enforced timeout).

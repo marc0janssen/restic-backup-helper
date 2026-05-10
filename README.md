@@ -54,12 +54,12 @@ If this image saves you time, you can [leave a tip on Ko-fi](https://ko-fi.com/m
 
 ## Image tags and release
 
-release: 1.11.16-0.18.1
+release: 1.11.17-0.18.1
 
 | Train | When to use | Example pull |
 | --- | --- | --- |
-| **Stable** | Production | `docker pull marc0janssen/restic-backup-helper:latest` or pinned `marc0janssen/restic-backup-helper:1.11.16-0.18.1` |
-| **Testing** | Pre-release / CI | `docker pull marc0janssen/restic-backup-helper:develop` or `marc0janssen/restic-backup-helper:1.11.16-0.18.1-dev` |
+| **Stable** | Production | `docker pull marc0janssen/restic-backup-helper:latest` or pinned `marc0janssen/restic-backup-helper:1.11.17-0.18.1` |
+| **Testing** | Pre-release / CI | `docker pull marc0janssen/restic-backup-helper:develop` or `marc0janssen/restic-backup-helper:1.11.17-0.18.1-dev` |
 
 Pinned tags let you lock both **helper semver** and **Restic base** (`<semver>-<restic>`).
 
@@ -132,7 +132,7 @@ Defaults below match **`Dockerfile`** unless noted. Empty default means unset/bl
 | `RESTIC_PASSWORD_FILE` | *(empty)* | File inside the container containing the password (Restic standard). |
 | `RESTIC_TAG` | `automated` | **Required** tag passed to `restic backup` (`--tag=…`). |
 | `RESTIC_CACHE_DIR` | `/.cache/restic` | Restic cache directory. |
-| `RESTIC_CACERT` | *(empty)* | Declared in the image for custom CA workflows; pass TLS trust material via Restic flags in **`RESTIC_JOB_ARGS`** / **`RESTIC_CHECK_ARGS`** (for example `--cacert /config/ca.pem`) when needed. |
+| `RESTIC_CACERT` | *(empty)* | When set to a path inside the container that points to a readable PEM bundle, the entrypoint and worker scripts automatically pass `--cacert "$RESTIC_CACERT"` to all `restic` invocations (`backup`, `check`, `forget`, `unlock`, the startup `snapshots` probe and `init`). When set but the file is unreadable, a warning is logged and the flag is omitted; **`config-check`** treats the same condition as a hard error. You can still add extra `--cacert` flags via `RESTIC_JOB_ARGS` / `RESTIC_CHECK_ARGS` if you need additional trust roots. |
 | `RESTIC_CHECK_REPOSITORY_STATUS` | `ON` | On startup, probe repo (`restic snapshots`); init if missing. Set to anything else to skip probe/init. |
 
 ### Backup job

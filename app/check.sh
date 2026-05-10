@@ -25,6 +25,9 @@ fi
 # Releasestring: ENV gezet bij image build (build-arg)
 RELEASE="${RESTIC_BACKUP_HELPER_RELEASE:-unknown}"
 
+# Build --cacert flags from RESTIC_CACERT (no-op when unset).
+build_restic_cacert_args
+
 # Clear log files
 rm -f "${LAST_LOGFILE}" "${LAST_MAIL_LOGFILE}"
 
@@ -46,6 +49,7 @@ log "🔍 Starting Check at $(date +"%Y-%m-%d %a %H:%M:%S")"
 logLast "RELEASE: ${RELEASE}"
 logLast "CHECK_CRON: ${CHECK_CRON}"
 logLast "RESTIC_CHECK_ARGS: ${RESTIC_CHECK_ARGS}"
+logLast "RESTIC_CACERT: ${RESTIC_CACERT:-}"
 logLast "RESTIC_REPOSITORY: ${MASKED_REPO}"
 
 # Perform repository check
@@ -62,7 +66,7 @@ if [ -n "${RESTIC_CHECK_ARGS}" ]; then
 	check_cmd+=("${restic_check_args[@]}")
 fi
 
-restic "${check_cmd[@]}" >>"${LAST_LOGFILE}" 2>&1
+restic "${RESTIC_CACERT_ARGS[@]}" "${check_cmd[@]}" >>"${LAST_LOGFILE}" 2>&1
 checkRC=$?
 logLast "Finished check at $(date +"%Y-%m-%d %a %H:%M:%S")"
 
@@ -72,7 +76,7 @@ if [ "$checkRC" -eq 0 ]; then
 else
 	log "❌ Check Failed with Status ${checkRC}"
 	log "🔓 Unlocking repository..."
-	restic unlock
+	restic "${RESTIC_CACERT_ARGS[@]}" unlock
 	copyErrorLog
 fi
 
