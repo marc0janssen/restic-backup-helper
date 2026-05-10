@@ -403,3 +403,133 @@ build_restic_cacert_args() {
 		errorlog "⚠️ RESTIC_CACERT is set but file is not readable: ${RESTIC_CACERT}; --cacert flag not added."
 	fi
 }
+
+# Mask credentials in a sync source/destination. Defers to mask_repository
+# because rclone-style endpoints (`backend:user:pass@host:/path`) follow the
+# same pattern and any inline-userinfo URL (`https://user:pass@host/...`) is
+# already covered. Pure paths (`/data/inbox`) are returned unchanged.
+mask_endpoint() {
+	mask_repository "$1"
+}
+
+# Render an epoch duration as a short, human-friendly string used in subject
+# lines and log footers. 0 → "0s"; 65 → "1m5s"; 3725 → "1h2m"; >24h → "Xh".
+human_duration() {
+	local secs="${1:-0}"
+	[[ "${secs}" =~ ^[0-9]+$ ]] || secs=0
+	if [ "${secs}" -lt 60 ]; then
+		printf '%ds' "${secs}"
+	elif [ "${secs}" -lt 3600 ]; then
+		printf '%dm%ds' "$((secs / 60))" "$((secs % 60))"
+	else
+		printf '%dh%dm' "$((secs / 3600))" "$(((secs % 3600) / 60))"
+	fi
+}
+
+# Compose a richer mail subject than the historical "Result of the last X
+# run on Y" line. Format:
+#   "[OK|FAIL <code>] <Job> <hostname> · <duration> · <details>"
+# Example subjects:
+#   "[OK] Backup larak · 5m12s · 1.234 MiB new (snap a1b2c3d4)"
+#   "[FAIL 12] Check larak · 7s"
+#   "[OK] Sync larak · 12m · 3 jobs (0 failed)"
+# Callers pass the worker name (Backup / Check / Prune / Sync), the exit code,
+# the elapsed seconds and an optional already-formatted detail string.
+format_subject() {
+	local job_name="$1"
+	local exit_code="$2"
+	local elapsed="${3:-0}"
+	local details="${4:-}"
+
+	local status_tag
+	if [ "${exit_code}" -eq 0 ]; then
+		status_tag="[OK]"
+	else
+		status_tag="[FAIL ${exit_code}]"
+	fi
+
+	local hostname
+	hostname="${HOSTNAME:-$(hostname 2>/dev/null || echo unknown)}"
+
+	local elapsed_human
+	elapsed_human="$(human_duration "${elapsed}")"
+	local subject="${status_tag} ${job_name} ${hostname} · ${elapsed_human}"
+	if [ -n "${details}" ]; then
+		subject+=" · ${details}"
+	fi
+	printf '%s' "${subject}"
+}
+
+# Write a Prometheus textfile-collector-compatible `*.prom` document for the
+# given job. Atomic tmp+mv so a node_exporter scrape never sees a partial file.
+# No-op when METRICS_DIR is unset/empty (default).
+#
+# Usage:
+#   write_metrics_for_job <job> <exit_code> <start_epoch> <end_epoch> [extra_key extra_value ...]
+#
+# Always-emitted metrics (per <job>):
+#   restic_<job>_last_exit_code       gauge
+#   restic_<job>_last_duration_seconds gauge
+#   restic_<job>_last_finished_timestamp gauge   (unix epoch)
+#   restic_<job>_last_success         gauge   (1 when exit_code == 0, else 0)
+#
+# Extra positional pairs whose value parses as a number become additional
+# `restic_<job>_last_<key>` gauges (so the existing extras passed to
+# write_last_run_json — sync_jobs_processed, files_new, … — flow through
+# without per-job code). Non-numeric extras are ignored to keep the textfile
+# strictly typed.
+write_metrics_for_job() {
+	local job="$1"
+	local exit_code="$2"
+	local start_epoch="$3"
+	local end_epoch="$4"
+	shift 4
+
+	local dir="${METRICS_DIR:-}"
+	[ -n "${dir}" ] || return 0
+
+	if ! mkdir -p "${dir}" 2>/dev/null; then
+		errorlog "⚠️ METRICS_DIR='${dir}' could not be created; skipping metrics export."
+		return 0
+	fi
+	if [ ! -w "${dir}" ]; then
+		errorlog "⚠️ METRICS_DIR='${dir}' is not writable; skipping metrics export."
+		return 0
+	fi
+
+	local target="${dir}/restic_${job}.prom"
+	local tmp="${target}.tmp"
+	local duration success hostname
+	duration=$((end_epoch - start_epoch))
+	success=0
+	[ "${exit_code}" -eq 0 ] && success=1
+	hostname="${HOSTNAME:-$(hostname 2>/dev/null || echo unknown)}"
+
+	{
+		printf '# HELP restic_%s_last_exit_code Exit code of last %s run.\n' "${job}" "${job}"
+		printf '# TYPE restic_%s_last_exit_code gauge\n' "${job}"
+		printf 'restic_%s_last_exit_code{hostname="%s"} %d\n' "${job}" "${hostname}" "${exit_code}"
+
+		printf '# HELP restic_%s_last_success 1 when last run exited 0, else 0.\n' "${job}"
+		printf '# TYPE restic_%s_last_success gauge\n' "${job}"
+		printf 'restic_%s_last_success{hostname="%s"} %d\n' "${job}" "${hostname}" "${success}"
+
+		printf '# HELP restic_%s_last_duration_seconds Duration of the last %s run in seconds.\n' "${job}" "${job}"
+		printf '# TYPE restic_%s_last_duration_seconds gauge\n' "${job}"
+		printf 'restic_%s_last_duration_seconds{hostname="%s"} %d\n' "${job}" "${hostname}" "${duration}"
+
+		printf '# HELP restic_%s_last_finished_timestamp Epoch seconds at which the last %s run finished.\n' "${job}" "${job}"
+		printf '# TYPE restic_%s_last_finished_timestamp gauge\n' "${job}"
+		printf 'restic_%s_last_finished_timestamp{hostname="%s"} %d\n' "${job}" "${hostname}" "${end_epoch}"
+
+		while [ "$#" -ge 2 ]; do
+			local k="$1" v="$2"
+			shift 2
+			if [[ "${v}" =~ ^-?[0-9]+(\.[0-9]+)?$ ]]; then
+				printf '# HELP restic_%s_last_%s %s for the last %s run (numeric extra).\n' "${job}" "${k}" "${k}" "${job}"
+				printf '# TYPE restic_%s_last_%s gauge\n' "${job}" "${k}"
+				printf 'restic_%s_last_%s{hostname="%s"} %s\n' "${job}" "${k}" "${hostname}" "${v}"
+			fi
+		done
+	} >"${tmp}" && mv -f "${tmp}" "${target}"
+}

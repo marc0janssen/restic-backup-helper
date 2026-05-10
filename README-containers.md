@@ -12,23 +12,27 @@ Scheduled [Restic](https://restic.net) backups, optional `restic check`, optiona
 
 ## Release
 
-release: 1.13.1-0.18.1
+release: 1.15.0-0.18.1
 
 **Stable**
 
 ```shell
 docker pull marc0janssen/restic-backup-helper:latest
-docker pull marc0janssen/restic-backup-helper:1.13.1-0.18.1
+docker pull marc0janssen/restic-backup-helper:1.15.0-0.18.1
 ```
 
 **Development (experimental)**
 
 ```shell
 docker pull marc0janssen/restic-backup-helper:develop
-docker pull marc0janssen/restic-backup-helper:1.13.1-0.18.1-dev
+docker pull marc0janssen/restic-backup-helper:1.15.0-0.18.1-dev
 ```
 
-> **Upgrading from 1.11.x?** Automatic `restic unlock` after backup/check failures is now opt-in (`RESTIC_AUTO_UNLOCK=ON`, since 1.12.0). New default leaves stale locks alone (safer for multi-host repos). 1.13.0 adds **`PRUNE_CRON`** + **`RESTIC_PRUNE_ARGS`** so retention can run on its own cadence. See the GitHub README env table.
+> **Upgrading?**
+>
+> - **1.14.x → 1.15.0:** purely additive. New opt-in env vars `METRICS_DIR` (Prometheus textfile collector) and `SYNC_BISYNC_CHECK_ACCESS` (bisync `--check-access` opt-in). Mail subjects gain `[OK|FAIL N] Job host · duration · details` prefix. Sync URL credentials are masked in logs.
+> - **1.13.x → 1.14.0:** explicitly empty `RESTIC_TAG` is now a hard error. `SYNC_JOB_FILE` accepts optional `MODE` / `EXTRA_ARGS` columns. `rclone` is now installed once with SHA256 verification.
+> - **From 1.11.x:** automatic `restic unlock` after backup / check failures is opt-in (`RESTIC_AUTO_UNLOCK=ON`, since 1.12.0). 1.13.0 adds standalone `PRUNE_CRON` + `RESTIC_PRUNE_ARGS`. See the GitHub README env table.
 
 ---
 
@@ -37,7 +41,7 @@ docker pull marc0janssen/restic-backup-helper:1.13.1-0.18.1-dev
 | Tag | Meaning |
 | --- | --- |
 | `latest` | Current stable |
-| `<semver>-<restic>` | Pinned stable (helper version + Restic base), e.g. `1.13.1-0.18.1` |
+| `<semver>-<restic>` | Pinned stable (helper version + Restic base), e.g. `1.15.0-0.18.1` |
 | `develop` | Latest testing build |
 | `<semver>-<restic>-dev` | Pinned testing image |
 
@@ -80,7 +84,9 @@ Startup (`/entry.sh`) can verify/init the repo when `RESTIC_CHECK_REPOSITORY_STA
 
 **Mail:** `MAILX_RCPT` + mounted **`/etc/msmtprc`**; `MAILX_ON_ERROR=ON` limits backup/check mail to failures. Sync mails only when errors occurred.
 
-**Sync file format:** one line per job: `SOURCE;DESTINATION` (see [`config/sync_jobs.txt`](https://github.com/marc0janssen/restic-backup-helper/blob/master/config/sync_jobs.txt)).
+**Sync file format:** `SOURCE;DESTINATION[;MODE[;EXTRA_ARGS]]` per line (`MODE` ∈ `bisync` (default) / `sync` / `copy`; `EXTRA_ARGS` are per-job rclone flags). See [`config/sync_jobs.txt`](https://github.com/marc0janssen/restic-backup-helper/blob/master/config/sync_jobs.txt). Bisync recovery hardening: set `SYNC_BISYNC_CHECK_ACCESS=ON` to require the `RCLONE_TEST` marker on both endpoints.
+
+**Metrics:** set `METRICS_DIR=/var/log/textfile_collector` to write Prometheus textfile-collector `*.prom` files alongside `last-*.json` (point node-exporter at it).
 
 ---
 

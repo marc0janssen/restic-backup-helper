@@ -102,7 +102,9 @@ write_last_run_json "check" "${checkRC}" "${start}" "${end}" \
 notify_webhook "check" "${checkRC}" "${start}" "${end}" \
 	"repository" "${MASKED_REPO}" || true
 
-notify_mail "Result of the last ${HOSTNAME:-} check run on ${MASKED_REPO}" "${checkRC}" || true
+write_metrics_for_job "check" "${checkRC}" "${start}" "${end}" || true
+
+notify_mail "$(format_subject "Check" "${checkRC}" "${duration}" "${MASKED_REPO}")" "${checkRC}" || true
 
 run_hook "post-check" "$checkRC" || true
 

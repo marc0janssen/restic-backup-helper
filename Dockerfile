@@ -1,9 +1,36 @@
 FROM restic/restic:0.18.1
 
-RUN apk update && apk upgrade && apk add --update --no-cache mailx fuse curl libcap sudo bash rclone tzdata msmtp sshpass
+# rclone is intentionally NOT installed via apk; install_rclone.sh fetches a
+# checksum-verified upstream binary so the image always ships a current,
+# reproducible rclone (Alpine's package version often lags upstream features
+# needed for backends like Jottacloud / S3 / Drive).
+#
+# Why each apk package:
+#   bash         worker scripts use bash 4+ syntax (${var,,}, etc.)
+#   curl         used by install_rclone.sh for downloads/checksums and by
+#                /bin/lib.sh::notify_webhook for HTTP webhook delivery
+#   fuse         needed for `restic mount` (FUSE) when browsing snapshots
+#   libcap       provides setcap helpers used by FUSE / NFS workflows
+#   mailx + msmtp  /bin/lib.sh::notify_mail pipes the per-run log via mail(1);
+#                msmtp is the SMTP relay (sendmail symlink set below)
+#   sshpass      used by `sftp:` repositories that need non-key SSH auth
+#   sudo         retained for hook scripts that need to drop privileges
+#   tzdata       enables the TZ env var so cron fires in the operator's TZ
+#
+# `apk upgrade` deliberately omitted: the Restic base image is rebuilt by
+# upstream on a known cadence; running `apk upgrade` here makes the helper
+# image non-reproducible across builds without adding meaningful security
+# value beyond the base layer's existing patch level. CVE coverage is the
+# Trivy/security-scan workflow's job and rebuilds against newer upstream tags.
+RUN apk add --no-cache bash curl fuse libcap mailx msmtp sshpass sudo tzdata
 
+# Optional pinning. Empty value (default) installs the latest stable rclone:
+# version is resolved via downloads.rclone.org/version.txt, then the zip is
+# downloaded from /v<version>/ and checksum-verified against the per-version
+# SHA256SUMS. Pass --build-arg RCLONE_VERSION=1.74.1 to pin a specific version.
+ARG RCLONE_VERSION=""
 COPY /app/install_rclone.sh /install_rclone.sh
-RUN bash /install_rclone.sh && rm -rf /install_rclone.sh
+RUN RCLONE_VERSION="${RCLONE_VERSION}" bash /install_rclone.sh && rm -rf /install_rclone.sh
 
 RUN mkdir -p /mnt/restic /var/spool/cron/crontabs /var/log
 
@@ -29,6 +56,8 @@ ENV SYNC_JOB_FILE="/config/sync_jobs.txt"
 ENV SYNC_JOB_ARGS=""
 ENV SYNC_CRON=""
 ENV SYNC_VERBOSE="ON"
+ENV SYNC_BISYNC_CHECK_ACCESS="OFF"
+ENV METRICS_DIR=""
 ENV ROTATE_LOG_CRON="0 0 * * 6"
 ENV CRON_LOG_MAX_SIZE="1048576"
 ENV MAX_CRON_LOG_ARCHIVES="5"

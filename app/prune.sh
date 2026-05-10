@@ -87,7 +87,9 @@ write_last_run_json "prune" "${pruneRC}" "${start}" "${end}" \
 notify_webhook "prune" "${pruneRC}" "${start}" "${end}" \
 	"repository" "${MASKED_REPO}" || true
 
-notify_mail "Result of the last ${HOSTNAME:-} prune run on ${MASKED_REPO}" "${pruneRC}" || true
+write_metrics_for_job "prune" "${pruneRC}" "${start}" "${end}" || true
+
+notify_mail "$(format_subject "Prune" "${pruneRC}" "${duration}" "${MASKED_REPO}")" "${pruneRC}" || true
 
 run_hook "post-prune" "$pruneRC" || true
 

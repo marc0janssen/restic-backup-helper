@@ -18,8 +18,8 @@ Ideas and planned enhancements for **restic-backup-helper**. Ordering is not str
 - [x] **Webhook** notifications after backup / check / sync via `WEBHOOK_URL` (POSTs the same JSON document as `/var/log/last-<job>.json`); supports `WEBHOOK_HEADER_AUTH`, `WEBHOOK_TIMEOUT` (default 10s) and `WEBHOOK_ON_ERROR` (only on non-zero exit) — 1.11.21-0.18.1.
 - [x] **`last-run.json`** under `/var/log` for backup / check / sync with job name, timestamps, duration, exit code, hostname and job-specific details (repository (masked), backup root, sync job counts) — 1.11.18-0.18.1.
 - [x] **Restic backup stats** in `last-backup.json` + backup webhook payload: `snapshot_id`, `files_new` / `files_changed` / `files_unmodified`, `bytes_added` / `bytes_stored` (parsed from `restic backup` text output) — 1.11.22-0.18.1.
-- [ ] **Prometheus** metrics endpoint or simple **node_exporter textfile** companion doc (push gateway pattern).
-- [ ] Optional richer backup/check mail subjects using structured Restic output where practical (duration, status, bytes changed and snapshot ID).
+- [x] **Prometheus textfile collector** integration via opt-in `METRICS_DIR`: every worker writes `restic_<job>.prom` (atomic tmp+mv) with exit code, success, duration, finished timestamp and any numeric extras already attached to `last-<job>.json`. README documents node-exporter wiring — 1.15.0-0.18.1.
+- [x] **Richer mail subjects** for backup/check/prune/sync: `[OK|FAIL <code>] <Job> <hostname> · <duration> · <details>` with bytes-added + snapshot ID (backup), masked repository (check/prune) and `<n> jobs (<m> failed)` (sync). `lib.sh::format_subject` + `lib.sh::human_duration` — 1.15.0-0.18.1.
 - [x] Documented **Compose HEALTHCHECK** recipes (weak vs strong: `restic version` vs `restic cat config` / `snapshots`) — 1.11.3-0.18.1.
 
 ---
@@ -48,12 +48,12 @@ Ideas and planned enhancements for **restic-backup-helper**. Ordering is not str
 
 ## Security & supply chain
 
-- [ ] Remove the duplicate **Rclone install path** if possible: the image already installs `rclone` via `apk`; avoid also downloading and overwriting it with `install_rclone.sh`.
-- [ ] If `install_rclone.sh` stays, add a **checksum-pinned** Rclone download (verify archive before unzip).
+- [x] Remove the duplicate **Rclone install path**: dropped `rclone` from the Dockerfile `apk add` line so `install_rclone.sh` is the single source — 1.14.0-0.18.1.
+- [x] **Checksum-pinned Rclone download** in `install_rclone.sh`: verifies the archive against the upstream `SHA256SUMS` (per-version when `RCLONE_VERSION` build-arg is set), fails the build on mismatch — 1.14.0-0.18.1.
 - [ ] **SBOM** artifact on release builds (e.g. Syft / build attestations) alongside existing Trivy CI.
 - [ ] Optional **read-only root** + **non-root** exploration doc (likely separate “slim” image or documented trade-offs vs FUSE/NFS/cron-as-root).
-- [ ] Review Dockerfile package strategy: avoid unnecessary `apk upgrade` during image build or document/justify it; keep Hadolint suppressions intentional.
-- [ ] Audit logs and notification output for sensitive paths, repository URLs and mail/rclone config details before adding new observability features.
+- [x] Reviewed Dockerfile package strategy: dropped `apk upgrade` (reproducibility win, CVE coverage stays a Trivy-scan / base-rebuild responsibility) and inline-documented every remaining apk package — 1.15.0-0.18.1.
+- [x] Audited logs and notification output: sync source/destination credentials are now masked via new `lib.sh::mask_endpoint` helper; README "Logging & privacy" section enumerates the redaction surface (repository URL, sync endpoints, webhook URL, webhook auth header, hook stdout, restic args) — 1.15.0-0.18.1.
 
 ---
 
@@ -61,16 +61,16 @@ Ideas and planned enhancements for **restic-backup-helper**. Ordering is not str
 
 - [x] **`config-check` mode**: entrypoint or script that validates env + critical paths/mounts and exits non-zero before starting cron (CI / smoke friendly) — 1.11.3-0.18.1.
 - [x] Clearer behaviour when **`BACKUP_ROOT_DIR` is empty** (warn loudly or documented single recommended pattern) — 1.11.3-0.18.1.
-- [ ] **`RESTIC_TAG`** ergonomics: stronger validation message or optional safe default policy (breaking change — needs semver note).
-- [ ] Troubleshooting entry for **successful but empty backups**: guide users to verify mounted source paths and `BACKUP_ROOT_DIR` / `RESTIC_JOB_ARGS`.
+- [x] **`RESTIC_TAG`** ergonomics: `/bin/backup` now rejects an explicitly empty value (previously only unset was rejected) with a clear error and exit code 2; documented in env table and upgrade banner — 1.14.0-0.18.1.
+- [x] Troubleshooting entry for **successful but empty backups** expanded with a step-by-step checklist that covers `BACKUP_ROOT_DIR`, `--files-from` / `--exclude-file` paths in `RESTIC_JOB_ARGS`, `restic snapshots latest --json` and the `last-backup.json` stats — 1.14.0-0.18.1.
 
 ---
 
 ## Rclone sync
 
-- [ ] Optional **one-way** sync jobs (`rclone sync` / `copy`) in addition to **`bisync`** (same or parallel job file format).
-- [ ] **Per-job** extra args (not only global `SYNC_JOB_ARGS`) — syntax TBD (e.g. optional third/fourth column or ini-style sections).
-- [ ] Document and/or harden **bisync recovery**: current copy-both-directions plus `--resync` can be destructive when deletes/conflicts are real; consider `--check-access` guidance and opt-in recovery mode.
+- [x] **One-way sync jobs** (`rclone sync` / `copy`) in addition to **`bisync`** via an optional `MODE` column in `SYNC_JOB_FILE` (`SOURCE;DESTINATION[;MODE[;EXTRA_ARGS]]`); one-way modes have no automatic recovery — 1.14.0-0.18.1.
+- [x] **Per-job** extra args via the optional 4th column in `SYNC_JOB_FILE`; appended after the global `SYNC_JOB_ARGS` for that job only and shell-word split — 1.14.0-0.18.1.
+- [x] Hardened **bisync recovery** documentation + opt-in `SYNC_BISYNC_CHECK_ACCESS` (`OFF` default). When `ON`, routine bisync runs and the recovery `bisync --resync` are extended with `--check-access` so a missing `RCLONE_TEST` marker aborts loudly instead of letting a wiped remote propagate deletes. README has a "Bisync recovery hardening" subsection with marker-seeding steps and a recommendation to prefer one-way `sync`/`copy` modes when bidirectional behaviour is not needed — 1.15.0-0.18.1.
 
 ---
 
@@ -93,7 +93,7 @@ Ideas and planned enhancements for **restic-backup-helper**. Ordering is not str
 
 ## Docs & CI
 
-- [ ] **Kubernetes** example manifest: `Secret`/`env`, `SecurityContext`, optional `emptyDir` cache, no plaintext passwords in YAML.
-- [ ] Add optional **pre-commit** setup for local shellcheck/shfmt/hadolint/yamllint/actionlint checks to match CI earlier in contributor workflows.
+- [x] **Kubernetes** example manifest at [`examples/kubernetes/restic-backup-helper.yaml`](examples/kubernetes/restic-backup-helper.yaml): single-Pod `Deployment` + `Secret` (Restic password + msmtprc) + `PersistentVolumeClaim` for `/var/log`, FUSE-friendly `cap_add`, strong liveness probe, pre-wired `METRICS_DIR` for node-exporter scraping; no plaintext passwords in env. README links it from the Compose section — 1.15.0-0.18.1.
+- [x] **Pre-commit** config at [`.pre-commit-config.yaml`](.pre-commit-config.yaml) mirroring the CI matrix (shellcheck / shfmt / hadolint / yamllint / actionlint plus generic hygiene). [`CONTRIBUTING.md`](CONTRIBUTING.md) documents the local workflow — 1.15.0-0.18.1.
 - [x] **Private registry** troubleshooting (proxy `NO_PROXY`, TLS to LAN registry) in README FAQ — 1.11.3-0.18.1.
 - [x] **Dependabot** (or Renovate) for GitHub Actions pin bumps — 1.11.3-0.18.1 (Dependabot weekly on `/`).

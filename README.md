@@ -37,8 +37,10 @@ If this image saves you time, you can [leave a tip on Ko-fi](https://ko-fi.com/m
 15. [Per-run JSON summaries](#per-run-json-summaries)
 16. [Manual operations](#manual-operations)
 17. [Security](#security)
-18. [Troubleshooting](#troubleshooting)
-19. [Further reading](#further-reading)
+18. [Logging & privacy](#logging--privacy)
+19. [Troubleshooting](#troubleshooting)
+20. [Contributing](#contributing)
+21. [Further reading](#further-reading)
 
 ---
 
@@ -59,14 +61,18 @@ If this image saves you time, you can [leave a tip on Ko-fi](https://ko-fi.com/m
 
 ## Image tags and release
 
-release: 1.13.1-0.18.1
+release: 1.15.0-0.18.1
 
 | Train | When to use | Example pull |
 | --- | --- | --- |
-| **Stable** | Production | `docker pull marc0janssen/restic-backup-helper:latest` or pinned `marc0janssen/restic-backup-helper:1.13.1-0.18.1` |
-| **Testing** | Pre-release / CI | `docker pull marc0janssen/restic-backup-helper:develop` or `marc0janssen/restic-backup-helper:1.13.1-0.18.1-dev` |
+| **Stable** | Production | `docker pull marc0janssen/restic-backup-helper:latest` or pinned `marc0janssen/restic-backup-helper:1.15.0-0.18.1` |
+| **Testing** | Pre-release / CI | `docker pull marc0janssen/restic-backup-helper:develop` or `marc0janssen/restic-backup-helper:1.15.0-0.18.1-dev` |
 
-> **Upgrading from 1.11.x?** Automatic `restic unlock` after backup / check failures is now **opt-in** via `RESTIC_AUTO_UNLOCK=ON` (since 1.12.0). The new default leaves the lock alone (safer for repositories shared across multiple hosts). See the env table below and the [Troubleshooting](#troubleshooting) section for the migration hint.
+> **Upgrading?**
+>
+> - **From 1.14.x → 1.15.0:** purely additive. New opt-in env vars: `METRICS_DIR` (Prometheus textfile collector) and `SYNC_BISYNC_CHECK_ACCESS` (bisync `--check-access` opt-in). Mail subjects gain a richer prefix (`[OK|FAIL N] Backup …`); update any subject-based filter rules. Container logs now mask inline credentials in sync source/destination URLs.
+> - **From 1.13.x → 1.14.0:** `RESTIC_TAG=""` (explicitly empty) is now a hard failure with exit code 2 — set a meaningful tag (e.g. `daily`, `${HOSTNAME}-data`). The Dockerfile still defaults to `automated`, so installs that never set `RESTIC_TAG` are unaffected. `SYNC_JOB_FILE` gains optional `MODE` / `EXTRA_ARGS` columns; existing two-column lines keep working as bisync.
+> - **From 1.11.x:** Automatic `restic unlock` after backup / check failures is **opt-in** via `RESTIC_AUTO_UNLOCK=ON` (since 1.12.0). The new default leaves the lock alone (safer for repositories shared across multiple hosts). See the env table below and the [Troubleshooting](#troubleshooting) section for the migration hint.
 
 Pinned tags let you lock both **helper semver** and **Restic base** (`<semver>-<restic>`).
 
@@ -138,7 +144,7 @@ Defaults below match **`Dockerfile`** unless noted. Empty default means unset/bl
 | `RESTIC_REPOSITORY` | `/mnt/restic` | Restic repository location (local path, `s3:…`, `sftp:…`, `rclone:…`, `swift:…`, etc.). |
 | `RESTIC_PASSWORD` | *(empty)* | Repository password. |
 | `RESTIC_PASSWORD_FILE` | *(empty)* | File inside the container containing the password (Restic standard). |
-| `RESTIC_TAG` | `automated` | **Required** tag passed to `restic backup` (`--tag=…`). |
+| `RESTIC_TAG` | `automated` | **Required** tag passed to `restic backup` (`--tag=…`). Since 1.14.0 an explicitly empty value is a hard failure (exit 2) — pick something meaningful (e.g. `daily`, `${HOSTNAME}-data`) so snapshots can be filtered by tag. |
 | `RESTIC_CACHE_DIR` | `/.cache/restic` | Restic cache directory. |
 | `RESTIC_CACERT` | *(empty)* | When set to a path inside the container that points to a readable PEM bundle, the entrypoint and worker scripts automatically pass `--cacert "$RESTIC_CACERT"` to every `restic` invocation (`backup`, `check`, `forget`, `unlock`, the startup `cat config` probe and `init`). When set but the file is unreadable, a warning is logged and the flag is omitted; **`config-check`** treats the same condition as a hard error. You can still add extra `--cacert` flags via `RESTIC_JOB_ARGS` / `RESTIC_CHECK_ARGS` if you need additional trust roots. |
 | `RESTIC_CHECK_REPOSITORY_STATUS` | `ON` | On startup, probe with `restic cat config`; auto-`restic init` only when the probe exits `10` (repo missing). Other non-zero exits (auth, network, TLS, …) abort startup with restic stderr in the container log. Set to anything other than `ON` to skip both the probe and the auto-init. |
@@ -178,10 +184,11 @@ Defaults below match **`Dockerfile`** unless noted. Empty default means unset/bl
 | Variable | Default | Description |
 | --- | --- | --- |
 | `RCLONE_CONFIG` | `/config/rclone.conf` | Path to Rclone configuration. |
-| `SYNC_JOB_FILE` | `/config/sync_jobs.txt` | Job file: one `SOURCE;DESTINATION` pair per line (comments `#` allowed). |
-| `SYNC_JOB_ARGS` | *(empty)* | Extra args passed to `rclone bisync` / recovery `copy` (shell-word split; `--resync` is stripped from routine runs). |
+| `SYNC_JOB_FILE` | `/config/sync_jobs.txt` | Job file: `SOURCE;DESTINATION[;MODE[;EXTRA_ARGS]]` per line (comments `#` allowed). See [Optional Rclone sync jobs](#optional-rclone-sync-jobs). |
+| `SYNC_JOB_ARGS` | *(empty)* | Extra global args passed to every rclone job (shell-word split; `--resync` is stripped from routine runs). Per-job extras can be added via the 4th column of `SYNC_JOB_FILE`. |
 | `SYNC_CRON` | *(empty)* | If non-empty, schedules `/bin/bisync`. |
 | `SYNC_VERBOSE` | `ON` | When `ON`, sync messages also echo to stdout (still always logged to file). |
+| `SYNC_BISYNC_CHECK_ACCESS` | `OFF` | When `ON`, appends `--check-access` to the routine `bisync` runs and the recovery `bisync --resync`. Requires the well-known `RCLONE_TEST` marker file to exist on both endpoints; rclone aborts loudly when it is missing instead of treating one side as "everything deleted". One-way `sync`/`copy` modes are unaffected. See [Optional Rclone sync jobs](#optional-rclone-sync-jobs). |
 
 ### Mail
 
@@ -198,6 +205,12 @@ Defaults below match **`Dockerfile`** unless noted. Empty default means unset/bl
 | `WEBHOOK_HEADER_AUTH` | *(empty)* | Sent verbatim as `Authorization: <value>` (e.g. `Bearer …`, `Token …`). Not echoed in logs. |
 | `WEBHOOK_TIMEOUT` | `10` | Curl `--max-time` in seconds. Non-positive values fall back to 10. |
 | `WEBHOOK_ON_ERROR` | `OFF` | When `ON`, only fire on non-zero job exit codes (mirrors `MAILX_ON_ERROR`). |
+
+### Prometheus metrics (textfile collector)
+
+| Variable | Default | Description |
+| --- | --- | --- |
+| `METRICS_DIR` | *(empty)* | When set to a writable directory inside the container, every worker writes a `restic_<job>.prom` document there (atomic tmp+mv) with the same data as `/var/log/last-<job>.json`. Mount that directory into the host and point a node-exporter `--collector.textfile.directory` at it. Empty default keeps the feature off. See [Per-run JSON summaries](#per-run-json-summaries). |
 
 ### Log rotation (`/var/log/cron.log`)
 
@@ -383,7 +396,7 @@ volumes:
   restic-cache:
 ```
 
-A runnable, less commented variant lives at [`scripts/docker-compose.yml`](scripts/docker-compose.yml) for quick `docker compose up` testing.
+A runnable, less commented variant lives at [`scripts/docker-compose.yml`](scripts/docker-compose.yml) for quick `docker compose up` testing. For Kubernetes a full single-Pod manifest (Deployment + Secret + PVC, FUSE-friendly capabilities, strong liveness probe and pre-wired `METRICS_DIR`) is at [`examples/kubernetes/restic-backup-helper.yaml`](examples/kubernetes/restic-backup-helper.yaml).
 
 **Health checks:** choose how hard you want Compose to probe the repository.
 
@@ -447,21 +460,68 @@ Use `swift:container:/path` style URLs and populate the `OS_*` variables.
 
 ## Optional Rclone sync jobs
 
-`SYNC_JOB_FILE` lines:
+`SYNC_JOB_FILE` lines (semicolon-separated, comments and blank lines allowed):
 
 ```text
-# SOURCE;DESTINATION   (local path or rclone remote path)
+# SOURCE;DESTINATION[;MODE[;EXTRA_ARGS]]
+#   MODE       bisync (default) | sync | copy
+#   EXTRA_ARGS rclone flags appended after the global SYNC_JOB_ARGS for THIS job only
+#              (--resync is stripped from both for routine runs)
+
+# Two-column legacy form; runs as bisync with global SYNC_JOB_ARGS:
 /data/inbox;jottacloud:inbox
+
+# Bisync with a per-job exclude file in addition to the global one:
+/data/photos;jottacloud:photos;bisync;--exclude-from /config/photos-exclude.txt
+
+# One-way push (rclone sync) — destination is made to mirror the source:
+/data/site;s3:my-bucket/site;sync
+
+# One-way copy (rclone copy) — additive, deletes are NOT propagated:
+/data/archive;jottacloud:archive;copy;--immutable
 ```
 
-Schedule with `SYNC_CRON`. On bisync failure the script attempts a **recovery** sequence (`copy` both directions, then `bisync --resync`). Mail is sent only when errors occurred (`MAILX_RCPT` set).
+| Column | Required | Notes |
+| --- | --- | --- |
+| `SOURCE` | yes | Local path or rclone remote path. |
+| `DESTINATION` | yes | Local path or rclone remote path. |
+| `MODE` | no (default `bisync`) | `bisync` keeps both sides in sync (recovery on failure). `sync` makes destination match source (deletions propagate). `copy` is additive, no deletes. |
+| `EXTRA_ARGS` | no | Per-job rclone flags appended after `SYNC_JOB_ARGS`. Shell-word split. `--resync` is filtered out so a routine run can never resync implicitly. |
+
+Schedule with `SYNC_CRON`. **Recovery procedure** (copy both directions then `bisync --resync`) only runs for `bisync` failures; `sync` and `copy` failures surface immediately without an automatic destructive recovery — that is intentional because a one-way `sync` failure may already represent the operator's intended state diverging. Mail is sent only when at least one job recorded an unrecoverable error (and `MAILX_RCPT` is set); the same payload is POSTed to `WEBHOOK_URL` when configured. Malformed lines (missing `SOURCE`/`DESTINATION` or unknown `MODE`) count as failed jobs and trigger the same notification path so a typo cannot produce a silently green run.
+
+#### Bisync recovery hardening
+
+The default bisync recovery (copy both → `bisync --resync`) is convenient but can be **destructive** if one endpoint legitimately holds deletes that you do not want propagated back. Two safety knobs:
+
+1. **`SYNC_BISYNC_CHECK_ACCESS=ON`** appends `--check-access` to every bisync run and to the recovery resync. Rclone aborts loudly when the well-known marker file (`RCLONE_TEST` by default) is missing on either side — so a remote that has been wiped no longer looks like "everything got deleted intentionally" and no one-way deletes propagate.
+
+   Seed the marker once on both endpoints before turning the flag on:
+
+   ```shell
+   touch /data/inbox/RCLONE_TEST
+   rclone copyto /data/inbox/RCLONE_TEST jottacloud:inbox/RCLONE_TEST
+   ```
+
+2. **One-way modes** (`sync`, `copy`) explicitly skip the destructive copy-both recovery. If you do not need bidirectional behaviour, prefer `MODE=sync` / `MODE=copy` so a remote glitch surfaces as a normal failed run instead of triggering the recovery path.
+
+Inline credentials in source/destination URLs (`https://user:pass@host/...`) are now masked in container logs and recovery messages, so a verbose error trace will not leak basic-auth secrets to `cron.log`. Configured `rclone:` remotes never had this problem because credentials live in `rclone.conf`.
 
 ---
 
 ## Mail notifications
 
-- **Backup / check:** If `MAILX_RCPT` is set, mail goes out per run unless `MAILX_ON_ERROR=ON`, in which case mail is sent only on failure.
+- **Backup / check / prune:** If `MAILX_RCPT` is set, mail goes out per run unless `MAILX_ON_ERROR=ON`, in which case mail is sent only on failure.
 - **Sync:** Mail is sent when `MAILX_RCPT` is set **and** at least one job recorded an error.
+
+Subjects (since 1.15.0) follow the pattern `[OK|FAIL <code>] <Job> <hostname> · <duration> · <details>`, so a glance at your inbox tells you status, host, run length and (where available) the headline metric:
+
+| Worker | Example subject |
+| --- | --- |
+| Backup | `[OK] Backup larak · 5m12s · 1.234 MiB new (snap a1b2c3d4)` |
+| Check | `[FAIL 12] Check larak · 7s · rclone:jottacloud:backups` |
+| Prune | `[OK] Prune larak · 2h14m · rclone:jottacloud:backups` |
+| Sync | `[OK] Sync larak · 12m · 3 jobs (0 failed)` |
 
 Mount msmtp configuration so `/usr/sbin/sendmail` (symlinked to `msmtp`) can relay mail, for example:
 
@@ -514,6 +574,48 @@ Each worker writes a structured summary of its **last run** under `/var/log` aft
 | `/var/log/last-sync.json` | `/bin/bisync` | `job`, `hostname`, `release`, `started_at`, `finished_at`, `duration_seconds`, `exit_code`, `sync_jobs_processed`, `sync_jobs_failed` |
 
 Files are overwritten atomically each run (write to `*.tmp`, then `mv`). Mount `/var/log` on the host to scrape them, or feed them into Prometheus textfile collectors, Datadog log pipelines, or simple shell scripts. The backup-stats keys (`snapshot_id`, `files_*`, `bytes_*`) are best-effort: when a backup fails before restic prints them, they are simply omitted from the JSON.
+
+### Prometheus textfile collector
+
+Set **`METRICS_DIR`** to a writable path inside the container (for example `/var/log/textfile_collector`) and every worker writes a `restic_<job>.prom` document there alongside `last-<job>.json`. Mount that directory into the host and point your node-exporter at it:
+
+```shell
+node_exporter --collector.textfile.directory=/var/log/textfile_collector
+```
+
+Always-emitted gauges (one of each per `<job>` ∈ `backup`, `check`, `prune`, `sync`):
+
+| Metric | Meaning |
+| --- | --- |
+| `restic_<job>_last_exit_code{hostname="…"}` | Exit code of the most recent run. |
+| `restic_<job>_last_success{hostname="…"}` | `1` when exit code was 0, else `0`. |
+| `restic_<job>_last_duration_seconds{hostname="…"}` | Wall-clock duration of the run. |
+| `restic_<job>_last_finished_timestamp{hostname="…"}` | Unix epoch seconds at which the run ended. Useful for `time() - restic_backup_last_finished_timestamp` alerting. |
+
+Extra numeric fields in `last-<job>.json` (for example `files_new`, `bytes_added` when restic produced bytes as a number, `sync_jobs_processed`, `sync_jobs_failed`) are emitted as `restic_<job>_last_<key>`. Non-numeric extras (such as the human-formatted `bytes_added="1.234 MiB"` or the masked `repository`) are intentionally skipped to keep the textfile strictly typed for Prometheus.
+
+Files are atomic (`.tmp` + `mv`) so a node-exporter scrape never sees a partial file. Leave `METRICS_DIR` empty to disable the export entirely (default).
+
+---
+
+## Logging & privacy
+
+The image is intentionally chatty about what it ran and why, but never about secrets. The masking and redaction rules:
+
+- **Repository URLs** (`scheme://user:password@host`, `backend:user:password@host`) — userinfo is replaced with `:***` before being printed, written to `last-<job>.json`, posted to webhooks, or used in mail subjects (`mask_repository`).
+- **Sync source/destination** with inline credentials — same masking via `mask_endpoint`. Configured `rclone:` remotes have credentials in `rclone.conf` and never leak through.
+- **Webhook URL** — only the `scheme://host/...` is logged; the full URL with per-recipient secrets in path/query (healthchecks.io UUIDs, Slack tokens, ntfy topics) never appears (`mask_webhook_url`).
+- **Webhook auth header** (`WEBHOOK_HEADER_AUTH`) — never echoed; logs only mention `auth header set`.
+- **Restic / msmtp passwords** — read from env or password file by restic/msmtp directly; never echoed by the helper scripts.
+- **`RESTIC_JOB_ARGS` / `RESTIC_FORGET_ARGS` / `RESTIC_PRUNE_ARGS` / `SYNC_JOB_ARGS`** — printed verbatim because they are caller-controlled. Avoid stuffing secrets into these (use `RESTIC_PASSWORD_FILE` and `--password-command` files instead).
+- **Hook scripts** — the runner logs `pre-*` / `post-*` start, exit code and duration but never the script's stdout/stderr unless your hook itself prints. Make sure your hook does not echo secrets to stdout.
+
+To audit what your container actually logs:
+
+```shell
+docker exec -ti restic-backup-helper cat /var/log/cron.log
+docker exec -ti restic-backup-helper cat /var/log/last-backup.json
+```
 
 ---
 
@@ -595,7 +697,7 @@ On Kubernetes, mount a `Secret` as a volume (or use `subPath`) and set `RESTIC_P
 | --- | --- |
 | Backup exits immediately / “Missing RESTIC_TAG” | Export **`RESTIC_TAG`**. |
 | Empty or wrong backup content | Set **`BACKUP_ROOT_DIR`** and/or **`RESTIC_JOB_ARGS`** paths intentionally; empty both yields a degenerate `restic backup` invocation. |
-| Backup logs “success” but `restic snapshots` shows zero or empty snapshots | Verify the host volume that backs **`BACKUP_ROOT_DIR`** is actually mounted into the container, the path inside the container exists, and the user has read access. A misspelled bind mount or an unmounted source produces a successful but empty backup. |
+| Backup logs “success” but `restic snapshots` shows zero / tiny snapshots | Walk this list: 1) confirm the host volume backing **`BACKUP_ROOT_DIR`** is actually mounted into the container (`docker exec … ls -la "$BACKUP_ROOT_DIR"`); 2) when you use `--files-from` or `--exclude-file` in **`RESTIC_JOB_ARGS`**, verify those files exist *inside the container* and contain real, in-container paths; 3) `docker exec … restic snapshots latest --json` to see file/byte counts; 4) inspect `/var/log/last-backup.json` for `files_new` / `bytes_added`. A misspelled bind mount, an `--files-from` referring to host paths the container cannot see, or an over-broad `--exclude-file` all produce a successful but empty backup. |
 | Container exits at startup with “Repository probe failed for ‘…’ with exit code N” | Restic could reach restic but the repository is unhealthy (`12` = wrong password, other = network/DNS/TLS/auth). Read the restic stderr in the container log; the entrypoint deliberately refuses to run `restic init` to avoid masking a transient failure. As a last resort, set `RESTIC_CHECK_REPOSITORY_STATUS=OFF` to bypass the probe (you lose the auto-init safety net). |
 | TLS / certificate errors against the repository or a corporate proxy | Mount the PEM bundle into the container and set **`RESTIC_CACERT`** to its path. The flag is appended to every restic invocation automatically; `config-check` will fail when the path is unreadable. |
 | Webhook never reaches the endpoint and the cron log is silent | Confirm **`WEBHOOK_URL`** is set inside the container (`docker exec … env | grep WEBHOOK`); container logs only show `scheme://host/...`. Test connectivity from inside the container: `docker exec -ti … curl -fsS -X POST -H 'Content-Type: application/json' -d '{"test":true}' "$WEBHOOK_URL"`. |
@@ -609,12 +711,20 @@ On Kubernetes, mount a `Secret` as a volume (or use `subPath`) and set `RESTIC_P
 
 ---
 
+## Contributing
+
+Lint matrix, pre-commit setup and worker-script invariants are documented in [`CONTRIBUTING.md`](CONTRIBUTING.md). The same checks run in CI; install the hooks once with `pre-commit install` to catch shellcheck / shfmt / hadolint / yamllint / actionlint findings before you push.
+
+---
+
 ## Further reading
 
 - [CHANGELOG.md](CHANGELOG.md)
 - [BACKLOG.md](BACKLOG.md)
 - [GitHub Releases](https://github.com/marc0janssen/restic-backup-helper/releases)
 - Sample files under [`config/`](config/)
+- Kubernetes example: [`examples/kubernetes/restic-backup-helper.yaml`](examples/kubernetes/restic-backup-helper.yaml)
+- Local dev workflow: [`CONTRIBUTING.md`](CONTRIBUTING.md)
 
 ---
 

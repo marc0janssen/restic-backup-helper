@@ -1,11 +1,20 @@
 #!/usr/bin/env bash
 
+# Forked from https://rclone.org/install.sh with additions:
+#   * Optional pinning via env RCLONE_VERSION (e.g. 1.69.1) → downloads from
+#     https://downloads.rclone.org/v${RCLONE_VERSION}/ instead of /current/.
+#   * Mandatory SHA256 verification of the downloaded archive against the
+#     upstream SHA256SUMS file (fails the build if the checksum does not match).
+#   * Used as the *only* rclone source in this image (no apk rclone install)
+#     to keep the binary version reproducible and avoid double-installing.
+#
 # error codes
 # 0 - exited without problems
 # 1 - parameters not supported were used or some unexpected error occurred
 # 2 - OS not supported by this script
 # 3 - installed version of rclone is up to date
 # 4 - supported unzip tools are not available
+# 5 - SHA256 verification failed
 
 set -e
 
@@ -18,13 +27,16 @@ usage() {
 }
 
 #check for beta flag
-if [ -n "$1" ] && [ "$1" != "beta" ]; then
+if [ -n "${1:-}" ] && [ "$1" != "beta" ]; then
 	usage
 fi
 
-if [ -n "$1" ]; then
+if [ -n "${1:-}" ]; then
 	install_beta="beta "
 fi
+
+# Optional pinning. Empty / unset means "current" (latest stable). Beta forces "current beta".
+RCLONE_VERSION="${RCLONE_VERSION:-}"
 
 #create tmp directory and move to it with macOS compatibility fallback
 tmp_dir=$(mktemp -d 2>/dev/null || mktemp -d -t 'rclone-install.XXXXXXXXXX')
@@ -51,15 +63,22 @@ fi
 export XDG_CONFIG_HOME=config
 
 #check installed version of rclone to determine if update is necessary
-version=$(rclone --version 2>>errors | head -n 1)
-if [ -z "$install_beta" ]; then
+version=$(rclone --version 2>>errors | head -n 1 || true)
+if [ -n "${RCLONE_VERSION}" ]; then
+	current_version="rclone v${RCLONE_VERSION}"
+	resolved_version="${RCLONE_VERSION}"
+elif [ -z "${install_beta:-}" ]; then
 	current_version=$(curl -fsS https://downloads.rclone.org/version.txt)
+	# Strip leading "rclone v" so we can build a versioned download URL that
+	# also serves SHA256SUMS (the /current/ alias does NOT publish SHA256SUMS).
+	resolved_version="${current_version#rclone v}"
 else
 	current_version=$(curl -fsS https://beta.rclone.org/version.txt)
+	resolved_version=""
 fi
 
 if [ "$version" = "$current_version" ]; then
-	printf '\nThe latest %sversion of rclone %s is already installed.\n\n' "${install_beta}" "${version}"
+	printf '\nThe requested %sversion of rclone %s is already installed.\n\n' "${install_beta:-}" "${version}"
 	exit 3
 fi
 
@@ -121,15 +140,48 @@ arm*)
 esac
 
 #download and unzip
-if [ -z "$install_beta" ]; then
-	download_link="https://downloads.rclone.org/rclone-current-${OS}-${OS_type}.zip"
-	rclone_zip="rclone-current-${OS}-${OS_type}.zip"
+# For both pinned (RCLONE_VERSION set) and unpinned stable installs we always
+# pull from the versioned directory because it ships SHA256SUMS alongside the
+# zips. The /current/ alias under downloads.rclone.org does NOT.
+if [ -n "${resolved_version}" ]; then
+	base_url="https://downloads.rclone.org/v${resolved_version}"
+	rclone_zip="rclone-v${resolved_version}-${OS}-${OS_type}.zip"
 else
-	download_link="https://beta.rclone.org/rclone-beta-latest-${OS}-${OS_type}.zip"
+	# Beta channel only.
+	base_url="https://beta.rclone.org"
 	rclone_zip="rclone-beta-latest-${OS}-${OS_type}.zip"
 fi
 
+download_link="${base_url}/${rclone_zip}"
 curl -OfsS "$download_link"
+
+# Verify SHA256 against the upstream SHA256SUMS file. Mandatory for the
+# stable channel (current or pinned). The beta channel does not always ship
+# SHA256SUMS at the same path; warn and skip in that case.
+if [ -z "${install_beta:-}" ]; then
+	sums_url="${base_url}/SHA256SUMS"
+	if ! curl -fsS -o SHA256SUMS "${sums_url}"; then
+		printf '\n%s\n' "❌ Failed to download SHA256SUMS from ${sums_url}; refusing to install unverified rclone." >&2
+		exit 5
+	fi
+	expected_line="$(grep -E "[[:space:]]\\*?${rclone_zip}\$" SHA256SUMS || true)"
+	if [ -z "${expected_line}" ]; then
+		printf '\n%s\n' "❌ SHA256SUMS does not contain an entry for ${rclone_zip}; refusing to install." >&2
+		exit 5
+	fi
+	if ! printf '%s\n' "${expected_line}" | sha256sum -c - >/dev/null 2>&1; then
+		printf '\n%s\n' "❌ SHA256 verification failed for ${rclone_zip}." >&2
+		printf '%s\n' "  Expected line from upstream SHA256SUMS:" >&2
+		printf '%s\n' "    ${expected_line}" >&2
+		printf '%s\n' "  Local checksum:" >&2
+		printf '%s\n' "    $(sha256sum "${rclone_zip}")" >&2
+		exit 5
+	fi
+	printf '%s\n' "✅ SHA256 verified for ${rclone_zip}"
+else
+	printf '%s\n' "⚠️ Beta channel: skipping SHA256 verification (no canonical SHA256SUMS available)."
+fi
+
 unzip_dir="tmp_unzip_dir_for_rclone"
 # there should be an entry in this switch for each element of unzip_tools_list
 case "$unzip_tool" in

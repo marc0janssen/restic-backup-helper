@@ -71,7 +71,11 @@ if [ -n "${RESTIC_JOB_ARGS:-}" ]; then
 	backup_cmd+=("${restic_job_args[@]}")
 fi
 
-backup_cmd+=("--tag=${RESTIC_TAG?"Missing environment variable RESTIC_TAG"}")
+if [ -z "${RESTIC_TAG:-}" ]; then
+	log "❌ RESTIC_TAG is unset or empty. Set it to a non-empty value (e.g. 'daily', '${HOSTNAME:-host}-data') so snapshots can be filtered by tag. Aborting backup."
+	exit 2
+fi
+backup_cmd+=("--tag=${RESTIC_TAG}")
 
 if [ -n "${BACKUP_ROOT_DIR:-}" ]; then
 	backup_cmd+=("${BACKUP_ROOT_DIR}")
@@ -162,7 +166,21 @@ write_last_run_json "backup" "${backupRC}" "${start}" "${end}" "${last_run_extra
 
 notify_webhook "backup" "${backupRC}" "${start}" "${end}" "${last_run_extras[@]}" || true
 
-notify_mail "Result of the last ${HOSTNAME:-} backup run on ${MASKED_REPO}" "${backupRC}" || true
+write_metrics_for_job "backup" "${backupRC}" "${start}" "${end}" "${last_run_extras[@]}" || true
+
+# Build a richer mail subject: "[OK] Backup larak · 5m12s · 1.234 MiB new (snap a1b2c3d4)".
+mail_details=""
+if [ -n "${BACKUP_STATS_BYTES_ADDED}" ]; then
+	mail_details+="${BACKUP_STATS_BYTES_ADDED} new"
+elif [ -n "${BACKUP_STATS_FILES_NEW}" ]; then
+	mail_details+="${BACKUP_STATS_FILES_NEW} new files"
+fi
+if [ -n "${BACKUP_STATS_SNAPSHOT_ID}" ]; then
+	[ -n "${mail_details}" ] && mail_details+=" "
+	mail_details+="(snap ${BACKUP_STATS_SNAPSHOT_ID:0:8})"
+fi
+[ -n "${mail_details}" ] || mail_details="${MASKED_REPO}"
+notify_mail "$(format_subject "Backup" "${backupRC}" "${duration}" "${mail_details}")" "${backupRC}" || true
 
 run_hook "post-backup" "$backupRC" || true
 

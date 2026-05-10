@@ -2,6 +2,49 @@
 
 ## Restic Backup Helper
 
+### 1.15.0-0.18.1 (2026-05-10)
+
+#### Added
+
+- **Richer mail subjects** for backup, check, prune and sync notifications. Format: `[OK|FAIL <code>] <Job> <hostname> · <duration> · <details>`. Backup details now include the human-readable bytes-added value and an 8-char snapshot ID (when restic produced them); sync details include `<jobs> jobs (<failed> failed)`. Implemented in `lib.sh::format_subject` + `lib.sh::human_duration`.
+- **Prometheus textfile collector** integration via the new **`METRICS_DIR`** env (default empty = disabled). When set, every worker writes `restic_<job>.prom` next to `last-<job>.json` with `restic_<job>_last_{exit_code,success,duration_seconds,finished_timestamp}` plus any numeric extras already passed to `last-run.json` (`files_new`, `bytes_added`, `sync_jobs_processed`, …). Atomic tmp+mv writes so a node-exporter scrape never sees a partial file. Implemented in `lib.sh::write_metrics_for_job`.
+- **Bisync recovery hardening — `SYNC_BISYNC_CHECK_ACCESS`** (default `OFF`). When `ON`, the routine bisync runs and the recovery `--resync` invocation are extended with `--check-access`, so rclone aborts (instead of treating one side as "everything deleted") when the well-known `RCLONE_TEST` marker file is missing on either endpoint. One-way `sync`/`copy` modes are unaffected.
+- **`mask_endpoint`** helper in `lib.sh`; the bisync worker now masks inline credentials in source/destination paths before logging them to `cron.log` and the recovery messages.
+- **`CONTRIBUTING.md`** with the local quality-check workflow (CI script + optional pre-commit setup).
+- **`.pre-commit-config.yaml`** mirroring the CI linter matrix (shellcheck, shfmt, hadolint, yamllint, actionlint plus generic hygiene hooks). Optional for contributors.
+- **`examples/kubernetes/restic-backup-helper.yaml`** — full single-Pod Deployment + Secret + PVC manifest with the recommended `RESTIC_PASSWORD_FILE` + Secret pattern, FUSE-friendly capabilities, strong liveness probe, and pre-wired `METRICS_DIR` for node-exporter textfile scraping.
+
+#### Changed
+
+- **Dockerfile cleanup**: removed `apk upgrade` and inline-documented every remaining apk package (`bash`, `curl`, `fuse`, `libcap`, `mailx`, `msmtp`, `sshpass`, `sudo`, `tzdata`). Reproducibility win for the helper layer; CVE coverage stays the responsibility of the Trivy scan workflow and rebuilds against newer upstream `restic/restic` tags.
+- New env vars exposed in the Dockerfile: `SYNC_BISYNC_CHECK_ACCESS=""` and `METRICS_DIR=""` (both default off; opt-in only).
+
+### 1.14.0-0.18.1 (2026-05-10)
+
+#### Added
+
+- **Per-job sync mode and arguments** in `SYNC_JOB_FILE`. The format gains two optional columns: `SOURCE;DESTINATION[;MODE[;EXTRA_ARGS]]`.
+  - `MODE` ∈ `bisync` (default, preserves the current copy-both + `--resync` recovery), `sync` (`rclone sync` one-way) or `copy` (`rclone copy` one-way). One-way modes have **no** automatic recovery.
+  - `EXTRA_ARGS` are extra rclone flags appended after the global `SYNC_JOB_ARGS` for that job only (shell-word split). `--resync` is stripped from both the global and per-job lists for routine runs; the recovery path adds it explicitly when warranted.
+  - Existing two-column lines (`SOURCE;DESTINATION`) keep working unchanged and run as bisync.
+
+#### Changed (BREAKING for narrow edge case)
+
+- **`/bin/backup` now refuses to run when `RESTIC_TAG` is empty** (previously only refused when *unset*; the Dockerfile default `automated` made the difference invisible). Empty `RESTIC_TAG` exits with code 2 and a clear error pointing operators at meaningful tag examples. Practical impact: only setups that explicitly set `RESTIC_TAG=""` are affected.
+- **Sync invalid lines** (missing `SOURCE` / `DESTINATION` or unknown `MODE`) now count as failed jobs **and** trigger the mail/webhook error path so a malformed `SYNC_JOB_FILE` cannot silently produce a green run.
+
+#### Security & supply chain
+
+- **`rclone` is no longer installed twice.** Removed `rclone` from the `apk add` line in the Dockerfile so `install_rclone.sh` is the single source. Reduces image size and eliminates the silent overwrite of the Alpine-package binary.
+- **`install_rclone.sh` now SHA256-verifies the downloaded archive** against the upstream `SHA256SUMS` published in the per-version directory. Stable installs (pinned or unpinned) always download from `https://downloads.rclone.org/v<version>/` because the `/current/` alias does not publish `SHA256SUMS`; the unpinned path resolves the version via `version.txt` first. Fails the build (exit 5) if `SHA256SUMS` is missing, the entry for the target arch is missing, or the checksum does not match. Beta channel keeps a clear log line that verification is skipped (no canonical SHA256SUMS).
+- **Optional `RCLONE_VERSION` build-arg** in the Dockerfile pins to a specific upstream release (`docker build --build-arg RCLONE_VERSION=1.74.1 …`). Empty default keeps the "latest stable" behaviour but still downloads from the versioned, checksum-verified URL.
+
+#### Docs
+
+- README "Optional Rclone sync jobs" section rewritten with the new column format, examples for bisync / sync / copy and per-job args, and a clear note that one-way modes do not run the recovery procedure.
+- README troubleshooting entry for "successful but empty backup" expanded to also cover `--files-from` / `--exclude-file` paths in `RESTIC_JOB_ARGS` and to recommend `restic snapshots latest --json`.
+- README env table notes that `RESTIC_TAG` empty is now a hard failure.
+
 ### 1.13.1-0.18.1 (2026-05-10)
 
 #### Changed
