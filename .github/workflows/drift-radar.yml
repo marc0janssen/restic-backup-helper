@@ -31,7 +31,7 @@ jobs:
 
       - name: Create or update drift issue
         if: steps.drift.outputs.drift_detected == 'yes' && github.event_name != 'pull_request'
-        uses: actions/github-script@v8
+        uses: actions/github-script@v9
         env:
           DRIFT_BODY: ${{ steps.drift.outputs.summary_body }}
           DRIFT_COUNT: ${{ steps.drift.outputs.drift_count }}
@@ -81,7 +81,7 @@ jobs:
 
       - name: Close drift issue when no drift
         if: steps.drift.outputs.drift_detected == 'no' && github.event_name != 'pull_request'
-        uses: actions/github-script@v8
+        uses: actions/github-script@v9
         with:
           script: |
             const title = "Dependency drift radar: Restic base image updates available";
