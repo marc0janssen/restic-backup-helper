@@ -97,6 +97,24 @@ LIST_ONLY="OFF"
 LIST_ALL="OFF"
 HAD_FLAGS="OFF"
 
+# Allow operators to abort the interactive flow at any prompt by typing `q`
+# or `quit`. Writes a cancelled-style last-restore.json (exit 130, same as
+# answering "n" to the final Proceed? prompt) so external monitoring can
+# distinguish "operator changed their mind" from "restore actually failed".
+# Safe to call before `start` has been set: falls back to the current epoch
+# for both timestamps so the JSON document is always well-formed.
+cancel_interactive_restore() {
+	local now
+	now="$(date +%s)"
+	log "🛑 Restore cancelled by operator."
+	write_last_run_json "restore" 130 "${start:-${now}}" "${now}" \
+		"repository" "${MASKED_REPO:-}" \
+		"snapshot" "${SNAP_ID:-}" \
+		"target" "${TARGET:-}" \
+		"cancelled" "true"
+	exit 130
+}
+
 while [ $# -gt 0 ]; do
 	case "$1" in
 	--id)
@@ -346,6 +364,10 @@ if [ "${HAD_FLAGS}" = "OFF" ] && [ -t 0 ] && [ -t 1 ]; then
 fi
 
 if [ "${INTERACTIVE}" = "ON" ]; then
+	# Clear stale log content before the first user-facing prompt so a
+	# cancel via `q`/`quit` does not append to a previous run's log file.
+	rm -f "${LAST_LOGFILE}" "${LAST_MAIL_LOGFILE}"
+
 	echo "📋 Matching snapshots in ${MASKED_REPO} (tag='${TAG_FILTER:-*}' host='${HOST_FILTER:-*}', newest first):"
 	printf '%s\n' "${TABLE}" | print_snapshot_table 10
 	if [ "${SNAPSHOT_COUNT}" -eq 0 ]; then
@@ -362,7 +384,10 @@ if [ "${INTERACTIVE}" = "ON" ]; then
 		echo "(showing ${shown_in_interactive} most recent of ${SNAPSHOT_COUNT}; run /bin/restore --list for all, or use a short-id below)"
 	fi
 	echo ""
-	read -r -p "Snapshot to restore [index 1-${shown_in_interactive} or short-id, default=latest]: " choice
+	read -r -p "Snapshot to restore [index 1-${shown_in_interactive} or short-id, default=latest, q=quit]: " choice
+	case "${choice,,}" in
+	q | quit) cancel_interactive_restore ;;
+	esac
 	choice="${choice:-latest}"
 
 	if [[ "${choice}" =~ ^[0-9]+$ ]]; then
@@ -377,12 +402,18 @@ if [ "${INTERACTIVE}" = "ON" ]; then
 		SNAP_ID="${choice}"
 	fi
 
-	read -r -p "Restore target [${TARGET}]: " new_target
+	read -r -p "Restore target [${TARGET}, q=quit]: " new_target
+	case "${new_target,,}" in
+	q | quit) cancel_interactive_restore ;;
+	esac
 	if [ -n "${new_target}" ]; then
 		TARGET="${new_target}"
 	fi
 
-	read -r -p "Dry-run first? [Y/n]: " dr
+	read -r -p "Dry-run first? [Y/n/q]: " dr
+	case "${dr,,}" in
+	q | quit) cancel_interactive_restore ;;
+	esac
 	dr="${dr:-Y}"
 	if [[ "${dr^^}" == "Y" || "${dr^^}" == "YES" ]]; then
 		DRY_RUN="ON"
@@ -463,8 +494,6 @@ fi
 # Run
 # ---------------------------------------------------------------------------
 
-rm -f "${LAST_LOGFILE}" "${LAST_MAIL_LOGFILE}"
-
 run_hook "pre-restore" || true
 
 start=$(date +%s)
@@ -490,7 +519,7 @@ if [ "${INTERACTIVE}" = "ON" ]; then
 	if [ "${DRY_RUN}" = "ON" ]; then
 		echo "(dry-run; no files will be written)"
 	fi
-	read -r -p "Proceed? [y/N]: " confirm
+	read -r -p "Proceed? [y/N/q]: " confirm
 	if [[ "${confirm,,}" != "y" && "${confirm,,}" != "yes" ]]; then
 		log "🛑 Restore cancelled by operator."
 		end=$(date +%s)

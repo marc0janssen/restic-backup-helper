@@ -21,6 +21,10 @@
 - **`/bin/restore` snapshot ordering.** Interactive mode and `--list` are now sorted **newest-first**: the second awk pass in `list_snapshots_table` collects matching snapshots into an array and emits them in reverse order with a renumbered 1-based index in its `END` block, so row 1 is the most recent snapshot and `print_snapshot_table 10` shows "the 10 most recent" instead of "the 10 oldest". The interactive prompt now caps its `index 1-N` range at the number of rows actually displayed and, when the filter matched more snapshots than fit on screen, prints a one-line hint pointing operators to `/bin/restore --list` (or the short-id form) for older snapshots.
 - **`/bin/restore` snapshot parsing.** Added `n` and `rest` (and `content` in `jget_array`) to the function-local parameter lists of the inline awk parsers so they cannot clobber the body block's `n` counter that indexes the buffered `out[]` array. Without this, each `jget` call rewrote the global `n` to `index(blob, key)`, causing later records to overwrite earlier `out[n]` entries — visible as a mostly-empty interactive list (only the last one or two snapshots populated) once the new newest-first buffering was introduced.
 
+#### Changed
+
+- **Universal `q` / `quit` cancel in interactive `/bin/restore`.** Operators can now abort at any of the four interactive prompts (snapshot index, target path, "Dry-run first?", "Proceed?") by typing `q` or `quit`. The new `cancel_interactive_restore` helper records `exit_code=130` + `cancelled=true` in `/var/log/last-restore.json` regardless of how far into the flow the cancel happens, falling back to "now" when the start epoch has not been set yet. Prompt labels updated accordingly (`[…, q=quit]`, `[Y/n/q]`, `[y/N/q]`) and the per-run log file is now cleared before the first prompt so a cancel does not append to stale content.
+
 ### 1.16.0-0.18.1 (2026-05-10)
 
 #### Added

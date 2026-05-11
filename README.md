@@ -857,18 +857,18 @@ $ docker exec -ti restic-backup-helper /bin/restore
   2   abc0123d  2026-05-08T03:00:09  larak         larak-docs     /data/documents
   ...
 
-Snapshot to restore [index 1-10 or short-id, default=latest]: 1
-Restore target [/restore]:
-Dry-run first? [Y/n]:
+Snapshot to restore [index 1-10 or short-id, default=latest, q=quit]: 1
+Restore target [/restore, q=quit]:
+Dry-run first? [Y/n/q]:
 About to run: restic restore 7a4d2f9c --target /restore --tag larak-docs --host larak --dry-run
 (dry-run; no files will be written)
-Proceed? [y/N]: y
+Proceed? [y/N/q]: y
 ... restic output streamed to /var/log/restore-last.log ...
 ✅ Restore Successful
 🏁 Finished restore at 2026-05-11 Mon 09:42:18 after 0m 4s
 ```
 
-After the dry-run completes successfully, re-run `/bin/restore` without `--dry-run` to do the real one (or answer "n" to "Dry-run first?" up front).
+After the dry-run completes successfully, re-run `/bin/restore` without `--dry-run` to do the real one (or answer "n" to "Dry-run first?" up front). Type `q` (or `quit`) at **any** prompt to abort cleanly — the helper records `exit_code=130` + `cancelled=true` in `last-restore.json` (and posts the same payload via the webhook / mail stack) so monitoring can tell "operator backed out" apart from "restore actually failed".
 
 ### Notifications
 
@@ -880,7 +880,7 @@ Subject: [OK] Restore larak · 4s · DRY-RUN · 4523 files (567.89 MiB) → /res
 Subject: [FAIL 1] Restore larak · 0s · /restore
 ```
 
-Per-run summary at `/var/log/last-restore.json` includes `snapshot`, `target`, `dry_run`, `files_restored`, `bytes_restored` and `elapsed_human` where restic produced them. When the operator answers "n" to the final "Proceed?" prompt, `exit_code` is `130` and `cancelled` is `true` so external monitoring can distinguish "operator changed their mind" from "restore actually failed".
+Per-run summary at `/var/log/last-restore.json` includes `snapshot`, `target`, `dry_run`, `files_restored`, `bytes_restored` and `elapsed_human` where restic produced them. When the operator types `q` / `quit` at any interactive prompt — or answers anything other than `y` / `yes` to the final "Proceed?" prompt — `exit_code` is `130` and `cancelled` is `true` so external monitoring can distinguish "operator changed their mind" from "restore actually failed".
 
 ### Hooks
 
