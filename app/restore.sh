@@ -228,10 +228,13 @@ list_snapshots_table() {
 	# We pull `short_id`, `time`, `tags`, `paths` from the record. When a
 	# field is missing we leave it empty.
 	awk -F'\t' -v since="${SINCE_FILTER}" '
-		function jget(blob, key,   m, s) {
+		function jget(blob, key,    m, s, n, rest) {
 			# Match "key":"value" or "key":number; returns the string between
 			# the first balanced quote pair following the key. Sufficient for
 			# the simple fields we need.
+			# All non-param locals (m, s, n, rest) MUST stay in this param
+			# list; otherwise n collides with the body block`s array counter
+			# and overwrites out[] entries between records.
 			s = "\"" key "\""
 			n = index(blob, s)
 			if (n == 0) return ""
@@ -243,9 +246,11 @@ list_snapshots_table() {
 			if (m == 0) return ""
 			return substr(rest, 1, m - 1)
 		}
-		function jget_array(blob, key,    n, s, rest, m) {
+		function jget_array(blob, key,    n, s, rest, m, content) {
 			# Returns the contents of a string array as a comma-separated
-			# list. Used for "tags" and "paths".
+			# list. Used for "tags" and "paths". All scratch variables MUST
+			# remain locals (param list) so they cannot clobber the body
+			# block`s `n` counter.
 			s = "\"" key "\""
 			n = index(blob, s)
 			if (n == 0) return ""

@@ -19,6 +19,7 @@
 #### Fixed
 
 - **`/bin/restore` snapshot ordering.** Interactive mode and `--list` are now sorted **newest-first**: the second awk pass in `list_snapshots_table` collects matching snapshots into an array and emits them in reverse order with a renumbered 1-based index in its `END` block, so row 1 is the most recent snapshot and `print_snapshot_table 10` shows "the 10 most recent" instead of "the 10 oldest". The interactive prompt now caps its `index 1-N` range at the number of rows actually displayed and, when the filter matched more snapshots than fit on screen, prints a one-line hint pointing operators to `/bin/restore --list` (or the short-id form) for older snapshots.
+- **`/bin/restore` snapshot parsing.** Added `n` and `rest` (and `content` in `jget_array`) to the function-local parameter lists of the inline awk parsers so they cannot clobber the body block's `n` counter that indexes the buffered `out[]` array. Without this, each `jget` call rewrote the global `n` to `index(blob, key)`, causing later records to overwrite earlier `out[n]` entries — visible as a mostly-empty interactive list (only the last one or two snapshots populated) once the new newest-first buffering was introduced.
 
 ### 1.16.0-0.18.1 (2026-05-10)
 
