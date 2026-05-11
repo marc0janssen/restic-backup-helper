@@ -2,6 +2,12 @@
 
 ## Restic Backup Helper
 
+### 2.2.1-0.18.1 (2026-05-11)
+
+#### Fixed
+
+- **`shellcheck` clean build for `/bin/snapshot-export`.** The `cleanup()` function (invoked via the `EXIT` trap) now carries a combined `# shellcheck disable=SC2317,SC2329` directive so static analysis no longer flags the trap-only branches as unreachable. The single `copyErrorLog` call site now passes `"${LAST_LOGFILE}" "${LAST_ERROR_LOGFILE}"` explicitly, matching the function's documented signature, resolving SC2119 and making the intent self-documenting. No runtime behaviour change; CI `ci-quality-checks.sh` shellcheck step now passes for `app/snapshot_export.sh`.
+
 ### 2.2.0-0.18.1 (2026-05-11)
 
 #### Added

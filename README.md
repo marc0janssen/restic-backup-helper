@@ -69,15 +69,16 @@ If this image saves you time, you can [leave a tip on Ko-fi](https://ko-fi.com/m
 
 ## Image tags and release
 
-release: 2.2.0-0.18.1
+release: 2.2.1-0.18.1
 
 | Train | When to use | Example pull |
 | --- | --- | --- |
-| **Stable** | Production | `docker pull marc0janssen/restic-backup-helper:latest` or pinned `marc0janssen/restic-backup-helper:2.2.0-0.18.1` |
-| **Testing** | Pre-release / CI | `docker pull marc0janssen/restic-backup-helper:develop` or `marc0janssen/restic-backup-helper:2.2.0-0.18.1-dev` |
+| **Stable** | Production | `docker pull marc0janssen/restic-backup-helper:latest` or pinned `marc0janssen/restic-backup-helper:2.2.1-0.18.1` |
+| **Testing** | Pre-release / CI | `docker pull marc0janssen/restic-backup-helper:develop` or `marc0janssen/restic-backup-helper:2.2.1-0.18.1-dev` |
 
 > **Upgrading?**
 >
+> - **From 2.2.0 → 2.2.1:** patch release. CI-only fix in `app/snapshot_export.sh`: combined `# shellcheck disable=SC2317,SC2329` on the EXIT-trap `cleanup()` function and an explicit `copyErrorLog "${LAST_LOGFILE}" "${LAST_ERROR_LOGFILE}"` call to satisfy SC2119. No runtime behaviour change, no env-var change.
 > - **From 2.1.x → 2.2.0:** purely additive. New `/bin/snapshot-export` helper restores a selected snapshot (or include-filtered subtree) into a temporary workdir and packages it as a `.tar.gz` archive under `/restore` by default. It supports `--id`, `--include`, `--exclude`, `--output`, `--dry-run`, `--verify`, hooks, JSON, webhook, mail and Prometheus metrics.
 > - **From 2.0.x → 2.1.0:** purely additive. New `/bin/doctor` read-only diagnostics command for support/triage: prints release/tool versions, masked effective env, path checks, `restic cat config` probe, replicate job-file validation, hook executable status, recent `last-*.json` summaries and the tail of `cron.log`. `docker run … doctor` and `docker run … /bin/doctor` execute it directly without starting cron.
 > - **From 1.16.x → 1.17.0:** purely additive — no env-var rename, no behaviour change in the cron-driven workers. New surface only: a new operator-driven `/bin/restore` wrapper (interactive on a TTY, flag-driven otherwise) with mail/webhook notifications enabled by default, a new `/var/log/last-restore.json` summary, and optional `/hooks/{pre,post}-restore.sh`. See [Restore (operator-friendly)](#restore-operator-friendly). The manual `restic restore latest --target /restore` invocation still works unchanged.

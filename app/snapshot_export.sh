@@ -160,7 +160,7 @@ if [ -z "${OUTPUT}" ]; then
 	OUTPUT="/restore/snapshot-export-${archive_label}-${timestamp}.tar.gz"
 fi
 
-# shellcheck disable=SC2329 # Invoked by the EXIT trap below.
+# shellcheck disable=SC2317,SC2329 # Invoked indirectly via the EXIT trap below.
 cleanup() {
 	if [ "${KEEP_WORKDIR}" = "ON" ]; then
 		return 0
@@ -332,7 +332,7 @@ elif [ "${snapshotExportRC}" -eq 0 ]; then
 fi
 
 if [ "${snapshotExportRC}" -ne 0 ]; then
-	copyErrorLog
+	copyErrorLog "${LAST_LOGFILE}" "${LAST_ERROR_LOGFILE}"
 fi
 
 end="$(date +%s)"
