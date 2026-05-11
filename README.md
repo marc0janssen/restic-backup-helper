@@ -407,7 +407,7 @@ volumes:
   restic-cache:
 ```
 
-A runnable, less commented variant lives at [`scripts/docker-compose.yml`](scripts/docker-compose.yml) for quick `docker compose up` testing. That file also ships two **opt-in [Compose profiles](https://docs.docker.com/compose/profiles/)** so you do not have to fork it for ancillary services:
+A runnable, less commented variant lives at [`scripts/docker-compose.yml`](scripts/docker-compose.yml) for quick `docker compose up` testing. A heavily commented, anonymized cloud-remote reference lives at [`examples/compose/cloud-reference.yml`](examples/compose/cloud-reference.yml) when you want a complete private-registry / rclone-style stack to trim down. The quick-start file also ships two **opt-in [Compose profiles](https://docs.docker.com/compose/profiles/)** so you do not have to fork it for ancillary services:
 
 | Profile | Adds | Why |
 | --- | --- | --- |
