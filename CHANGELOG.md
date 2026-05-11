@@ -2,6 +2,20 @@
 
 ## Restic Backup Helper
 
+### 2.2.0-0.18.1 (2026-05-11)
+
+#### Added
+
+- **`/bin/snapshot-export` archive helper.** Restores a selected snapshot (default `latest`) into a temporary work directory and packages the result as a `tar.gz` archive under `/restore` by default, or a caller-supplied `--output` path. Supports `--id`, `--tag`, `--host`, repeatable `--include` / `--exclude`, `--dry-run`, `--verify`, `--verbose`, `--work-dir`, `--keep-workdir` and `--force`. The helper refuses to overwrite an existing archive unless forced, treats include filters that restore 0 files/dirs as exit `3`, and cleans its temporary tree unless told to keep it.
+- **Snapshot export observability.** The new helper writes `/var/log/snapshot-export-last.log`, `/var/log/last-snapshot-export.json`, optional `/hooks/pre-snapshot-export.sh` and `/hooks/post-snapshot-export.sh "$rc"`, mails/webhooks through the existing notification helpers, and emits `restic_snapshot_export.prom` when `METRICS_DIR` is configured. `docker run … snapshot-export --id <snapshot>` now works as an entrypoint pass-through without starting cron first.
+
+### 2.1.0-0.18.1 (2026-05-11)
+
+#### Added
+
+- **`/bin/doctor` read-only diagnostics.** Prints release and tool versions, masked effective environment values, password / config / cache / metrics path checks, `RESTIC_JOB_ARGS` file references, a non-mutating `restic cat config` repository probe, effective `REPLICATE_*` values with legacy `SYNC_*` deprecation warnings, replicate job-file validation with masked endpoints, hook executable status, recent `last-*.json` summaries and the tail of `/var/log/cron.log`. The command exits non-zero only when it finds hard errors such as missing repository settings, unreadable required secrets/config, empty `RESTIC_TAG`, no backup paths, or a failed repository probe.
+- **Entrypoint pass-through for doctor.** `docker run … doctor` and `docker run … /bin/doctor` now execute the diagnostics directly instead of starting cron first; `docker exec <container> /bin/doctor` works unchanged for already-running containers.
+
 ### 2.0.0-0.18.1 (2026-05-11)
 
 #### Changed (breaking)

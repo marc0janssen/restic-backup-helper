@@ -39,6 +39,7 @@ The image is based on **`restic/restic`** (Alpine). This repository owns applica
 | `Dockerfile` | Image definition; `restic/restic:<tag>`; release string via `ARG` / `ENV RESTIC_BACKUP_HELPER_RELEASE` at build time (no repo `.release` file) |
 | `app/entry.sh` | Container entrypoint |
 | `app/backup.sh`, `app/check.sh`, `app/replicate.sh`, `app/rotate_log.sh` | Cron-invoked workers |
+| `app/restore.sh`, `app/snapshot_export.sh`, `app/doctor.sh` | Operator-invoked helpers |
 | `app/install_rclone.sh` | Rclone install during image build |
 | `scripts/build-common.sh` | Shared logic for release versioning and Docker Hub builds |
 | `build.sh`, `build-testing.sh` | Stable / dev Docker Hub builds (read optional `build.env` / `build-testing.env`) |

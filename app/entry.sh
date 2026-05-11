@@ -65,8 +65,15 @@ if [ "${1:-}" = "config-check" ]; then
 	run_config_check
 	exit $?
 fi
+if [ "${1:-}" = "doctor" ] || [ "${1:-}" = "/bin/doctor" ]; then
+	exec /bin/doctor
+fi
+if [ "${1:-}" = "snapshot-export" ] || [ "${1:-}" = "/bin/snapshot-export" ]; then
+	shift
+	exec /bin/snapshot-export "$@"
+fi
 
-# shellcheck source=lib.sh
+# shellcheck source=app/lib.sh
 . /bin/lib.sh
 
 if [ -n "${RESTIC_REPOSITORY:-}" ]; then

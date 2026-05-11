@@ -35,16 +35,18 @@ If this image saves you time, you can [leave a tip on Ko-fi](https://ko-fi.com/m
 13. [Log rotation](#log-rotation)
 14. [Webhook notifications](#webhook-notifications)
 15. [Per-run JSON summaries](#per-run-json-summaries)
-16. [Manual operations](#manual-operations)
-17. [Restore (operator-friendly)](#restore-operator-friendly)
-18. [Security](#security)
-19. [Logging & privacy](#logging--privacy)
-20. [Supply chain (SBOM, Trivy)](#supply-chain-sbom-trivy)
-21. [Hardening (read-only root, capabilities, non-root)](#hardening-read-only-root-capabilities-non-root)
-22. [Multiple backup jobs](#multiple-backup-jobs)
-23. [Troubleshooting](#troubleshooting)
-24. [Contributing](#contributing)
-25. [Further reading](#further-reading)
+16. [Logging & privacy](#logging--privacy)
+17. [Supply chain (SBOM, Trivy)](#supply-chain-sbom-trivy)
+18. [Hardening (read-only root, capabilities, non-root)](#hardening-read-only-root-capabilities-non-root)
+19. [Multiple backup jobs](#multiple-backup-jobs)
+20. [Operator diagnostics](#operator-diagnostics)
+21. [Snapshot export](#snapshot-export)
+22. [Manual operations](#manual-operations)
+23. [Restore (operator-friendly)](#restore-operator-friendly)
+24. [Security](#security)
+25. [Troubleshooting](#troubleshooting)
+26. [Contributing](#contributing)
+27. [Further reading](#further-reading)
 
 ---
 
@@ -56,24 +58,28 @@ If this image saves you time, you can [leave a tip on Ko-fi](https://ko-fi.com/m
 - **Scheduled Rclone replication** via `/bin/replicate` when `REPLICATE_CRON` and a valid `REPLICATE_JOB_FILE` are configured. Jobs can run rclone `bisync` (default), `sync` or `copy`.
 - **Repository probe on startup**: when `RESTIC_CHECK_REPOSITORY_STATUS=ON`, the entrypoint probes with `restic cat config` and only auto-runs `restic init` when the probe exits **10** (repository does not exist). Other non-zero exits (wrong password, network, DNS, TLS, auth) log restic stderr and abort startup so a transient failure cannot accidentally re-init a healthy remote.
 - **Configuration check**: run `docker run … config-check` with the same env as production to validate credentials, backup paths, `RCLONE_CONFIG` and `RESTIC_CACERT` readability without starting cron (CI-friendly).
+- **Operator diagnostics**: run `/bin/doctor` for a read-only support bundle: masked effective env, config/path checks, repository probe, replicate job-file validation, hook executable status and recent `/var/log` summaries.
+- **Snapshot export**: run `/bin/snapshot-export` to restore a snapshot/subtree into a temporary work directory and package it as a `.tar.gz` archive under `/restore` (or `--output`) for offline transfer / support handoff.
 - **Concurrency**: each job is wrapped in **`/bin/locked_run`** which acquires a dedicated `flock` and, on contention, logs `⏭ <job> skipped: previous run still active` to `/var/log/cron.log` instead of failing silently.
-- **Observability**: each run writes `/var/log/last-{backup,check,sync}.json` and, when `WEBHOOK_URL` is set, POSTs the same JSON document to your monitoring endpoint (healthchecks.io, Slack, Discord, Gotify, ntfy, …).
-- **Hooks**: optional `/hooks/{pre,post}-{backup,check,sync}.sh` scripts run before/after each job, with consistent start/exit-code/duration logging and an optional `HOOK_TIMEOUT`.
+- **Observability**: each run writes `/var/log/last-{backup,check,prune,replicate,restore,snapshot-export}.json` and, when `WEBHOOK_URL` is set, POSTs the same JSON document to your monitoring endpoint (healthchecks.io, Slack, Discord, Gotify, ntfy, …).
+- **Hooks**: optional `/hooks/{pre,post}-{backup,check,prune,replicate,restore,snapshot-export}.sh` scripts run before/after each job, with consistent start/exit-code/duration logging and an optional `HOOK_TIMEOUT`.
 - **Based on** [`restic/restic`](https://hub.docker.com/r/restic/restic) Alpine image; Restic version follows the `FROM restic/restic:<tag>` line in this repo’s `Dockerfile`.
 
 ---
 
 ## Image tags and release
 
-release: 2.0.0-0.18.1
+release: 2.2.0-0.18.1
 
 | Train | When to use | Example pull |
 | --- | --- | --- |
-| **Stable** | Production | `docker pull marc0janssen/restic-backup-helper:latest` or pinned `marc0janssen/restic-backup-helper:2.0.0-0.18.1` |
-| **Testing** | Pre-release / CI | `docker pull marc0janssen/restic-backup-helper:develop` or `marc0janssen/restic-backup-helper:2.0.0-0.18.1-dev` |
+| **Stable** | Production | `docker pull marc0janssen/restic-backup-helper:latest` or pinned `marc0janssen/restic-backup-helper:2.2.0-0.18.1` |
+| **Testing** | Pre-release / CI | `docker pull marc0janssen/restic-backup-helper:develop` or `marc0janssen/restic-backup-helper:2.2.0-0.18.1-dev` |
 
 > **Upgrading?**
 >
+> - **From 2.1.x → 2.2.0:** purely additive. New `/bin/snapshot-export` helper restores a selected snapshot (or include-filtered subtree) into a temporary workdir and packages it as a `.tar.gz` archive under `/restore` by default. It supports `--id`, `--include`, `--exclude`, `--output`, `--dry-run`, `--verify`, hooks, JSON, webhook, mail and Prometheus metrics.
+> - **From 2.0.x → 2.1.0:** purely additive. New `/bin/doctor` read-only diagnostics command for support/triage: prints release/tool versions, masked effective env, path checks, `restic cat config` probe, replicate job-file validation, hook executable status, recent `last-*.json` summaries and the tail of `cron.log`. `docker run … doctor` and `docker run … /bin/doctor` execute it directly without starting cron.
 > - **From 1.16.x → 1.17.0:** purely additive — no env-var rename, no behaviour change in the cron-driven workers. New surface only: a new operator-driven `/bin/restore` wrapper (interactive on a TTY, flag-driven otherwise) with mail/webhook notifications enabled by default, a new `/var/log/last-restore.json` summary, and optional `/hooks/{pre,post}-restore.sh`. See [Restore (operator-friendly)](#restore-operator-friendly). The manual `restic restore latest --target /restore` invocation still works unchanged.
 > - **From 1.15.x → 1.16.0:** purely additive — no env-var rename, no behaviour change in the workers. New surfaces only:
 >   - **SBOM** generation for image builds via `SBOM=ON ./build.sh` (requires `syft`); CI also uploads source-tree SBOMs on tag releases. See [Supply chain](#supply-chain-sbom-trivy).
@@ -127,7 +133,7 @@ For **FUSE / `restic mount`**, add capabilities and device (see [Manual operatio
 6. **Rotate line** (always present): `ROTATE_LOG_CRON … /bin/locked_run rotate_log … /bin/rotate_log`.
 6. Default **CMD** tails `/var/log/cron.log` so the container stays foreground-friendly for Compose and logs aggregate cron output.
 
-Worker scripts live at `/bin/backup`, `/bin/check`, `/bin/prune`, `/bin/replicate`, `/bin/restore`, `/bin/rotate_log`. The deprecated `/bin/bisync` alias points to `/bin/replicate` until 3.0.0. The cron wrapper itself is `/bin/locked_run`.
+Worker scripts live at `/bin/backup`, `/bin/check`, `/bin/prune`, `/bin/replicate`, `/bin/restore`, `/bin/snapshot-export`, `/bin/doctor`, `/bin/rotate_log`. The deprecated `/bin/bisync` alias points to `/bin/replicate` until 3.0.0. The cron wrapper itself is `/bin/locked_run`.
 
 ---
 
@@ -284,6 +290,10 @@ Mount scripts into **`/hooks`**:
 | `/hooks/post-prune.sh` | After prune; receives **prune exit code** as `$1` |
 | `/hooks/pre-replicate.sh` | Before replicate batch |
 | `/hooks/post-replicate.sh` | After replicate batch; receives **aggregate exit code** as `$1` |
+| `/hooks/pre-restore.sh` | Before restore |
+| `/hooks/post-restore.sh` | After restore; receives **restore exit code** as `$1` |
+| `/hooks/pre-snapshot-export.sh` | Before snapshot export |
+| `/hooks/post-snapshot-export.sh` | After snapshot export; receives **snapshot export exit code** as `$1` |
 
 Hooks must be executable inside the container (`chmod +x`); a hook present but **not executable** is reported as an error in the cron log instead of silently doing nothing. Set **`HOOK_TIMEOUT`** to a positive integer to wrap each invocation in `timeout ${HOOK_TIMEOUT}s`; the runner logs `pre-*`/`post-*` start, exit code and duration in a uniform format and reports timeouts (exit `124`) prominently. Hook exit codes are logged but do **not** propagate to the worker exit code (the cron job is still considered successful when the underlying restic/rclone command succeeded).
 
@@ -600,6 +610,7 @@ Each worker writes a structured summary of its **last run** under `/var/log` aft
 | `/var/log/last-prune.json` | `/bin/prune` | `job`, `hostname`, `release`, `started_at`, `finished_at`, `duration_seconds`, `exit_code`, `repository` (masked) |
 | `/var/log/last-replicate.json` | `/bin/replicate` | `job`, `hostname`, `release`, `started_at`, `finished_at`, `duration_seconds`, `exit_code`, `replicate_jobs_processed`, `replicate_jobs_failed` |
 | `/var/log/last-restore.json` | `/bin/restore` | `job`, `hostname`, `release`, `started_at`, `finished_at`, `duration_seconds`, `exit_code`, `repository` (masked), `snapshot`, `target`, `dry_run`, plus — when restic printed its summary line — `files_restored`, `bytes_restored` (human string), `elapsed_human`; on `Ctrl-C`/operator cancel `exit_code` is `130` and `cancelled` is `true`; when `--include` matches 0 files/dirs, `exit_code` is `3` and `include_zero_match` is `true` |
+| `/var/log/last-snapshot-export.json` | `/bin/snapshot-export` | `job`, `hostname`, `release`, `started_at`, `finished_at`, `duration_seconds`, `exit_code`, `repository` (masked), `snapshot`, `archive`, `work_dir`, `dry_run`, `include_zero_match`, plus — when restic printed its summary line — `files_restored`, `bytes_restored`, `elapsed_human`; on successful archive creation, `archive_size_bytes` is included |
 
 Files are overwritten atomically each run (write to `*.tmp`, then `mv`). Mount `/var/log` on the host to scrape them, or feed them into Prometheus textfile collectors, Datadog log pipelines, or simple shell scripts. The backup-stats keys (`snapshot_id`, `files_*`, `bytes_*`) are best-effort: when a backup fails before restic prints them, they are simply omitted from the JSON.
 
@@ -611,7 +622,7 @@ Set **`METRICS_DIR`** to a writable path inside the container (for example `/var
 node_exporter --collector.textfile.directory=/var/log/textfile_collector
 ```
 
-Always-emitted gauges (one of each per `<job>` ∈ `backup`, `check`, `prune`, `replicate`, `restore`):
+Always-emitted gauges (one of each per `<job>` ∈ `backup`, `check`, `prune`, `replicate`, `restore`, `snapshot_export`):
 
 | Metric | Meaning |
 | --- | --- |
@@ -762,6 +773,66 @@ Trade-offs:
 
 ---
 
+## Operator diagnostics
+
+`/bin/doctor` is a read-only support command for "what is wrong with this container?" moments. It does not run `restic init`, `restic unlock`, backups, restores, replicate jobs, hooks, mail or webhooks. It only inspects the current environment and mounted files, then exits non-zero when it finds hard failures that would also break normal operation.
+
+What it reports:
+
+- Release, hostname, current time, `TZ`, `restic version`, `rclone version` and shell version.
+- Masked effective environment values, including legacy `SYNC_*` values when they still override `REPLICATE_*`.
+- Required secret/config readability (`RESTIC_PASSWORD_FILE`, `RCLONE_CONFIG` for `rclone:` repositories, `RESTIC_CACERT` when set).
+- Backup path sanity: `BACKUP_ROOT_DIR`, plus `--files-from` and `--exclude-file` references found in `RESTIC_JOB_ARGS`.
+- A non-mutating `restic cat config` repository probe. Exit 10 is reported as "repository missing/not initialized"; doctor never initializes it.
+- Replicate job-file validation (`SOURCE;DESTINATION[;MODE[;EXTRA_ARGS]]`) with endpoints masked before printing.
+- Known hooks under `/hooks` and whether they are executable.
+- Recent `/var/log/last-{backup,check,prune,replicate,restore}.json` summaries and the last 40 lines of `/var/log/cron.log`.
+
+Examples:
+
+```shell
+docker exec -ti restic-backup-helper /bin/doctor
+docker run --rm --env-file restic.env -v ./config:/config:ro -v ./restic.password:/run/secrets/restic_password:ro marc0janssen/restic-backup-helper:latest doctor
+```
+
+Because it prints configured paths and non-secret job arguments, treat its output as operationally sensitive. Repository URLs, webhook URLs, inline endpoint credentials, `RESTIC_PASSWORD`, `OS_PASSWORD` and `WEBHOOK_HEADER_AUTH` are masked/hidden.
+
+---
+
+## Snapshot export
+
+`/bin/snapshot-export` is a wrapper around `restic restore` plus `tar`. It restores a selected snapshot into a temporary work directory, packages the restored tree as a `.tar.gz` archive, and removes the temporary tree again unless `--keep-workdir` is set. It is meant for offline transfer and support handoff, not scheduled backups.
+
+By default it exports `latest` for the configured `RESTIC_TAG` and `HOSTNAME`, writes to `/restore/snapshot-export-latest-<timestamp>.tar.gz`, and refuses to overwrite an existing archive unless `--force` is passed.
+
+Examples:
+
+```shell
+docker exec -ti restic-backup-helper /bin/snapshot-export --id latest
+docker exec -ti restic-backup-helper /bin/snapshot-export --id 5a3f2c8b --include /data/documents --output /restore/documents-5a3f2c8b.tar.gz
+docker exec -ti restic-backup-helper /bin/snapshot-export --id latest --include /host/home/admin --dry-run
+docker run --rm --env-file restic.env -v ./config:/config:ro -v ./restic.password:/run/secrets/restic_password:ro -v ./restore:/restore marc0janssen/restic-backup-helper:latest snapshot-export --id latest --include /data/documents
+```
+
+Flags:
+
+| Flag | Meaning |
+| --- | --- |
+| `--id HEX\|latest` | Snapshot ID to export; defaults to `latest`. |
+| `--tag TAG`, `--host HOST` | Snapshot filters; default to `RESTIC_TAG` and container `HOSTNAME`. |
+| `--include PATH`, `--exclude PATH` | Scope the restore before packaging; repeatable. Include filters that restore 0 files/dirs exit `3`. |
+| `--output FILE` | Archive path; default is under `/restore`. |
+| `--work-dir DIR` | Use a specific temporary work directory; must be empty unless `--force` is set. |
+| `--keep-workdir` | Keep the restored temporary tree for inspection after packaging. |
+| `--force` | Allow overwriting an existing archive and reusing a non-empty work directory. |
+| `--dry-run` | Run `restic restore --dry-run` only; no archive is created. |
+| `--verify` | Pass Restic's `--verify` during restore before packaging. |
+| `--verbose`, `-v` | Stream Restic restore output live while still logging to `/var/log/snapshot-export-last.log`. |
+
+The helper writes `/var/log/last-snapshot-export.json`, `/var/log/snapshot-export-last.log`, optional hooks `/hooks/pre-snapshot-export.sh` and `/hooks/post-snapshot-export.sh "$rc"`, webhooks/mail through the existing notification helpers, and `restic_snapshot_export.prom` when `METRICS_DIR` is set.
+
+---
+
 ## Manual operations
 
 Replace container name as needed.
@@ -771,6 +842,8 @@ docker exec -ti restic-backup-helper /bin/backup
 docker exec -ti restic-backup-helper /bin/check
 docker exec -ti restic-backup-helper /bin/prune
 docker exec -ti restic-backup-helper /bin/replicate
+docker exec -ti restic-backup-helper /bin/doctor
+docker exec -ti restic-backup-helper /bin/snapshot-export --id latest
 docker exec -ti restic-backup-helper /bin/rotate_log
 docker exec -ti restic-backup-helper restic snapshots
 docker exec -ti restic-backup-helper /bin/restore --list           # operator-friendly restore wrapper (see next section)

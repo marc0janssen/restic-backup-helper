@@ -103,6 +103,12 @@ COPY /app/check.sh /bin/check
 COPY /app/replicate.sh /bin/replicate
 COPY /app/rotate_log.sh /bin/rotate_log
 COPY /app/prune.sh /bin/prune
+# Read-only diagnostics: prints effective env, path checks, repo probe, hooks,
+# replicate job-file validation and recent last-*.json/log context.
+COPY /app/doctor.sh /bin/doctor
+# Operator export helper: restores a snapshot/subtree into a temporary workdir
+# and packages it as a tar.gz archive under /restore (or --output).
+COPY /app/snapshot_export.sh /bin/snapshot-export
 # Operator-friendly restore wrapper: flag-driven for scripts/CI, interactive
 # when invoked from `docker exec -ti`. Not cron-driven by design (restores are
 # always operator-initiated); shares mail/webhook/metrics plumbing with the
@@ -118,7 +124,7 @@ ARG RESTIC_BACKUP_HELPER_RELEASE=unknown
 LABEL org.opencontainers.image.title="restic-backup-helper" \
 	org.opencontainers.image.version="${RESTIC_BACKUP_HELPER_RELEASE}"
 ENV RESTIC_BACKUP_HELPER_RELEASE=${RESTIC_BACKUP_HELPER_RELEASE}
-RUN chmod 755 /entry.sh /bin/backup /bin/check /bin/replicate /bin/rotate_log /bin/prune /bin/restore /bin/locked_run \
+RUN chmod 755 /entry.sh /bin/backup /bin/check /bin/replicate /bin/rotate_log /bin/prune /bin/doctor /bin/snapshot-export /bin/restore /bin/locked_run \
 	&& ln -s replicate /bin/bisync
 
 # set sendmail-path

@@ -12,24 +12,26 @@ Scheduled [Restic](https://restic.net) backups, optional `restic check`, optiona
 
 ## Release
 
-release: 2.0.0-0.18.1
+release: 2.2.0-0.18.1
 
 **Stable**
 
 ```shell
 docker pull marc0janssen/restic-backup-helper:latest
-docker pull marc0janssen/restic-backup-helper:2.0.0-0.18.1
+docker pull marc0janssen/restic-backup-helper:2.2.0-0.18.1
 ```
 
 **Development (experimental)**
 
 ```shell
 docker pull marc0janssen/restic-backup-helper:develop
-docker pull marc0janssen/restic-backup-helper:2.0.0-0.18.1-dev
+docker pull marc0janssen/restic-backup-helper:2.2.0-0.18.1-dev
 ```
 
 > **Upgrading?**
 >
+> - **2.1.x → 2.2.0:** purely additive. New `/bin/snapshot-export` helper restores a selected snapshot or subtree into a temporary workdir and packages it as `.tar.gz` under `/restore` by default. Supports `--id`, `--include`, `--exclude`, `--output`, `--dry-run`, hooks, JSON, webhook, mail and metrics.
+> - **2.0.x → 2.1.0:** purely additive. New `/bin/doctor` read-only diagnostics command for support/triage: masked effective env, path checks, repository probe, replicate job-file validation, hook executable status and recent `/var/log` summaries. `docker run … doctor` runs it without starting cron.
 > - **1.18.x → 2.0.0:** the old "sync/bisync" surface is renamed to **replicate**. Use `/bin/replicate`, `REPLICATE_*` env vars, `/config/replicate_jobs.txt`, `/hooks/pre-replicate.sh` / `/hooks/post-replicate.sh`, `/var/log/last-replicate.json`, `/var/log/replicate-last.log` and `restic_replicate.prom`. Legacy `SYNC_*` env vars and `/bin/bisync` still work with deprecation warnings and will be removed in 3.0.0. Rename any mounted `config/sync_jobs.txt` to `config/replicate_jobs.txt` or set `REPLICATE_JOB_FILE` explicitly. Monitoring and hook paths must be updated.
 > - **1.17.x → 1.18.0:** polish on top of the 1.17.0 `/bin/restore` wrapper. Three operator-visible additions: `--yes` / `-y` runs the wrapper fully non-interactively (skips picker + target + dry-run + Proceed prompts, fills missing answers with cron/CI defaults — useful from inside `docker exec -ti …`); `--verbose` / `-v` now actually streams progress (passes `--verbose=2` to restic for per-file lines AND wraps restic in `script(1)` so the native in-place progress bar renders); interactive mode is TTY-driven only, so modifier flags like `--verbose` and `--force` no longer skip the prompts. Image grows ~6 MB to ship `util-linux` (for `script(1)`). `--include` zero-match now exits `3` instead of silently succeeding. Pure polish, no breaking changes for existing scripted callers.
 > - **1.16.x → 1.17.0:** purely additive. New `/bin/restore` wrapper (interactive on a TTY, flag-driven otherwise) with mail/webhook on by default and `/var/log/last-restore.json` summary; optional `/hooks/{pre,post}-restore.sh`. Refuses to restore into `/data` or a non-empty `--target` unless `--force` (or `--dry-run`). See the GitHub README "Restore (operator-friendly)" section.
@@ -45,7 +47,7 @@ docker pull marc0janssen/restic-backup-helper:2.0.0-0.18.1-dev
 | Tag | Meaning |
 | --- | --- |
 | `latest` | Current stable |
-| `<semver>-<restic>` | Pinned stable (helper version + Restic base), e.g. `2.0.0-0.18.1` |
+| `<semver>-<restic>` | Pinned stable (helper version + Restic base), e.g. `2.2.0-0.18.1` |
 | `develop` | Latest testing build |
 | `<semver>-<restic>-dev` | Pinned testing image |
 
@@ -61,6 +63,9 @@ docker pull marc0janssen/restic-backup-helper:2.0.0-0.18.1-dev
 | **Replicate** | `REPLICATE_CRON` (if set) → `/bin/replicate` reading `REPLICATE_JOB_FILE` |
 | **Log rotate** | `ROTATE_LOG_CRON` → `/bin/rotate_log` for `cron.log` |
 | **Config check** | One-shot `docker run … config-check` (same env as prod) validates settings without cron |
+| **Doctor** | One-shot `/bin/doctor` or `docker run … doctor` read-only diagnostics for support/triage |
+| **Snapshot export** | One-shot `/bin/snapshot-export` or `docker run … snapshot-export` archives a selected snapshot/subtree as `.tar.gz` |
+| **Restore** | One-shot `/bin/restore`; interactive with a TTY, flag-driven otherwise |
 
 Startup (`/entry.sh`) can verify/init the repo when `RESTIC_CHECK_REPOSITORY_STATUS=ON`. Jobs use **`flock`** locks (`/var/run/*.lock`).
 
@@ -96,7 +101,7 @@ Startup (`/entry.sh`) can verify/init the repo when `RESTIC_CHECK_REPOSITORY_STA
 
 ## Hooks (`/hooks`)
 
-`pre-backup.sh`, `post-backup.sh` (backup exit code), `pre-check.sh`, `post-check.sh` (check exit code), `pre-prune.sh`, `post-prune.sh` (prune exit code), `pre-replicate.sh`, `post-replicate.sh` (aggregate replicate exit code), `pre-restore.sh`, `post-restore.sh` (restore exit code; fires for both interactive and flag-driven `/bin/restore` invocations).
+`pre-backup.sh`, `post-backup.sh` (backup exit code), `pre-check.sh`, `post-check.sh` (check exit code), `pre-prune.sh`, `post-prune.sh` (prune exit code), `pre-replicate.sh`, `post-replicate.sh` (aggregate replicate exit code), `pre-restore.sh`, `post-restore.sh` (restore exit code), `pre-snapshot-export.sh`, `post-snapshot-export.sh` (snapshot export exit code).
 
 ---
 
