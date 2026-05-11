@@ -12,24 +12,25 @@ Scheduled [Restic](https://restic.net) backups, optional `restic check`, optiona
 
 ## Release
 
-release: 1.16.0-0.18.1
+release: 1.17.0-0.18.1
 
 **Stable**
 
 ```shell
 docker pull marc0janssen/restic-backup-helper:latest
-docker pull marc0janssen/restic-backup-helper:1.16.0-0.18.1
+docker pull marc0janssen/restic-backup-helper:1.17.0-0.18.1
 ```
 
 **Development (experimental)**
 
 ```shell
 docker pull marc0janssen/restic-backup-helper:develop
-docker pull marc0janssen/restic-backup-helper:1.16.0-0.18.1-dev
+docker pull marc0janssen/restic-backup-helper:1.17.0-0.18.1-dev
 ```
 
 > **Upgrading?**
 >
+> - **1.16.x → 1.17.0:** purely additive. New `/bin/restore` wrapper (interactive on a TTY, flag-driven otherwise) with mail/webhook on by default and `/var/log/last-restore.json` summary; optional `/hooks/{pre,post}-restore.sh`. Refuses to restore into `/data` or a non-empty `--target` unless `--force` (or `--dry-run`). See the GitHub README "Restore (operator-friendly)" section.
 > - **1.15.x → 1.16.0:** purely additive (no env-var rename, no behaviour change). New surfaces: opt-in image SBOM via `SBOM=ON ./build.sh` (requires `syft`); source-tree SBOM uploaded by the release CI; `scripts/docker-compose.yml` ships Compose profiles `metrics` (node-exporter sidecar) and `dev` (mailhog); new multi-job example at `examples/compose/multi-job.yml`; new README "Hardening" section with the `read_only: true` + tmpfs recipe.
 > - **1.14.x → 1.15.0:** purely additive. New opt-in env vars `METRICS_DIR` (Prometheus textfile collector) and `SYNC_BISYNC_CHECK_ACCESS` (bisync `--check-access` opt-in). Mail subjects gain `[OK|FAIL N] Job host · duration · details` prefix. Sync URL credentials are masked in logs.
 > - **1.13.x → 1.14.0:** explicitly empty `RESTIC_TAG` is now a hard error. `SYNC_JOB_FILE` accepts optional `MODE` / `EXTRA_ARGS` columns. `rclone` is now installed once with SHA256 verification.
@@ -42,7 +43,7 @@ docker pull marc0janssen/restic-backup-helper:1.16.0-0.18.1-dev
 | Tag | Meaning |
 | --- | --- |
 | `latest` | Current stable |
-| `<semver>-<restic>` | Pinned stable (helper version + Restic base), e.g. `1.16.0-0.18.1` |
+| `<semver>-<restic>` | Pinned stable (helper version + Restic base), e.g. `1.17.0-0.18.1` |
 | `develop` | Latest testing build |
 | `<semver>-<restic>-dev` | Pinned testing image |
 
@@ -93,7 +94,7 @@ Startup (`/entry.sh`) can verify/init the repo when `RESTIC_CHECK_REPOSITORY_STA
 
 ## Hooks (`/hooks`)
 
-`pre-backup.sh`, `post-backup.sh` (receives backup exit code), `pre-check.sh`, `post-check.sh` (check exit code), `pre-sync.sh`, `post-sync.sh` (aggregate sync exit code).
+`pre-backup.sh`, `post-backup.sh` (backup exit code), `pre-check.sh`, `post-check.sh` (check exit code), `pre-prune.sh`, `post-prune.sh` (prune exit code), `pre-sync.sh`, `post-sync.sh` (aggregate sync exit code), `pre-restore.sh`, `post-restore.sh` (restore exit code; fires for both interactive and flag-driven `/bin/restore` invocations).
 
 ---
 

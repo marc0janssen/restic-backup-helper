@@ -2,6 +2,19 @@
 
 ## Restic Backup Helper
 
+### 1.17.0-0.18.1 (2026-05-11)
+
+#### Added
+
+- **Operator-friendly restore wrapper** at `/bin/restore` (`app/restore.sh`). Wraps `restic restore` so the common case ("give me last night's data back") is a one-liner and the panic-driven cheat-sheet exercise is gone. Two complementary modes:
+  - **Interactive** (`docker exec -ti … /bin/restore`): lists the 10 most recent snapshots matching `RESTIC_TAG` + `HOSTNAME` (or `--tag`/`--host` overrides), prompts for index/short-id (`latest` default), prompts for `--target` (default `/restore`), offers a dry-run first, and asks for a final "Proceed? [y/N]" before mutating anything.
+  - **Non-interactive** (any restore flag passed): flag-driven, suitable for cron-jobs, CI smoke tests and runbooks.
+  - Flags: `--id`, `--tag`, `--host`, `--since DATE`, `--target`, `--include` / `--exclude` (repeatable), `--owner UID:GID` (post-restore `chown -R`), `--dry-run`, `--verify`, `--force`, `--list` / `--all`, `--help`.
+  - Refuses to restore into a non-empty target (unless `--force` or `--dry-run`), or directly into `BACKUP_ROOT_DIR` / `/data` (unless `--force`) — protects against the classic "I will just restore over my source" foot-gun.
+  - Shares the existing plumbing: `RESTIC_CACERT_ARGS`, `/hooks/{pre,post}-restore.sh`, `/var/log/last-restore.json`, `MAILX_RCPT` / `WEBHOOK_URL` (on by default like the other workers), `METRICS_DIR` Prometheus textfile, masked repository in subject/body/JSON. Operator cancellation at the final prompt records `exit_code=130` + `cancelled=true` so monitoring can distinguish "changed mind" from "actually failed".
+- **`lib.sh::parse_restic_restore_stats`** parses the `Summary: Restored N files/dirs (X) in Y` line from `restic restore` text output into `RESTORE_STATS_FILES_RESTORED` / `RESTORE_STATS_BYTES_RESTORED` / `RESTORE_STATS_ELAPSED_HUMAN` so `last-restore.json`, the webhook payload and the mail subject can carry the same numbers without depending on `jq`.
+- **README "Restore (operator-friendly)" section** with flag table, interactive walkthrough, mail subject examples, hook reference, safety rails and the `last-restore.json` schema row in the per-run JSON summaries table.
+
 ### 1.16.0-0.18.1 (2026-05-10)
 
 #### Added

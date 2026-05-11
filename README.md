@@ -36,14 +36,15 @@ If this image saves you time, you can [leave a tip on Ko-fi](https://ko-fi.com/m
 14. [Webhook notifications](#webhook-notifications)
 15. [Per-run JSON summaries](#per-run-json-summaries)
 16. [Manual operations](#manual-operations)
-17. [Security](#security)
-18. [Logging & privacy](#logging--privacy)
-19. [Supply chain (SBOM, Trivy)](#supply-chain-sbom-trivy)
-20. [Hardening (read-only root, capabilities, non-root)](#hardening-read-only-root-capabilities-non-root)
-21. [Multiple backup jobs](#multiple-backup-jobs)
-22. [Troubleshooting](#troubleshooting)
-23. [Contributing](#contributing)
-24. [Further reading](#further-reading)
+17. [Restore (operator-friendly)](#restore-operator-friendly)
+18. [Security](#security)
+19. [Logging & privacy](#logging--privacy)
+20. [Supply chain (SBOM, Trivy)](#supply-chain-sbom-trivy)
+21. [Hardening (read-only root, capabilities, non-root)](#hardening-read-only-root-capabilities-non-root)
+22. [Multiple backup jobs](#multiple-backup-jobs)
+23. [Troubleshooting](#troubleshooting)
+24. [Contributing](#contributing)
+25. [Further reading](#further-reading)
 
 ---
 
@@ -64,15 +65,16 @@ If this image saves you time, you can [leave a tip on Ko-fi](https://ko-fi.com/m
 
 ## Image tags and release
 
-release: 1.16.0-0.18.1
+release: 1.17.0-0.18.1
 
 | Train | When to use | Example pull |
 | --- | --- | --- |
-| **Stable** | Production | `docker pull marc0janssen/restic-backup-helper:latest` or pinned `marc0janssen/restic-backup-helper:1.16.0-0.18.1` |
-| **Testing** | Pre-release / CI | `docker pull marc0janssen/restic-backup-helper:develop` or `marc0janssen/restic-backup-helper:1.16.0-0.18.1-dev` |
+| **Stable** | Production | `docker pull marc0janssen/restic-backup-helper:latest` or pinned `marc0janssen/restic-backup-helper:1.17.0-0.18.1` |
+| **Testing** | Pre-release / CI | `docker pull marc0janssen/restic-backup-helper:develop` or `marc0janssen/restic-backup-helper:1.17.0-0.18.1-dev` |
 
 > **Upgrading?**
 >
+> - **From 1.16.x → 1.17.0:** purely additive — no env-var rename, no behaviour change in the cron-driven workers. New surface only: a new operator-driven `/bin/restore` wrapper (interactive on a TTY, flag-driven otherwise) with mail/webhook notifications enabled by default, a new `/var/log/last-restore.json` summary, and optional `/hooks/{pre,post}-restore.sh`. See [Restore (operator-friendly)](#restore-operator-friendly). The manual `restic restore latest --target /restore` invocation still works unchanged.
 > - **From 1.15.x → 1.16.0:** purely additive — no env-var rename, no behaviour change in the workers. New surfaces only:
 >   - **SBOM** generation for image builds via `SBOM=ON ./build.sh` (requires `syft`); CI also uploads source-tree SBOMs on tag releases. See [Supply chain](#supply-chain-sbom-trivy).
 >   - **`scripts/docker-compose.yml`** now ships two opt-in [Compose profiles](https://docs.docker.com/compose/profiles/): `metrics` (node-exporter sidecar) and `dev` (mailhog SMTP catcher). Existing `docker compose up` invocations keep starting only the main service.
@@ -594,6 +596,7 @@ Each worker writes a structured summary of its **last run** under `/var/log` aft
 | `/var/log/last-check.json` | `/bin/check` | `job`, `hostname`, `release`, `started_at`, `finished_at`, `duration_seconds`, `exit_code`, `repository` (masked) |
 | `/var/log/last-prune.json` | `/bin/prune` | `job`, `hostname`, `release`, `started_at`, `finished_at`, `duration_seconds`, `exit_code`, `repository` (masked) |
 | `/var/log/last-sync.json` | `/bin/bisync` | `job`, `hostname`, `release`, `started_at`, `finished_at`, `duration_seconds`, `exit_code`, `sync_jobs_processed`, `sync_jobs_failed` |
+| `/var/log/last-restore.json` | `/bin/restore` | `job`, `hostname`, `release`, `started_at`, `finished_at`, `duration_seconds`, `exit_code`, `repository` (masked), `snapshot`, `target`, `dry_run`, plus — when restic printed its summary line — `files_restored`, `bytes_restored` (human string), `elapsed_human`; on `Ctrl-C`/operator cancel `exit_code` is `130` and `cancelled` is `true` |
 
 Files are overwritten atomically each run (write to `*.tmp`, then `mv`). Mount `/var/log` on the host to scrape them, or feed them into Prometheus textfile collectors, Datadog log pipelines, or simple shell scripts. The backup-stats keys (`snapshot_id`, `files_*`, `bytes_*`) are best-effort: when a backup fails before restic prints them, they are simply omitted from the JSON.
 
@@ -767,7 +770,8 @@ docker exec -ti restic-backup-helper /bin/prune
 docker exec -ti restic-backup-helper /bin/bisync
 docker exec -ti restic-backup-helper /bin/rotate_log
 docker exec -ti restic-backup-helper restic snapshots
-docker exec -ti restic-backup-helper restic restore latest --target /restore
+docker exec -ti restic-backup-helper /bin/restore --list           # operator-friendly restore wrapper (see next section)
+docker exec -ti restic-backup-helper /bin/restore                  # interactive restore (TTY required)
 ```
 
 Triggering any worker manually executes the **same code path** as the cron job: hooks (`/hooks/*.sh`), `RESTIC_CACERT` wiring, `/var/log/last-<job>.json`, mail and webhook notifications all fire. Useful for end-to-end verification after changing env vars.
@@ -798,6 +802,101 @@ docker run --rm -it --cap-add SYS_ADMIN --device /dev/fuse \
   marc0janssen/restic-backup-helper:latest \
   -c "mkdir -p /mnt/browse && restic mount /mnt/browse"
 ```
+
+---
+
+## Restore (operator-friendly)
+
+`/bin/restore` is a wrapper around `restic restore` that handles the nitty-gritty (snapshot selection, empty-target check, dry-run preview, ownership fix-up, mail/webhook/JSON/metrics) so a real restore stays a one-liner instead of a panic-driven cheat-sheet exercise. It works in two complementary modes:
+
+1. **Interactive** — invoked from a TTY (`docker exec -ti …`) without any restore flags. Lists matching snapshots, prompts for index/target/dry-run, confirms before mutating anything.
+2. **Non-interactive** — invoked with any restore flag (e.g. `--id`, `--target`, `--dry-run`). Skips prompts; suitable for cron-jobs, CI smoke tests and runbooks.
+
+It is **not** cron-driven by design: restores are always operator-initiated. All other plumbing matches the rest of the helper (hooks, `RESTIC_CACERT`, `MAILX_RCPT`, `WEBHOOK_URL`, `METRICS_DIR`, `RESTIC_AUTO_UNLOCK` is not used here — restore does not acquire locks).
+
+### Quick start
+
+```shell
+docker exec -ti restic-backup-helper /bin/restore --list                          # show last 20 snapshots for this host+tag
+docker exec -ti restic-backup-helper /bin/restore --list --all                    # show every matching snapshot
+docker exec -ti restic-backup-helper /bin/restore                                 # interactive: pick & restore latest to /restore
+docker exec -ti restic-backup-helper /bin/restore --id 5a3f2c8b --target /restore # specific snapshot, non-interactive
+docker exec -ti restic-backup-helper /bin/restore --dry-run                       # preview what `latest` would restore
+docker exec -ti restic-backup-helper /bin/restore --since 2026-05-01 --target /restore --include /data/documents
+```
+
+The container needs a writable `/restore` target. In the [reference `scripts/docker-compose.yml`](scripts/docker-compose.yml) that is the `restic-restore` named volume; bind-mount a host path instead if you want the restored data directly on disk.
+
+### Flags
+
+| Flag | Default | Purpose |
+| --- | --- | --- |
+| `--id HEX` | *latest* | Restore a specific snapshot by short or long ID. |
+| `--tag TAG` | `$RESTIC_TAG` | Filter snapshots by tag. Use `--tag ""` to disable the filter. |
+| `--host HOST` | container `$HOSTNAME` | Filter snapshots by host. Use `--host ""` to disable. |
+| `--since DATE` | *(off)* | Pick the oldest snapshot newer than `YYYY-MM-DD` or ISO 8601 timestamp. |
+| `--target PATH` | `/restore` | Restore destination; must be writable. Refuses non-empty target unless `--force`. |
+| `--include PATH` | *(none)* | Repeatable; only restore these paths inside the snapshot tree. |
+| `--exclude PATH` | *(none)* | Repeatable; skip these paths during restore. |
+| `--owner UID:GID` | *(off)* | `chown -R UID:GID TARGET` after a successful (non-dry-run) restore. |
+| `--dry-run` | off | Pass restic's own `--dry-run`; nothing is written. Skips ownership change. |
+| `--verify` | off | Pass restic's `--verify` so hashes are verified during restore (slower, catches silent corruption). |
+| `--force` | off | Allow restoring into a non-empty target, **or** into `BACKUP_ROOT_DIR` / `/data` (refused by default). |
+| `--list` | off | List matching snapshots and exit (no restore, no mail/webhook). |
+| `--all` | off | With `--list`, show all matching snapshots; without it, show the last 20. |
+| `--help` | – | Print the usage banner and exit. |
+
+### Interactive walkthrough
+
+```text
+$ docker exec -ti restic-backup-helper /bin/restore
+📋 Matching snapshots in s3:s3.example.com/bucket (tag='larak-docs' host='larak'):
+  #   SNAPSHOT  TIME                 HOST          TAGS           PATHS
+  --- --------  -------------------  ------------  -------------  ----------------------------------
+  1   7a4d2f9c  2026-05-09T03:00:11  larak         larak-docs     /data/documents
+  2   abc0123d  2026-05-08T03:00:09  larak         larak-docs     /data/documents
+  ...
+
+Snapshot to restore [index 1-10 or short-id, default=latest]: 1
+Restore target [/restore]:
+Dry-run first? [Y/n]:
+About to run: restic restore 7a4d2f9c --target /restore --tag larak-docs --host larak --dry-run
+(dry-run; no files will be written)
+Proceed? [y/N]: y
+... restic output streamed to /var/log/restore-last.log ...
+✅ Restore Successful
+🏁 Finished restore at 2026-05-11 Mon 09:42:18 after 0m 4s
+```
+
+After the dry-run completes successfully, re-run `/bin/restore` without `--dry-run` to do the real one (or answer "n" to "Dry-run first?" up front).
+
+### Notifications
+
+Mail and webhook notifications fire for every restore by default — they share the same `MAILX_RCPT`, `WEBHOOK_URL`, `WEBHOOK_HEADER_AUTH`, `WEBHOOK_ON_ERROR` and `MAILX_ON_ERROR` plumbing as the cron-driven workers. Mail subject examples:
+
+```text
+Subject: [OK] Restore larak · 1m12s · 4523 files (567.89 MiB) → /restore
+Subject: [OK] Restore larak · 4s · DRY-RUN · 4523 files (567.89 MiB) → /restore
+Subject: [FAIL 1] Restore larak · 0s · /restore
+```
+
+Per-run summary at `/var/log/last-restore.json` includes `snapshot`, `target`, `dry_run`, `files_restored`, `bytes_restored` and `elapsed_human` where restic produced them. When the operator answers "n" to the final "Proceed?" prompt, `exit_code` is `130` and `cancelled` is `true` so external monitoring can distinguish "operator changed their mind" from "restore actually failed".
+
+### Hooks
+
+```text
+/hooks/pre-restore.sh                # informational; failure does not abort the restore
+/hooks/post-restore.sh "$exit_code"  # always called with the restic exit code as $1
+```
+
+Useful for unmounting source filesystems before the restore, sending Slack-different notifications, or chowning the restore target in a way `--owner` does not cover.
+
+### Safety rails
+
+- Refuses to restore into a non-empty target unless `--force` or `--dry-run` is passed.
+- Refuses to restore directly into `BACKUP_ROOT_DIR` or `/data` (the conventional backup source) unless `--force` is passed — protects against the classic "I will just restore over my source" foot-gun.
+- `--owner` is skipped on `--dry-run` so nothing on disk is touched.
+- A `chown -R` failure after a successful restore is logged but does not turn the run's `exit_code` non-zero (the data is already on disk; ownership is a follow-up concern).
 
 ---
 

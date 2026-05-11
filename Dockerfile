@@ -90,6 +90,11 @@ COPY /app/check.sh /bin/check
 COPY /app/bisync.sh /bin/bisync
 COPY /app/rotate_log.sh /bin/rotate_log
 COPY /app/prune.sh /bin/prune
+# Operator-friendly restore wrapper: flag-driven for scripts/CI, interactive
+# when invoked from `docker exec -ti`. Not cron-driven by design (restores are
+# always operator-initiated); shares mail/webhook/metrics plumbing with the
+# other workers.
+COPY /app/restore.sh /bin/restore
 # Lock-aware cron wrapper used by /entry.sh to log "skipped: previous run
 # still active" instead of leaving cron with an opaque flock exit code.
 COPY /app/locked_run.sh /bin/locked_run
@@ -100,7 +105,7 @@ ARG RESTIC_BACKUP_HELPER_RELEASE=unknown
 LABEL org.opencontainers.image.title="restic-backup-helper" \
 	org.opencontainers.image.version="${RESTIC_BACKUP_HELPER_RELEASE}"
 ENV RESTIC_BACKUP_HELPER_RELEASE=${RESTIC_BACKUP_HELPER_RELEASE}
-RUN chmod 755 /entry.sh /bin/backup /bin/check /bin/bisync /bin/rotate_log /bin/prune /bin/locked_run
+RUN chmod 755 /entry.sh /bin/backup /bin/check /bin/bisync /bin/rotate_log /bin/prune /bin/restore /bin/locked_run
 
 # set sendmail-path
 RUN rm -rf /usr/sbin/sendmail && ln -s /usr/bin/msmtp /usr/sbin/sendmail

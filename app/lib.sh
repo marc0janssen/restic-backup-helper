@@ -377,6 +377,35 @@ parse_restic_backup_stats() {
 	fi
 }
 
+# Parse a `restic restore` text-format log into the RESTORE_STATS_* globals so
+# `/bin/restore` can attach them to last-run.json / webhook / mail subject.
+# Always defines all globals (empty when not found) so callers can safely test
+# with `[ -n "${RESTORE_STATS_*}" ]`.
+#
+# Captured fields (best-effort, restic 0.16+ `Summary: Restored ...` line):
+#   - RESTORE_STATS_FILES_RESTORED  integer (files+dirs from the summary line)
+#   - RESTORE_STATS_BYTES_RESTORED  human string with unit, e.g. "567.89 MiB"
+#   - RESTORE_STATS_ELAPSED_HUMAN   restic's own "1m23s" / "12.345s" string
+#
+# Bytes are kept as restic's pre-formatted string to avoid losing the unit and
+# to keep the helper jq-free; downstream consumers can re-parse for raw bytes.
+parse_restic_restore_stats() {
+	local log="$1"
+	RESTORE_STATS_FILES_RESTORED=""
+	RESTORE_STATS_BYTES_RESTORED=""
+	RESTORE_STATS_ELAPSED_HUMAN=""
+
+	[ -n "${log}" ] && [ -f "${log}" ] || return 0
+
+	local line
+	line="$(grep -E '^Summary: Restored [0-9]+ files/dirs' "${log}" 2>/dev/null | tail -n 1 || true)"
+	if [ -n "${line}" ]; then
+		RESTORE_STATS_FILES_RESTORED="$(printf '%s' "${line}" | sed -nE 's/^Summary: Restored ([0-9]+) files\/dirs \(([^)]+)\) in (.+)$/\1/p')"
+		RESTORE_STATS_BYTES_RESTORED="$(printf '%s' "${line}" | sed -nE 's/^Summary: Restored ([0-9]+) files\/dirs \(([^)]+)\) in (.+)$/\2/p')"
+		RESTORE_STATS_ELAPSED_HUMAN="$(printf '%s' "${line}" | sed -nE 's/^Summary: Restored ([0-9]+) files\/dirs \(([^)]+)\) in (.+)$/\3/p')"
+	fi
+}
+
 # Return 0 (true) when RESTIC_AUTO_UNLOCK is explicitly set to ON
 # (case-insensitive), 1 otherwise. Used by /bin/backup and /bin/check to
 # decide whether to fire `restic unlock` after a failed run. Default OFF
