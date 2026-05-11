@@ -16,13 +16,19 @@ FROM restic/restic:0.18.1
 #   sshpass      used by `sftp:` repositories that need non-key SSH auth
 #   sudo         retained for hook scripts that need to drop privileges
 #   tzdata       enables the TZ env var so cron fires in the operator's TZ
+#   util-linux   ships `script(1)`, used by /bin/restore --verbose to wrap
+#                restic in a pseudo-TTY so its native in-place progress bar
+#                (`[time] X% files, MiB/s, ETA …`) renders even when the
+#                wrapper tees stdout into restore-last.log. Without it the
+#                tee pipe makes restic believe stdout is not a terminal and
+#                the bar is suppressed.
 #
 # `apk upgrade` deliberately omitted: the Restic base image is rebuilt by
 # upstream on a known cadence; running `apk upgrade` here makes the helper
 # image non-reproducible across builds without adding meaningful security
 # value beyond the base layer's existing patch level. CVE coverage is the
 # Trivy/security-scan workflow's job and rebuilds against newer upstream tags.
-RUN apk add --no-cache bash curl fuse libcap mailx msmtp sshpass sudo tzdata
+RUN apk add --no-cache bash curl fuse libcap mailx msmtp sshpass sudo tzdata util-linux
 
 # Optional pinning. Empty value (default) installs the latest stable rclone:
 # version is resolved via downloads.rclone.org/version.txt, then the zip is

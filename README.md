@@ -596,7 +596,7 @@ Each worker writes a structured summary of its **last run** under `/var/log` aft
 | `/var/log/last-check.json` | `/bin/check` | `job`, `hostname`, `release`, `started_at`, `finished_at`, `duration_seconds`, `exit_code`, `repository` (masked) |
 | `/var/log/last-prune.json` | `/bin/prune` | `job`, `hostname`, `release`, `started_at`, `finished_at`, `duration_seconds`, `exit_code`, `repository` (masked) |
 | `/var/log/last-sync.json` | `/bin/bisync` | `job`, `hostname`, `release`, `started_at`, `finished_at`, `duration_seconds`, `exit_code`, `sync_jobs_processed`, `sync_jobs_failed` |
-| `/var/log/last-restore.json` | `/bin/restore` | `job`, `hostname`, `release`, `started_at`, `finished_at`, `duration_seconds`, `exit_code`, `repository` (masked), `snapshot`, `target`, `dry_run`, plus — when restic printed its summary line — `files_restored`, `bytes_restored` (human string), `elapsed_human`; on `Ctrl-C`/operator cancel `exit_code` is `130` and `cancelled` is `true` |
+| `/var/log/last-restore.json` | `/bin/restore` | `job`, `hostname`, `release`, `started_at`, `finished_at`, `duration_seconds`, `exit_code`, `repository` (masked), `snapshot`, `target`, `dry_run`, plus — when restic printed its summary line — `files_restored`, `bytes_restored` (human string), `elapsed_human`; on `Ctrl-C`/operator cancel `exit_code` is `130` and `cancelled` is `true`; when `--include` matches 0 files/dirs, `exit_code` is `3` and `include_zero_match` is `true` |
 
 Files are overwritten atomically each run (write to `*.tmp`, then `mv`). Mount `/var/log` on the host to scrape them, or feed them into Prometheus textfile collectors, Datadog log pipelines, or simple shell scripts. The backup-stats keys (`snapshot_id`, `files_*`, `bytes_*`) are best-effort: when a backup fails before restic prints them, they are simply omitted from the JSON.
 
@@ -809,8 +809,8 @@ docker run --rm -it --cap-add SYS_ADMIN --device /dev/fuse \
 
 `/bin/restore` is a wrapper around `restic restore` that handles the nitty-gritty (snapshot selection, empty-target check, dry-run preview, ownership fix-up, mail/webhook/JSON/metrics) so a real restore stays a one-liner instead of a panic-driven cheat-sheet exercise. It works in two complementary modes:
 
-1. **Interactive** — invoked from a TTY (`docker exec -ti …`) without any restore flags. Lists matching snapshots, prompts for index/target/dry-run, confirms before mutating anything.
-2. **Non-interactive** — invoked with any restore flag (e.g. `--id`, `--target`, `--dry-run`). Skips prompts; suitable for cron-jobs, CI smoke tests and runbooks.
+1. **Interactive** — invoked from a TTY (`docker exec -ti …`) without `--yes`. Lists matching snapshots, prompts for index/target/dry-run, and confirms with a final "Proceed? [y/N/q]" before mutating anything. Flags suppress individual prompts whose answer is already known: `--id` skips the snapshot picker, `--target` skips the target prompt, `--dry-run` skips the dry-run prompt. Modifier flags (`--verbose`, `--force`, `--verify`, `--tag`, `--host`, `--since`, `--include`, `--exclude`, `--owner`) leave the interactive flow fully intact — they are pure behaviour/filter overrides.
+2. **Non-interactive** — invoked without a TTY (cron, CI, `docker exec` without `-t`) **or** with `--yes` / `-y` from inside an interactive container shell. Skips every prompt; falls back to `latest` when `--id` is not provided, `/restore` when `--target` is not provided and no dry-run. Suitable for cron-jobs, CI smoke tests, runbooks and one-shot operator-driven restores.
 
 It is **not** cron-driven by design: restores are always operator-initiated. All other plumbing matches the rest of the helper (hooks, `RESTIC_CACERT`, `MAILX_RCPT`, `WEBHOOK_URL`, `METRICS_DIR`, `RESTIC_AUTO_UNLOCK` is not used here — restore does not acquire locks).
 
@@ -823,6 +823,8 @@ docker exec -ti restic-backup-helper /bin/restore                               
 docker exec -ti restic-backup-helper /bin/restore --id 5a3f2c8b --target /restore # specific snapshot, non-interactive
 docker exec -ti restic-backup-helper /bin/restore --dry-run                       # preview what `latest` would restore
 docker exec -ti restic-backup-helper /bin/restore --since 2026-05-01 --target /restore --include /data/documents
+docker exec -ti restic-backup-helper /bin/restore --id 5a3f2c8b --target /restore --verbose # stream per-file output live
+docker exec -ti restic-backup-helper /bin/restore --id 5a3f2c8b --target /restore --yes     # one-shot from inside the container shell (no prompts at all)
 ```
 
 The container needs a writable `/restore` target. In the [reference `scripts/docker-compose.yml`](scripts/docker-compose.yml) that is the `restic-restore` named volume; bind-mount a host path instead if you want the restored data directly on disk.
@@ -836,11 +838,13 @@ The container needs a writable `/restore` target. In the [reference `scripts/doc
 | `--host HOST` | container `$HOSTNAME` | Filter snapshots by host. Use `--host ""` to disable. |
 | `--since DATE` | *(off)* | Pick the oldest snapshot newer than `YYYY-MM-DD` or ISO 8601 timestamp. |
 | `--target PATH` | `/restore` | Restore destination; must be writable. Refuses non-empty target unless `--force`. |
-| `--include PATH` | *(none)* | Repeatable; only restore these paths inside the snapshot tree. |
+| `--include PATH` | *(none)* | Repeatable; only restore these paths inside the snapshot tree. If all includes match 0 files/dirs, the wrapper exits `3` and marks `include_zero_match=true` so a wrong prefix such as `/home/...` vs `/host/home/...` is not silently green. |
 | `--exclude PATH` | *(none)* | Repeatable; skip these paths during restore. |
 | `--owner UID:GID` | *(off)* | `chown -R UID:GID TARGET` after a successful (non-dry-run) restore. |
 | `--dry-run` | off | Pass restic's own `--dry-run`; nothing is written. Skips ownership change. |
 | `--verify` | off | Pass restic's `--verify` so hashes are verified during restore (slower, catches silent corruption). |
+| `--verbose`, `-v` | off | Stream restic's output to stdout while the restore is running. Two things happen: (a) `--verbose=2` is passed to restic so each file emits a `restored /path/...` line (`--verbose=1` produces almost no per-file output for `restore`); (b) restic is wrapped in `script(1)` (from `util-linux`) which allocates a pseudo-TTY for it, so its native in-place progress bar (`[time] X%, MiB/s, ETA …`) is rendered instead of suppressed by the tee pipe. Combined output is tee'd to `/var/log/restore-last.log`; that file therefore contains ANSI escape codes and `\r` overwrites — view with `cat` on a terminal or strip with `col -bp`. The structured `last-restore.json` summary is unaffected: `lib.sh::parse_restic_restore_stats` normalises `\r → \n` before grepping out the `Summary:` line. |
+| `--yes`, `-y` | off | Run fully non-interactive: skip the snapshot picker, the target prompt, the dry-run prompt **and** the final `Proceed? [y/N/q]` confirmation. Falls back on the same defaults the cron/CI path uses (`latest` snapshot when `--id` is not given, `/restore` target when `--target` is not given, no dry-run). Lets an operator inside `docker exec -ti …` launch a one-shot restore without dropping the TTY via `< /dev/null`. Logged as `ASSUME_YES: ON` in `restore-last.log` so audit trails can distinguish "operator typed y" from "operator passed --yes". |
 | `--force` | off | Allow restoring into a non-empty target, **or** into `BACKUP_ROOT_DIR` / `/data` (refused by default). |
 | `--list` | off | List matching snapshots and exit (no restore, no mail/webhook). |
 | `--all` | off | With `--list`, show all matching snapshots; without it, show the last 20. |
@@ -881,6 +885,8 @@ Subject: [FAIL 1] Restore larak · 0s · /restore
 ```
 
 Per-run summary at `/var/log/last-restore.json` includes `snapshot`, `target`, `dry_run`, `files_restored`, `bytes_restored` and `elapsed_human` where restic produced them. When the operator types `q` / `quit` at any interactive prompt — or answers anything other than `y` / `yes` to the final "Proceed?" prompt — `exit_code` is `130` and `cancelled` is `true` so external monitoring can distinguish "operator changed their mind" from "restore actually failed".
+
+When one or more `--include` filters are configured and restic reports `0` restored files/dirs, the helper treats that as a failed restore (`exit_code=3`, `include_zero_match=true`). This catches the common mistake where the snapshot contains `/host/home/admin/docker/...` but the operator typed `--include /home/admin/docker/...`.
 
 ### Hooks
 

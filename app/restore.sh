@@ -58,16 +58,42 @@ Behaviour:
                       (passes restic's own --dry-run).
   --verify            Pass restic's --verify so hashes are verified during
                       restore. Slower but catches silent corruption.
+  --verbose, -v       Stream restic's output to stdout while the restore
+                      is running. Passes --verbose=2 to restic so per-file
+                      lines (`restored /path/...`) appear, and wraps restic
+                      in `script(1)` so the native in-place progress bar
+                      (`[time] X%, MiB/s, ETA …`) renders too. The combined
+                      output is tee'd to restore-last.log; the file then
+                      contains ANSI escape codes and \r overwrites from
+                      the progress bar — view with `cat` on a terminal or
+                      strip with `col -bp`.
   --force             Allow restoring into a non-empty target.
+  --yes, -y           Run fully non-interactive: skip the snapshot picker,
+                      the target prompt, the dry-run prompt AND the final
+                      "Proceed? [y/N/q]" confirmation. Falls back on the
+                      same defaults the cron/CI path uses (latest snapshot,
+                      /restore target, no dry-run) so an operator inside
+                      `docker exec -ti …` can launch a one-shot restore
+                      without dropping the TTY via `< /dev/null`.
   --list              List matching snapshots (most recent 20) and exit.
   --all               When combined with --list, show all matching snapshots.
   --help              Show this help and exit.
 
 Interactive mode:
-  Invoked without any of the flags above on a TTY (`docker exec -ti ...`),
-  /bin/restore lists the most recent 10 matching snapshots, asks which one
-  to restore, asks for the target, offers a dry-run preview and finally a
-  confirmation before mutating the target.
+  Triggered by stdin/stdout being a TTY (`docker exec -ti ...`) AND --yes
+  not being passed. Flags can suppress prompts individually:
+    --id          skips the snapshot picker
+    --target      skips the target prompt
+    --dry-run     skips the dry-run prompt
+  ...or all at once:
+    --yes / -y    runs the whole command non-interactively (same code path
+                  as cron/CI), filling in any missing answer with the
+                  default (latest snapshot / /restore / no dry-run).
+  Other flags (--verbose, --force, --verify, --tag, --host, --since,
+  --include, --exclude, --owner) leave the interactive flow intact.
+
+  Without a TTY (cron, CI, `docker exec` without -t) no prompts are ever
+  shown and the wrapper falls back to "latest" when --id is not provided.
 
 Notifications and audit trail (mirrors /bin/backup):
   * /var/log/restore-last.log         — full restic stdout/stderr
@@ -95,7 +121,22 @@ DO_VERIFY="OFF"
 FORCE="OFF"
 LIST_ONLY="OFF"
 LIST_ALL="OFF"
-HAD_FLAGS="OFF"
+VERBOSE="OFF"
+# --yes / -y bypasses *only* the final "Proceed?" safety prompt. The earlier
+# pre-prompts (snapshot picker, target, dry-run) are already suppressed by
+# --id, --target and --dry-run respectively, so --yes is what lets an
+# operator in an interactive container shell launch a fully-specified restore
+# in one shot without falling back to `< /dev/null` tricks.
+ASSUME_YES="OFF"
+
+# Per-prompt explicit-flag markers. Interactive mode skips a prompt only when
+# the *answer* was already supplied via a flag. We cannot infer this from the
+# variable alone because TARGET defaults to /restore (not empty) and DRY_RUN
+# is toggled ON by the prompt itself. Modifiers like --verbose, --force,
+# --verify, --include, --exclude, --owner, --tag, --host and --since are pure
+# behaviour/filter overrides and do not affect interactivity at all.
+TARGET_EXPLICIT="OFF"
+DRY_RUN_EXPLICIT="OFF"
 
 # Allow operators to abort the interactive flow at any prompt by typing `q`
 # or `quit`. Writes a cancelled-style last-restore.json (exit 130, same as
@@ -120,67 +161,64 @@ while [ $# -gt 0 ]; do
 	--id)
 		SNAP_ID="${2:-}"
 		shift 2
-		HAD_FLAGS="ON"
 		;;
 	--target)
 		TARGET="${2:-}"
+		TARGET_EXPLICIT="ON"
 		shift 2
-		HAD_FLAGS="ON"
 		;;
 	--tag)
 		TAG_FILTER="${2:-}"
 		shift 2
-		HAD_FLAGS="ON"
 		;;
 	--host)
 		HOST_FILTER="${2:-}"
 		shift 2
-		HAD_FLAGS="ON"
 		;;
 	--since)
 		SINCE_FILTER="${2:-}"
 		shift 2
-		HAD_FLAGS="ON"
 		;;
 	--include)
 		INCLUDE_PATHS+=("${2:-}")
 		shift 2
-		HAD_FLAGS="ON"
 		;;
 	--exclude)
 		EXCLUDE_PATHS+=("${2:-}")
 		shift 2
-		HAD_FLAGS="ON"
 		;;
 	--owner)
 		CHOWN_SPEC="${2:-}"
 		shift 2
-		HAD_FLAGS="ON"
 		;;
 	--dry-run)
 		DRY_RUN="ON"
+		DRY_RUN_EXPLICIT="ON"
 		shift
-		HAD_FLAGS="ON"
 		;;
 	--verify)
 		DO_VERIFY="ON"
 		shift
-		HAD_FLAGS="ON"
 		;;
 	--force)
 		FORCE="ON"
 		shift
-		HAD_FLAGS="ON"
 		;;
 	--list)
 		LIST_ONLY="ON"
 		shift
-		HAD_FLAGS="ON"
 		;;
 	--all)
 		LIST_ALL="ON"
 		shift
-		HAD_FLAGS="ON"
+		;;
+	--verbose | -v)
+		VERBOSE="ON"
+		shift
+		;;
+	--yes | -y)
+		ASSUME_YES="ON"
+		shift
 		;;
 	--help | -h)
 		usage
@@ -345,11 +383,24 @@ fi
 # Resolve which snapshot to restore
 # ---------------------------------------------------------------------------
 
-# When --id was passed we use it directly. Otherwise we pick from the table:
-#   * interactive mode: prompt for index or `latest`
-#   * non-interactive: pick the most recent matching snapshot ("latest")
+# Interactive is a TTY decision *unless* --yes was passed. --yes is an
+# explicit operator opt-out: "use whatever I supplied via flags/env, fall
+# back on the same defaults the cron/CI path uses, ask nothing." That means
+# from inside the container shell (`docker exec -ti …`) the operator can
+# still get a fully prompt-less run without the `< /dev/null` TTY-dropping
+# trick. Per-prompt flags (--id, --target, --dry-run) still only suppress
+# their own prompt when --yes is *not* set.
+INTERACTIVE="OFF"
+if [ -t 0 ] && [ -t 1 ] && [ "${ASSUME_YES}" = "OFF" ]; then
+	INTERACTIVE="ON"
+fi
+
+# Build the snapshot table only when we actually need it: either the operator
+# is going to pick from it (interactive + no --id) or we cannot resolve a
+# default ("latest") in the non-interactive path (handled below by passing
+# the literal "latest" token to restic).
 TABLE=""
-if [ -z "${SNAP_ID}" ] || { [ "${HAD_FLAGS}" = "OFF" ] && [ -t 0 ] && [ -t 1 ]; }; then
+if [ "${INTERACTIVE}" = "ON" ] && [ -z "${SNAP_ID}" ]; then
 	TABLE="$(list_snapshots_table)"
 fi
 
@@ -358,65 +409,68 @@ if [ -n "${TABLE}" ]; then
 	SNAPSHOT_COUNT="$(printf '%s\n' "${TABLE}" | grep -c .)"
 fi
 
-INTERACTIVE="OFF"
-if [ "${HAD_FLAGS}" = "OFF" ] && [ -t 0 ] && [ -t 1 ]; then
-	INTERACTIVE="ON"
-fi
-
 if [ "${INTERACTIVE}" = "ON" ]; then
 	# Clear stale log content before the first user-facing prompt so a
 	# cancel via `q`/`quit` does not append to a previous run's log file.
 	rm -f "${LAST_LOGFILE}" "${LAST_MAIL_LOGFILE}"
 
-	echo "📋 Matching snapshots in ${MASKED_REPO} (tag='${TAG_FILTER:-*}' host='${HOST_FILTER:-*}', newest first):"
-	printf '%s\n' "${TABLE}" | print_snapshot_table 10
-	if [ "${SNAPSHOT_COUNT}" -eq 0 ]; then
-		echo "❌ Nothing to restore. Run /bin/restore --list to widen the filter, or pass --tag/--host." >&2
-		exit 1
-	fi
-	# Range shown in the prompt = number of rows actually displayed (max 10).
-	# Older snapshots remain reachable via their short-id (see `--list`).
-	shown_in_interactive=10
-	if [ "${SNAPSHOT_COUNT}" -lt "${shown_in_interactive}" ]; then
-		shown_in_interactive="${SNAPSHOT_COUNT}"
-	fi
-	if [ "${SNAPSHOT_COUNT}" -gt "${shown_in_interactive}" ]; then
-		echo "(showing ${shown_in_interactive} most recent of ${SNAPSHOT_COUNT}; run /bin/restore --list for all, or use a short-id below)"
-	fi
-	echo ""
-	read -r -p "Snapshot to restore [index 1-${shown_in_interactive} or short-id, default=latest, q=quit]: " choice
-	case "${choice,,}" in
-	q | quit) cancel_interactive_restore ;;
-	esac
-	choice="${choice:-latest}"
-
-	if [[ "${choice}" =~ ^[0-9]+$ ]]; then
-		SNAP_ID="$(printf '%s\n' "${TABLE}" | awk -F'\t' -v idx="${choice}" '$1 == idx { print $2; exit }')"
-		if [ -z "${SNAP_ID}" ]; then
-			echo "❌ No snapshot at index ${choice}." >&2
-			exit 2
+	if [ -z "${SNAP_ID}" ]; then
+		echo "📋 Matching snapshots in ${MASKED_REPO} (tag='${TAG_FILTER:-*}' host='${HOST_FILTER:-*}', newest first):"
+		printf '%s\n' "${TABLE}" | print_snapshot_table 10
+		if [ "${SNAPSHOT_COUNT}" -eq 0 ]; then
+			echo "❌ Nothing to restore. Run /bin/restore --list to widen the filter, or pass --tag/--host." >&2
+			exit 1
 		fi
-	elif [[ "${choice}" == "latest" ]]; then
-		SNAP_ID="latest"
+		# Range shown in the prompt = number of rows actually displayed (max 10).
+		# Older snapshots remain reachable via their short-id (see `--list`).
+		shown_in_interactive=10
+		if [ "${SNAPSHOT_COUNT}" -lt "${shown_in_interactive}" ]; then
+			shown_in_interactive="${SNAPSHOT_COUNT}"
+		fi
+		if [ "${SNAPSHOT_COUNT}" -gt "${shown_in_interactive}" ]; then
+			echo "(showing ${shown_in_interactive} most recent of ${SNAPSHOT_COUNT}; run /bin/restore --list for all, or use a short-id below)"
+		fi
+		echo ""
+		read -r -p "Snapshot to restore [index 1-${shown_in_interactive} or short-id, default=latest, q=quit]: " choice
+		case "${choice,,}" in
+		q | quit) cancel_interactive_restore ;;
+		esac
+		choice="${choice:-latest}"
+
+		if [[ "${choice}" =~ ^[0-9]+$ ]]; then
+			SNAP_ID="$(printf '%s\n' "${TABLE}" | awk -F'\t' -v idx="${choice}" '$1 == idx { print $2; exit }')"
+			if [ -z "${SNAP_ID}" ]; then
+				echo "❌ No snapshot at index ${choice}." >&2
+				exit 2
+			fi
+		elif [[ "${choice}" == "latest" ]]; then
+			SNAP_ID="latest"
+		else
+			SNAP_ID="${choice}"
+		fi
 	else
-		SNAP_ID="${choice}"
+		echo "📌 Snapshot pre-selected via --id: ${SNAP_ID}"
 	fi
 
-	read -r -p "Restore target [${TARGET}, q=quit]: " new_target
-	case "${new_target,,}" in
-	q | quit) cancel_interactive_restore ;;
-	esac
-	if [ -n "${new_target}" ]; then
-		TARGET="${new_target}"
+	if [ "${TARGET_EXPLICIT}" = "OFF" ]; then
+		read -r -p "Restore target [${TARGET}, q=quit]: " new_target
+		case "${new_target,,}" in
+		q | quit) cancel_interactive_restore ;;
+		esac
+		if [ -n "${new_target}" ]; then
+			TARGET="${new_target}"
+		fi
 	fi
 
-	read -r -p "Dry-run first? [Y/n/q]: " dr
-	case "${dr,,}" in
-	q | quit) cancel_interactive_restore ;;
-	esac
-	dr="${dr:-Y}"
-	if [[ "${dr^^}" == "Y" || "${dr^^}" == "YES" ]]; then
-		DRY_RUN="ON"
+	if [ "${DRY_RUN_EXPLICIT}" = "OFF" ]; then
+		read -r -p "Dry-run first? [Y/n/q]: " dr
+		case "${dr,,}" in
+		q | quit) cancel_interactive_restore ;;
+		esac
+		dr="${dr:-Y}"
+		if [[ "${dr^^}" == "Y" || "${dr^^}" == "YES" ]]; then
+			DRY_RUN="ON"
+		fi
 	fi
 elif [ -z "${SNAP_ID}" ]; then
 	# Non-interactive default: latest. restic accepts the literal "latest"
@@ -489,6 +543,21 @@ fi
 if [ "${DRY_RUN}" = "ON" ]; then
 	restore_cmd+=(--dry-run)
 fi
+# Verbose mode: ask restic itself to emit per-file output so there is
+# actually something to stream. --verbose=2 is the level that prints
+# `restored /path/to/file`, `skipped /path/to/file` and `unchanged …`
+# lines (restic PR #4839, present since 0.17+). --verbose=1 by itself
+# barely produces extra output for `restore`, which is why --verbose used
+# to look like a no-op during a long restore.
+#
+# The native in-place progress bar (`[3:42] 5.2%, 12 MiB/s, 1234/24000
+# files`) requires restic to detect a real TTY on stdout. Our tee-to-log
+# pipe makes that detection fail; if you want the percentage bar back,
+# add util-linux to the image and wrap restic in `script` so the child
+# sees a PTY. The per-file stream below is the dependency-free fallback.
+if [ "${VERBOSE}" = "ON" ]; then
+	restore_cmd+=(--verbose=2)
+fi
 
 # ---------------------------------------------------------------------------
 # Run
@@ -510,15 +579,21 @@ logLast "INCLUDE_PATHS: ${INCLUDE_PATHS[*]:-}"
 logLast "EXCLUDE_PATHS: ${EXCLUDE_PATHS[*]:-}"
 logLast "DRY_RUN: ${DRY_RUN}"
 logLast "VERIFY: ${DO_VERIFY}"
+logLast "VERBOSE: ${VERBOSE}"
 logLast "FORCE: ${FORCE}"
+logLast "ASSUME_YES: ${ASSUME_YES}"
 logLast "CHOWN_SPEC: ${CHOWN_SPEC:-}"
 
+# Preview the exact restic invocation regardless of interactive mode so an
+# operator running with --yes (no Proceed prompt) still sees the command
+# being executed. In a TTY this also serves as the leader for the prompt.
+echo ""
+echo "About to run: restic ${restore_cmd[*]}"
+if [ "${DRY_RUN}" = "ON" ]; then
+	echo "(dry-run; no files will be written)"
+fi
+
 if [ "${INTERACTIVE}" = "ON" ]; then
-	echo ""
-	echo "About to run: restic ${restore_cmd[*]}"
-	if [ "${DRY_RUN}" = "ON" ]; then
-		echo "(dry-run; no files will be written)"
-	fi
 	read -r -p "Proceed? [y/N/q]: " confirm
 	if [[ "${confirm,,}" != "y" && "${confirm,,}" != "yes" ]]; then
 		log "🛑 Restore cancelled by operator."
@@ -530,15 +605,57 @@ if [ "${INTERACTIVE}" = "ON" ]; then
 			"cancelled" "true"
 		exit 130
 	fi
+elif [ "${ASSUME_YES}" = "ON" ]; then
+	# Audit-friendly: explicit one-liner so the cron / non-TTY log clearly
+	# records that the Proceed prompt was bypassed by --yes rather than
+	# never reached because there was no TTY.
+	echo "(--yes: skipping Proceed? confirmation)"
 fi
 
 # if/else captures restic's exit code without aborting under `set -e`.
-if restic "${RESTIC_CACERT_ARGS[@]}" "${restore_cmd[@]}" >>"${LAST_LOGFILE}" 2>&1; then
-	restoreRC=0
+# Verbose mode: wrap restic in `script(1)` (util-linux) so restic sees a
+# real PTY on stdout and renders its native in-place progress bar
+# (`[time] X% files, MiB/s, ETA …`) instead of suppressing it because of
+# the tee pipe. Combined output is still tee'd into restore-last.log so
+# the run remains auditable. `set -o pipefail` is already active, so the
+# pipeline's exit code reflects restic's (not tee's) when restic fails;
+# `script -e` ensures script itself exits with the child's status. The
+# log file will contain ANSI escape sequences and \r overwrites from the
+# progress bar — pipe through `col -bp` (also from util-linux) or `cat`
+# on a terminal to read it back as plain text. `parse_restic_restore_stats`
+# in lib.sh normalises \r → \n before grepping so the Summary line is
+# still extractable.
+#
+# `printf '%q '` shell-safe-quotes every restic argument, so paths with
+# spaces or special characters survive the script -c invocation.
+if [ "${VERBOSE}" = "ON" ]; then
+	restic_cmd_str="$(printf '%q ' restic "${RESTIC_CACERT_ARGS[@]}" "${restore_cmd[@]}")"
+	# script(1) parses `-c CMD` with $SHELL; on the Restic Alpine base
+	# SHELL is /bin/ash, which does not understand bash's %q output
+	# (e.g. $'\t' for non-printable chars). Force bash explicitly so the
+	# round-trip stays safe regardless of the container's default shell.
+	if SHELL=/bin/bash script -q -e -f -c "${restic_cmd_str}" /dev/null 2>&1 | tee -a "${LAST_LOGFILE}"; then
+		restoreRC=0
+	else
+		restoreRC=$?
+	fi
 else
-	restoreRC=$?
+	if restic "${RESTIC_CACERT_ARGS[@]}" "${restore_cmd[@]}" >>"${LAST_LOGFILE}" 2>&1; then
+		restoreRC=0
+	else
+		restoreRC=$?
+	fi
 fi
 logLast "Finished restore at $(date +"%Y-%m-%d %a %H:%M:%S")"
+
+parse_restic_restore_stats "${LAST_LOGFILE}"
+include_zero_match="OFF"
+if [ "${restoreRC}" -eq 0 ] && [ "${#INCLUDE_PATHS[@]}" -gt 0 ] && [ "${RESTORE_STATS_FILES_RESTORED:-}" = "0" ]; then
+	include_zero_match="ON"
+	restoreRC=3
+	errorlog "❌ Restore include matched 0 files/dirs. Check the path as stored in the snapshot (for example /host/... vs /home/...)."
+	copyErrorLog
+fi
 
 if [ "${restoreRC}" -eq 0 ]; then
 	log "✅ Restore Successful"
@@ -563,8 +680,6 @@ minutes=$((duration / 60))
 seconds=$((duration % 60))
 log "🏁 Finished restore at $(date +"%Y-%m-%d %a %H:%M:%S") after ${minutes}m ${seconds}s"
 
-parse_restic_restore_stats "${LAST_LOGFILE}"
-
 last_run_extras=(
 	"repository" "${MASKED_REPO}"
 	"snapshot" "${SNAP_ID}"
@@ -584,6 +699,9 @@ if [ -n "${RESTORE_STATS_FILES_RESTORED}" ]; then
 		"elapsed_human" "${RESTORE_STATS_ELAPSED_HUMAN}"
 	)
 fi
+if [ "${include_zero_match}" = "ON" ]; then
+	last_run_extras+=("include_zero_match" "true")
+fi
 
 write_last_run_json "restore" "${restoreRC}" "${start}" "${end}" "${last_run_extras[@]}"
 notify_webhook "restore" "${restoreRC}" "${start}" "${end}" "${last_run_extras[@]}" || true
@@ -594,6 +712,9 @@ write_metrics_for_job "restore" "${restoreRC}" "${start}" "${end}" "${last_run_e
 mail_details="${TARGET}"
 if [ -n "${RESTORE_STATS_FILES_RESTORED}" ]; then
 	mail_details="${RESTORE_STATS_FILES_RESTORED} files (${RESTORE_STATS_BYTES_RESTORED}) → ${TARGET}"
+fi
+if [ "${include_zero_match}" = "ON" ]; then
+	mail_details="include matched 0 · ${mail_details}"
 fi
 if [ "${DRY_RUN}" = "ON" ]; then
 	mail_details="DRY-RUN · ${mail_details}"

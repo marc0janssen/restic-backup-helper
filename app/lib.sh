@@ -397,8 +397,15 @@ parse_restic_restore_stats() {
 
 	[ -n "${log}" ] && [ -f "${log}" ] || return 0
 
+	# /bin/restore --verbose wraps restic in `script(1)` so the native
+	# progress bar renders; the log then contains \r overwrites that fuse
+	# progress updates with the Summary line into a single grep-line.
+	# Normalise \r → \n first so `^Summary:` keeps anchoring as expected.
+	# Trailing \r (CRLF-style) is also stripped from the matched line
+	# before the sed extraction so it does not leak into the elapsed value.
 	local line
-	line="$(grep -E '^Summary: Restored [0-9]+ files/dirs' "${log}" 2>/dev/null | tail -n 1 || true)"
+	line="$(tr '\r' '\n' <"${log}" 2>/dev/null | grep -E '^Summary: Restored [0-9]+ files/dirs' | tail -n 1 || true)"
+	line="${line%$'\r'}"
 	if [ -n "${line}" ]; then
 		RESTORE_STATS_FILES_RESTORED="$(printf '%s' "${line}" | sed -nE 's/^Summary: Restored ([0-9]+) files\/dirs \(([^)]+)\) in (.+)$/\1/p')"
 		RESTORE_STATS_BYTES_RESTORED="$(printf '%s' "${line}" | sed -nE 's/^Summary: Restored ([0-9]+) files\/dirs \(([^)]+)\) in (.+)$/\2/p')"
