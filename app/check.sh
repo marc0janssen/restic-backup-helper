@@ -10,7 +10,7 @@ set -Eeuo pipefail
 
 # Define log files (kept on disk under their existing names; variable names are
 # unified to LAST_LOGFILE / LAST_ERROR_LOGFILE so /bin/lib.sh helpers can be
-# shared with /bin/backup and /bin/bisync).
+# shared with /bin/backup and /bin/replicate).
 LAST_LOGFILE="/var/log/check-last.log"
 LAST_ERROR_LOGFILE="/var/log/check-error-last.log"
 LAST_MAIL_LOGFILE="/var/log/check-mail-last.log"

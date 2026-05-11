@@ -121,7 +121,7 @@ spec:
               value: "0 4 * * 0"
             - name: RESTIC_PRUNE_ARGS
               value: "--max-unused 10%"
-            - name: SYNC_CRON
+            - name: REPLICATE_CRON
               value: ""
             # Notifications
             - name: MAILX_RCPT

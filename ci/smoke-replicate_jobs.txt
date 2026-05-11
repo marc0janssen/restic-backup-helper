@@ -1,0 +1,2 @@
+# CI smoke: local replicate job in bisync mode on the smoke volume.
+/data/sync_a;/data/sync_b

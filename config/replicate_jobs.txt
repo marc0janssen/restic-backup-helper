@@ -1,14 +1,14 @@
-# SYNC JOBS
+# REPLICATE JOBS
 #
 # Format: SOURCE;DESTINATION[;MODE[;EXTRA_ARGS]]
 #   MODE       bisync (default) | sync | copy
-#   EXTRA_ARGS rclone flags appended after the global SYNC_JOB_ARGS for THIS
-#              job only (--resync is filtered out for routine runs)
+#   EXTRA_ARGS rclone flags appended after the global REPLICATE_JOB_ARGS for
+#              THIS job only (--resync is filtered out for routine runs)
 #
 # Comment lines starting with '#' and blank lines are ignored.
 # Recovery procedure (copy both + --resync) only runs for bisync failures.
 
-# Two-column legacy form; runs as bisync with global SYNC_JOB_ARGS:
+# Two-column legacy form; runs as bisync with global REPLICATE_JOB_ARGS:
 /volume1/inbox;jottasync:/inbox
 /volume1/photo;jottasync:/photo
 

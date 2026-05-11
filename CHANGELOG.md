@@ -2,6 +2,22 @@
 
 ## Restic Backup Helper
 
+### 2.0.0-0.18.1 (2026-05-11)
+
+#### Changed (breaking)
+
+- **Rclone "sync/bisync" surface renamed to "replicate".** The worker now lives at `app/replicate.sh` and is exposed as `/bin/replicate`; cron uses `/var/run/replicate.lock`; logs moved from `/var/log/sync-last.log` / `sync-error-last.log` / `sync-mail-last.log` to `/var/log/replicate-last.log` / `replicate-error-last.log` / `replicate-mail-last.log`; the structured summary moved from `/var/log/last-sync.json` to `/var/log/last-replicate.json`; Prometheus textfile output is now `restic_replicate.prom`; hooks are now `/hooks/pre-replicate.sh` and `/hooks/post-replicate.sh`; the JSON/webhook job name is now `replicate`; mail subjects use `Replicate` instead of `Sync`.
+- **Config sample renamed from `config/sync_jobs.txt` to `config/replicate_jobs.txt`.** The installed default is now `REPLICATE_JOB_FILE=/config/replicate_jobs.txt`. Existing deployments mounting an old file must either rename the mounted file or set `REPLICATE_JOB_FILE=/config/sync_jobs.txt` explicitly. No runtime symlink is created for the config file by design.
+- **Environment variable names moved from `SYNC_*` to `REPLICATE_*`.** Use `REPLICATE_CRON`, `REPLICATE_JOB_FILE`, `REPLICATE_JOB_ARGS`, `REPLICATE_VERBOSE` and `REPLICATE_BISYNC_CHECK_ACCESS`. The rclone per-job mode value `bisync` is unchanged; `SOURCE;DESTINATION;bisync`, `SOURCE;DESTINATION;sync` and `SOURCE;DESTINATION;copy` remain valid job-file rows.
+
+#### Added
+
+- **Compatibility bridge for old deployments.** `/bin/bisync` is now a symlink to `/bin/replicate`, and legacy `SYNC_*` environment variables are mapped to their `REPLICATE_*` replacements when the new names are unset. Both paths log deprecation warnings and are scheduled for removal in 3.0.0.
+
+#### Deprecated
+
+- **`SYNC_*` env vars and `/bin/bisync` alias.** Kept for compatibility in 2.x, removed in 3.0.0. New deployments should use `REPLICATE_*` and `/bin/replicate`.
+
 ### 1.18.0-0.18.1 (2026-05-11)
 
 #### Added

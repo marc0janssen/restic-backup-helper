@@ -3,7 +3,7 @@
 # Name: restic-backup-helper
 # Coder: Marco Janssen (micro.blog @marc0janssen https://micro.mjanssen.nl)
 # Shared runtime helpers sourced by /entry.sh, /bin/backup, /bin/check,
-# /bin/bisync and /bin/rotate_log inside the container.
+# /bin/replicate and /bin/rotate_log inside the container.
 #
 # Contract:
 #   - Consumers set LAST_LOGFILE to the per-run log they want to append to.
@@ -11,8 +11,9 @@
 #   - Consumers may set LAST_ERROR_LOGFILE; copyErrorLog() copies LAST_LOGFILE
 #     to LAST_ERROR_LOGFILE when both are set.
 #   - log() echoes to stdout when LOG_VERBOSE (default ON) is "ON" (case
-#     insensitive). bisync sets LOG_VERBOSE from SYNC_VERBOSE so user-facing
-#     verbosity keeps its existing semantics.
+#     insensitive). replicate sets LOG_VERBOSE from REPLICATE_VERBOSE (or
+#     legacy SYNC_VERBOSE) so user-facing verbosity keeps its existing
+#     semantics.
 #   - errorlog() always echoes to stdout regardless of LOG_VERBOSE.
 # =========================================================
 

@@ -16,10 +16,10 @@ Ideas and planned enhancements for **restic-backup-helper**. Ordering is not str
 ## Observability & notifications
 
 - [x] **Webhook** notifications after backup / check / sync via `WEBHOOK_URL` (POSTs the same JSON document as `/var/log/last-<job>.json`); supports `WEBHOOK_HEADER_AUTH`, `WEBHOOK_TIMEOUT` (default 10s) and `WEBHOOK_ON_ERROR` (only on non-zero exit) — 1.11.21-0.18.1.
-- [x] **`last-run.json`** under `/var/log` for backup / check / sync with job name, timestamps, duration, exit code, hostname and job-specific details (repository (masked), backup root, sync job counts) — 1.11.18-0.18.1.
+- [x] **`last-run.json`** under `/var/log` for backup / check / replicate with job name, timestamps, duration, exit code, hostname and job-specific details (repository (masked), backup root, replicate job counts) — 1.11.18-0.18.1.
 - [x] **Restic backup stats** in `last-backup.json` + backup webhook payload: `snapshot_id`, `files_new` / `files_changed` / `files_unmodified`, `bytes_added` / `bytes_stored` (parsed from `restic backup` text output) — 1.11.22-0.18.1.
 - [x] **Prometheus textfile collector** integration via opt-in `METRICS_DIR`: every worker writes `restic_<job>.prom` (atomic tmp+mv) with exit code, success, duration, finished timestamp and any numeric extras already attached to `last-<job>.json`. README documents node-exporter wiring — 1.15.0-0.18.1.
-- [x] **Richer mail subjects** for backup/check/prune/sync: `[OK|FAIL <code>] <Job> <hostname> · <duration> · <details>` with bytes-added + snapshot ID (backup), masked repository (check/prune) and `<n> jobs (<m> failed)` (sync). `lib.sh::format_subject` + `lib.sh::human_duration` — 1.15.0-0.18.1.
+- [x] **Richer mail subjects** for backup/check/prune/replicate: `[OK|FAIL <code>] <Job> <hostname> · <duration> · <details>` with bytes-added + snapshot ID (backup), masked repository (check/prune) and `<n> jobs (<m> failed)` (replicate). `lib.sh::format_subject` + `lib.sh::human_duration` — 1.15.0-0.18.1.
 - [x] Documented **Compose HEALTHCHECK** recipes (weak vs strong: `restic version` vs `restic cat config` / `snapshots`) — 1.11.3-0.18.1.
 
 ---
@@ -53,7 +53,7 @@ Ideas and planned enhancements for **restic-backup-helper**. Ordering is not str
 - [x] **SBOM artifacts on release builds**: opt-in `SBOM=ON ./build.sh` runs Syft against the pushed image and writes SPDX + CycloneDX JSON to `./sbom/` (gitignored); release-orchestration workflow additionally runs `anchore/sbom-action` against the source tree on every `v*` tag and uploads `sbom-source.{spdx,cyclonedx}.json` next to the existing Trivy diagnostics. README **Supply chain** section documents both surfaces — 1.16.0-0.18.1.
 - [x] **Hardening (read-only root, non-root) docs**: README section explains why the image runs as root (cron, FUSE, NFS, hooks) and ships a Compose recipe (`read_only: true` + tmpfs for `/tmp`, `/run`, `/var/run`, `/var/spool/cron`, `/var/log`, `/.cache/restic`, plus `cap_drop: [ALL]` + `cap_add: [DAC_READ_SEARCH, SYS_ADMIN]` and `no-new-privileges:true`) so operators can tighten the blast radius at the orchestration layer without forking the image. A separate "slim" image remains an open backlog idea — 1.16.0-0.18.1.
 - [x] Reviewed Dockerfile package strategy: dropped `apk upgrade` (reproducibility win, CVE coverage stays a Trivy-scan / base-rebuild responsibility) and inline-documented every remaining apk package — 1.15.0-0.18.1.
-- [x] Audited logs and notification output: sync source/destination credentials are now masked via new `lib.sh::mask_endpoint` helper; README "Logging & privacy" section enumerates the redaction surface (repository URL, sync endpoints, webhook URL, webhook auth header, hook stdout, restic args) — 1.15.0-0.18.1.
+- [x] Audited logs and notification output: replicate source/destination credentials are now masked via new `lib.sh::mask_endpoint` helper; README "Logging & privacy" section enumerates the redaction surface (repository URL, replicate endpoints, webhook URL, webhook auth header, hook stdout, restic args) — 1.15.0-0.18.1.
 
 ---
 
@@ -67,11 +67,13 @@ Ideas and planned enhancements for **restic-backup-helper**. Ordering is not str
 
 ---
 
-## Rclone sync
+## Rclone replicate
 
-- [x] **One-way sync jobs** (`rclone sync` / `copy`) in addition to **`bisync`** via an optional `MODE` column in `SYNC_JOB_FILE` (`SOURCE;DESTINATION[;MODE[;EXTRA_ARGS]]`); one-way modes have no automatic recovery — 1.14.0-0.18.1.
-- [x] **Per-job** extra args via the optional 4th column in `SYNC_JOB_FILE`; appended after the global `SYNC_JOB_ARGS` for that job only and shell-word split — 1.14.0-0.18.1.
-- [x] Hardened **bisync recovery** documentation + opt-in `SYNC_BISYNC_CHECK_ACCESS` (`OFF` default). When `ON`, routine bisync runs and the recovery `bisync --resync` are extended with `--check-access` so a missing `RCLONE_TEST` marker aborts loudly instead of letting a wiped remote propagate deletes. README has a "Bisync recovery hardening" subsection with marker-seeding steps and a recommendation to prefer one-way `sync`/`copy` modes when bidirectional behaviour is not needed — 1.15.0-0.18.1.
+- [x] **One-way replicate jobs** (`rclone sync` / `copy`) in addition to **`bisync`** via an optional `MODE` column in `REPLICATE_JOB_FILE` (`SOURCE;DESTINATION[;MODE[;EXTRA_ARGS]]`); one-way modes have no automatic recovery — 1.14.0-0.18.1.
+- [x] **Per-job** extra args via the optional 4th column in `REPLICATE_JOB_FILE`; appended after the global `REPLICATE_JOB_ARGS` for that job only and shell-word split — 1.14.0-0.18.1.
+- [x] Hardened **bisync recovery** documentation + opt-in `REPLICATE_BISYNC_CHECK_ACCESS` (`OFF` default). When `ON`, routine bisync runs and the recovery `bisync --resync` are extended with `--check-access` so a missing `RCLONE_TEST` marker aborts loudly instead of letting a wiped remote propagate deletes. README has a "Bisync recovery hardening" subsection with marker-seeding steps and a recommendation to prefer one-way `sync`/`copy` modes when bidirectional behaviour is not needed — 1.15.0-0.18.1.
+- [x] Rename the old **sync/bisync worker surface to replicate**: `app/replicate.sh`, `/bin/replicate`, `REPLICATE_*` env vars, `/var/log/last-replicate.json`, `restic_replicate.prom`, `pre/post-replicate` hooks and `config/replicate_jobs.txt`. Legacy `SYNC_*` env vars and `/bin/bisync` stay as deprecated compatibility aliases until 3.0.0 — 2.0.0-0.18.1.
+- [ ] **3.0.0 cleanup:** remove deprecated `SYNC_*` env aliases and the `/bin/bisync` compatibility symlink after a full 2.x deprecation window.
 
 ---
 
@@ -79,9 +81,9 @@ Ideas and planned enhancements for **restic-backup-helper**. Ordering is not str
 
 - [x] Introduce shared runtime helper library (`app/lib.sh` copied to `/bin/lib.sh`) for logging, `copyErrorLog`, repository masking — 1.11.16-0.18.1.
 - [x] Remove obsolete commented **`RESTIC_PUBLICKEY`** / `CACERT_OPTION` code now that `RESTIC_CACERT` is the documented path — 1.11.15-0.18.1.
-- [x] Add `set -Eeuo pipefail` to runtime workers (`/entry.sh`, `/bin/backup`, `/bin/check`, `/bin/bisync`, `/bin/rotate_log`) and `lib.sh::run_hook` / `parse_restic_backup_stats`; restic and rclone invocations wrapped in `if/else` to preserve exit-code handling around forget / unlock / recovery / mail / webhook branches — 1.11.24-0.18.1.
+- [x] Add `set -Eeuo pipefail` to runtime workers (`/entry.sh`, `/bin/backup`, `/bin/check`, `/bin/replicate`, `/bin/rotate_log`) and `lib.sh::run_hook` / `parse_restic_backup_stats`; restic and rclone invocations wrapped in `if/else` to preserve exit-code handling around forget / unlock / recovery / mail / webhook branches — 1.11.24-0.18.1.
 - [x] Generic **hook runner** in `/bin/lib.sh` with executable checks, timeout support (`HOOK_TIMEOUT`) and consistent logging of hook start, exit code and duration — 1.11.19-0.18.1.
-- [x] Reduce duplicated mail-notification logic between backup/check/sync into `/bin/lib.sh::notify_mail`; preserves `MAILX_ON_ERROR` semantics and bisync's "only on irrecoverable error" pattern via an optional third arg — 1.11.23-0.18.1.
+- [x] Reduce duplicated mail-notification logic between backup/check/replicate into `/bin/lib.sh::notify_mail`; preserves `MAILX_ON_ERROR` semantics and replicate's "only on irrecoverable error" pattern via an optional third arg — 1.11.23-0.18.1.
 
 ---
 

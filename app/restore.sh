@@ -7,7 +7,7 @@
 #              both non-interactive flag-driven invocations (cron-jobs,
 #              scripts, CI) and an interactive TTY mode that lists matching
 #              snapshots and prompts for target/dry-run. Follows the same
-#              patterns as /bin/backup, /bin/check, /bin/prune and /bin/bisync
+#              patterns as /bin/backup, /bin/check, /bin/prune and /bin/replicate
 #              (hooks, RESTIC_CACERT wiring, last-restore.json, mail/webhook,
 #              Prometheus textfile metrics).
 # =========================================================

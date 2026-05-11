@@ -8,7 +8,7 @@ These instructions apply to the whole repository.
 
 ## Project Context
 
-This repository builds **`marc0janssen/restic-backup-helper`**, a Docker image for scheduled [Restic](https://restic.net) backups, repository checks, optional Rclone sync, logging and mail notifications.
+This repository builds **`marc0janssen/restic-backup-helper`**, a Docker image for scheduled [Restic](https://restic.net) backups, repository checks, optional Rclone replicate jobs, logging and mail notifications.
 
 The image is based on **`restic/restic`** (Alpine). This repository owns application scripts under `app/`, container entrypoint behaviour, cron wiring, configuration samples, build tooling and documentation—not the Restic core itself.
 
@@ -38,13 +38,13 @@ The image is based on **`restic/restic`** (Alpine). This repository owns applica
 |------|------|
 | `Dockerfile` | Image definition; `restic/restic:<tag>`; release string via `ARG` / `ENV RESTIC_BACKUP_HELPER_RELEASE` at build time (no repo `.release` file) |
 | `app/entry.sh` | Container entrypoint |
-| `app/backup.sh`, `app/check.sh`, `app/bisync.sh`, `app/rotate_log.sh` | Cron-invoked workers |
+| `app/backup.sh`, `app/check.sh`, `app/replicate.sh`, `app/rotate_log.sh` | Cron-invoked workers |
 | `app/install_rclone.sh` | Rclone install during image build |
 | `scripts/build-common.sh` | Shared logic for release versioning and Docker Hub builds |
 | `build.sh`, `build-testing.sh` | Stable / dev Docker Hub builds (read optional `build.env` / `build-testing.env`) |
 | `build-testing-local.sh` | Private-registry build; pushes only `:testing` (optional `build-testing-local.env`) |
 | `scripts/start_restic_helper_agent_compose.sh`, `scripts/docker-compose.yml` | Example/runtime helpers |
-| `config/` | Sample excludes, msmtp, sync job definitions |
+| `config/` | Sample excludes, msmtp, replicate job definitions |
 | **`README.md`** | Primary documentation (GitHub, full detail) |
 | **`README-containers.md`** | Docker Hub description: short summary, tags, links; **must stay aligned** with release/pull-tag lines that build scripts auto-patch |
 

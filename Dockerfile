@@ -58,11 +58,18 @@ ENV BACKUP_ROOT_DIR=""
 ENV CHECK_CRON=""
 ENV PRUNE_CRON=""
 ENV RCLONE_CONFIG="/config/rclone.conf"
-ENV SYNC_JOB_FILE="/config/sync_jobs.txt"
+ENV REPLICATE_JOB_FILE="/config/replicate_jobs.txt"
+ENV REPLICATE_JOB_ARGS=""
+ENV REPLICATE_CRON=""
+ENV REPLICATE_VERBOSE="ON"
+ENV REPLICATE_BISYNC_CHECK_ACCESS="OFF"
+# Deprecated compatibility aliases for the old sync/bisync surface; accepted
+# by /entry.sh and /bin/replicate until 3.0.0. Prefer REPLICATE_* above.
+ENV SYNC_JOB_FILE=""
 ENV SYNC_JOB_ARGS=""
 ENV SYNC_CRON=""
-ENV SYNC_VERBOSE="ON"
-ENV SYNC_BISYNC_CHECK_ACCESS="OFF"
+ENV SYNC_VERBOSE=""
+ENV SYNC_BISYNC_CHECK_ACCESS=""
 ENV METRICS_DIR=""
 ENV ROTATE_LOG_CRON="0 0 * * 6"
 ENV CRON_LOG_MAX_SIZE="1048576"
@@ -93,7 +100,7 @@ VOLUME /data
 COPY /app/entry.sh /entry.sh
 COPY /app/backup.sh /bin/backup
 COPY /app/check.sh /bin/check
-COPY /app/bisync.sh /bin/bisync
+COPY /app/replicate.sh /bin/replicate
 COPY /app/rotate_log.sh /bin/rotate_log
 COPY /app/prune.sh /bin/prune
 # Operator-friendly restore wrapper: flag-driven for scripts/CI, interactive
@@ -111,7 +118,8 @@ ARG RESTIC_BACKUP_HELPER_RELEASE=unknown
 LABEL org.opencontainers.image.title="restic-backup-helper" \
 	org.opencontainers.image.version="${RESTIC_BACKUP_HELPER_RELEASE}"
 ENV RESTIC_BACKUP_HELPER_RELEASE=${RESTIC_BACKUP_HELPER_RELEASE}
-RUN chmod 755 /entry.sh /bin/backup /bin/check /bin/bisync /bin/rotate_log /bin/prune /bin/restore /bin/locked_run
+RUN chmod 755 /entry.sh /bin/backup /bin/check /bin/replicate /bin/rotate_log /bin/prune /bin/restore /bin/locked_run \
+	&& ln -s replicate /bin/bisync
 
 # set sendmail-path
 RUN rm -rf /usr/sbin/sendmail && ln -s /usr/bin/msmtp /usr/sbin/sendmail

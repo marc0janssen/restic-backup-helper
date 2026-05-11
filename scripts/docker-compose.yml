@@ -56,13 +56,13 @@ services:
       PRUNE_CRON: ${PRUNE_CRON:-0 4 * * 0}
       RESTIC_PRUNE_ARGS: ${RESTIC_PRUNE_ARGS:---max-unused 10%}
 
-      # Optional Rclone bisync job
+      # Optional Rclone replicate job (bisync/sync/copy)
       RCLONE_CONFIG: ${RCLONE_CONFIG:-/config/rclone.conf}
-      SYNC_JOB_FILE: ${SYNC_JOB_FILE:-/config/sync_jobs.txt}
-      SYNC_JOB_ARGS: ${SYNC_JOB_ARGS:---exclude-from /config/exclude_sync.txt}
-      SYNC_CRON: ${SYNC_CRON:-}
-      SYNC_VERBOSE: ${SYNC_VERBOSE:-ON}
-      SYNC_BISYNC_CHECK_ACCESS: ${SYNC_BISYNC_CHECK_ACCESS:-OFF}
+      REPLICATE_JOB_FILE: ${REPLICATE_JOB_FILE:-/config/replicate_jobs.txt}
+      REPLICATE_JOB_ARGS: ${REPLICATE_JOB_ARGS:---exclude-from /config/exclude_sync.txt}
+      REPLICATE_CRON: ${REPLICATE_CRON:-}
+      REPLICATE_VERBOSE: ${REPLICATE_VERBOSE:-ON}
+      REPLICATE_BISYNC_CHECK_ACCESS: ${REPLICATE_BISYNC_CHECK_ACCESS:-OFF}
 
       # Optional NFS repository mount; usually keep RESTIC_REPOSITORY=/mnt/restic.
       NFS_TARGET: ${NFS_TARGET:-}

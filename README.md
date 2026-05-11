@@ -30,7 +30,7 @@ If this image saves you time, you can [leave a tip on Ko-fi](https://ko-fi.com/m
 8. [Hooks](#hooks)
 9. [Examples: Docker Compose](#examples-docker-compose)
 10. [Backup backends](#backup-backends)
-11. [Optional Rclone sync jobs](#optional-rclone-sync-jobs)
+11. [Optional Rclone replicate jobs](#optional-rclone-replicate-jobs)
 12. [Mail notifications](#mail-notifications)
 13. [Log rotation](#log-rotation)
 14. [Webhook notifications](#webhook-notifications)
@@ -53,7 +53,7 @@ If this image saves you time, you can [leave a tip on Ko-fi](https://ko-fi.com/m
 - **Scheduled backup** via `/bin/backup` (cron expression `BACKUP_CRON`), with optional **snapshot policy** (`RESTIC_FORGET_ARGS` runs `restic forget` after a successful backup).
 - **Scheduled integrity check** via `/bin/check` when `CHECK_CRON` is non-empty.
 - **Scheduled standalone prune** via `/bin/prune` when `PRUNE_CRON` is non-empty (decouples the heavy `restic prune` from per-backup `restic forget`).
-- **Scheduled Rclone bisync** via `/bin/bisync` when `SYNC_CRON` and a valid `SYNC_JOB_FILE` are configured.
+- **Scheduled Rclone replication** via `/bin/replicate` when `REPLICATE_CRON` and a valid `REPLICATE_JOB_FILE` are configured. Jobs can run rclone `bisync` (default), `sync` or `copy`.
 - **Repository probe on startup**: when `RESTIC_CHECK_REPOSITORY_STATUS=ON`, the entrypoint probes with `restic cat config` and only auto-runs `restic init` when the probe exits **10** (repository does not exist). Other non-zero exits (wrong password, network, DNS, TLS, auth) log restic stderr and abort startup so a transient failure cannot accidentally re-init a healthy remote.
 - **Configuration check**: run `docker run … config-check` with the same env as production to validate credentials, backup paths, `RCLONE_CONFIG` and `RESTIC_CACERT` readability without starting cron (CI-friendly).
 - **Concurrency**: each job is wrapped in **`/bin/locked_run`** which acquires a dedicated `flock` and, on contention, logs `⏭ <job> skipped: previous run still active` to `/var/log/cron.log` instead of failing silently.
@@ -65,12 +65,12 @@ If this image saves you time, you can [leave a tip on Ko-fi](https://ko-fi.com/m
 
 ## Image tags and release
 
-release: 1.18.0-0.18.1
+release: 2.0.0-0.18.1
 
 | Train | When to use | Example pull |
 | --- | --- | --- |
-| **Stable** | Production | `docker pull marc0janssen/restic-backup-helper:latest` or pinned `marc0janssen/restic-backup-helper:1.18.0-0.18.1` |
-| **Testing** | Pre-release / CI | `docker pull marc0janssen/restic-backup-helper:develop` or `marc0janssen/restic-backup-helper:1.18.0-0.18.1-dev` |
+| **Stable** | Production | `docker pull marc0janssen/restic-backup-helper:latest` or pinned `marc0janssen/restic-backup-helper:2.0.0-0.18.1` |
+| **Testing** | Pre-release / CI | `docker pull marc0janssen/restic-backup-helper:develop` or `marc0janssen/restic-backup-helper:2.0.0-0.18.1-dev` |
 
 > **Upgrading?**
 >
@@ -80,8 +80,9 @@ release: 1.18.0-0.18.1
 >   - **`scripts/docker-compose.yml`** now ships two opt-in [Compose profiles](https://docs.docker.com/compose/profiles/): `metrics` (node-exporter sidecar) and `dev` (mailhog SMTP catcher). Existing `docker compose up` invocations keep starting only the main service.
 >   - **Multiple backup jobs** pattern at [`examples/compose/multi-job.yml`](examples/compose/multi-job.yml) for setups that already wanted to back up several datasets on different schedules. See [Multiple backup jobs](#multiple-backup-jobs).
 >   - **Hardening** docs section enumerates capabilities to drop and tmpfs paths needed for `read_only: true` (orchestration-layer tightening; no image change).
-> - **From 1.14.x → 1.15.0:** purely additive. New opt-in env vars: `METRICS_DIR` (Prometheus textfile collector) and `SYNC_BISYNC_CHECK_ACCESS` (bisync `--check-access` opt-in). Mail subjects gain a richer prefix (`[OK|FAIL N] Backup …`); update any subject-based filter rules. Container logs now mask inline credentials in sync source/destination URLs.
-> - **From 1.13.x → 1.14.0:** `RESTIC_TAG=""` (explicitly empty) is now a hard failure with exit code 2 — set a meaningful tag (e.g. `daily`, `${HOSTNAME}-data`). The Dockerfile still defaults to `automated`, so installs that never set `RESTIC_TAG` are unaffected. `SYNC_JOB_FILE` gains optional `MODE` / `EXTRA_ARGS` columns; existing two-column lines keep working as bisync.
+> - **From 1.18.x → 2.0.0:** the old "sync/bisync" surface is renamed to **replicate**. Use `/bin/replicate`, `REPLICATE_*` env vars, `/config/replicate_jobs.txt`, `/hooks/pre-replicate.sh` / `/hooks/post-replicate.sh`, `/var/log/last-replicate.json`, `/var/log/replicate-last.log` and `restic_replicate.prom`. Legacy `SYNC_*` env vars and `/bin/bisync` still work with deprecation warnings and will be removed in 3.0.0. The old `config/sync_jobs.txt` sample is not installed anymore; rename your mounted file or set `REPLICATE_JOB_FILE` explicitly.
+> - **From 1.14.x → 1.15.0:** purely additive. New opt-in env vars: `METRICS_DIR` (Prometheus textfile collector) and `REPLICATE_BISYNC_CHECK_ACCESS` (bisync `--check-access` opt-in; legacy `SYNC_BISYNC_CHECK_ACCESS` still accepted until 3.0.0). Mail subjects gain a richer prefix (`[OK|FAIL N] Backup …`); update any subject-based filter rules. Container logs now mask inline credentials in replicate source/destination URLs.
+> - **From 1.13.x → 1.14.0:** `RESTIC_TAG=""` (explicitly empty) is now a hard failure with exit code 2 — set a meaningful tag (e.g. `daily`, `${HOSTNAME}-data`). The Dockerfile still defaults to `automated`, so installs that never set `RESTIC_TAG` are unaffected. Replicate job files gain optional `MODE` / `EXTRA_ARGS` columns; existing two-column lines keep working as bisync.
 > - **From 1.11.x:** Automatic `restic unlock` after backup / check failures is **opt-in** via `RESTIC_AUTO_UNLOCK=ON` (since 1.12.0). The new default leaves the lock alone (safer for repositories shared across multiple hosts). See the env table below and the [Troubleshooting](#troubleshooting) section for the migration hint.
 
 Pinned tags let you lock both **helper semver** and **Restic base** (`<semver>-<restic>`).
@@ -121,12 +122,12 @@ For **FUSE / `restic mount`**, add capabilities and device (see [Manual operatio
 1. **`/entry.sh`** starts at container boot, prints release metadata (`RESTIC_BACKUP_HELPER_RELEASE`), optionally mounts NFS (`NFS_TARGET`), validates or initializes the repository, then writes **root’s crontab** under `/var/spool/cron/crontabs/root` and runs **`crond`**.
 2. **Backup line** (always present): `BACKUP_CRON … /bin/locked_run backup … /bin/backup >> /var/log/cron.log`.
 3. **Check line** (optional): appended only if `CHECK_CRON` is non-empty.
-4. **Sync line** (optional): appended only if `SYNC_CRON` is non-empty.
+4. **Replicate line** (optional): appended only if `REPLICATE_CRON` is non-empty (legacy `SYNC_CRON` is still accepted until 3.0.0).
 5. **Prune line** (optional): appended only if `PRUNE_CRON` is non-empty.
 6. **Rotate line** (always present): `ROTATE_LOG_CRON … /bin/locked_run rotate_log … /bin/rotate_log`.
 6. Default **CMD** tails `/var/log/cron.log` so the container stays foreground-friendly for Compose and logs aggregate cron output.
 
-Worker scripts live at `/bin/backup`, `/bin/check`, `/bin/prune`, `/bin/bisync`, `/bin/rotate_log`. The cron wrapper itself is `/bin/locked_run`.
+Worker scripts live at `/bin/backup`, `/bin/check`, `/bin/prune`, `/bin/replicate`, `/bin/restore`, `/bin/rotate_log`. The deprecated `/bin/bisync` alias points to `/bin/replicate` until 3.0.0. The cron wrapper itself is `/bin/locked_run`.
 
 ---
 
@@ -135,7 +136,7 @@ Worker scripts live at `/bin/backup`, `/bin/check`, `/bin/prune`, `/bin/bisync`,
 | Path | Purpose |
 | --- | --- |
 | `/data` | Declared `VOLUME`; typical backup source when `BACKUP_ROOT_DIR=/data`. |
-| `/config` | Recommended mount for `rclone.conf`, exclude files, `msmtprc`, sync job file. |
+| `/config` | Recommended mount for `rclone.conf`, exclude files, `msmtprc`, replicate job file. |
 | `/hooks` | Optional mount for hook scripts (see [Hooks](#hooks)). |
 | `/var/log` | Optional mount to persist logs on the host. |
 | `/restore` | Convention for `restic restore --target /restore` (mount explicitly). |
@@ -189,23 +190,23 @@ Defaults below match **`Dockerfile`** unless noted. Empty default means unset/bl
 | --- | --- | --- |
 | `NFS_TARGET` | *(empty)* | If set, entrypoint runs `mount -o nolock -v "$NFS_TARGET" /mnt/restic`. **Container aborts with exit `1` if the mount fails** so jobs do not run against an empty `/mnt/restic`. Intended workflow keeps `RESTIC_REPOSITORY` at default `/mnt/restic`. |
 
-### Rclone sync (bisync)
+### Rclone replicate (bisync/sync/copy)
 
 | Variable | Default | Description |
 | --- | --- | --- |
 | `RCLONE_CONFIG` | `/config/rclone.conf` | Path to Rclone configuration. |
-| `SYNC_JOB_FILE` | `/config/sync_jobs.txt` | Job file: `SOURCE;DESTINATION[;MODE[;EXTRA_ARGS]]` per line (comments `#` allowed). See [Optional Rclone sync jobs](#optional-rclone-sync-jobs). |
-| `SYNC_JOB_ARGS` | *(empty)* | Extra global args passed to every rclone job (shell-word split; `--resync` is stripped from routine runs). Per-job extras can be added via the 4th column of `SYNC_JOB_FILE`. |
-| `SYNC_CRON` | *(empty)* | If non-empty, schedules `/bin/bisync`. |
-| `SYNC_VERBOSE` | `ON` | When `ON`, sync messages also echo to stdout (still always logged to file). |
-| `SYNC_BISYNC_CHECK_ACCESS` | `OFF` | When `ON`, appends `--check-access` to the routine `bisync` runs and the recovery `bisync --resync`. Requires the well-known `RCLONE_TEST` marker file to exist on both endpoints; rclone aborts loudly when it is missing instead of treating one side as "everything deleted". One-way `sync`/`copy` modes are unaffected. See [Optional Rclone sync jobs](#optional-rclone-sync-jobs). |
+| `REPLICATE_JOB_FILE` | `/config/replicate_jobs.txt` | Job file: `SOURCE;DESTINATION[;MODE[;EXTRA_ARGS]]` per line (comments `#` allowed). See [Optional Rclone replicate jobs](#optional-rclone-replicate-jobs). Legacy `SYNC_JOB_FILE` is accepted until 3.0.0. |
+| `REPLICATE_JOB_ARGS` | *(empty)* | Extra global args passed to every rclone job (shell-word split; `--resync` is stripped from routine runs). Per-job extras can be added via the 4th column of `REPLICATE_JOB_FILE`. Legacy `SYNC_JOB_ARGS` is accepted until 3.0.0. |
+| `REPLICATE_CRON` | *(empty)* | If non-empty, schedules `/bin/replicate`. Legacy `SYNC_CRON` is accepted until 3.0.0. |
+| `REPLICATE_VERBOSE` | `ON` | When `ON`, replicate messages also echo to stdout (still always logged to file). Legacy `SYNC_VERBOSE` is accepted until 3.0.0. |
+| `REPLICATE_BISYNC_CHECK_ACCESS` | `OFF` | When `ON`, appends `--check-access` to the routine `bisync` runs and the recovery `bisync --resync`. Requires the well-known `RCLONE_TEST` marker file to exist on both endpoints; rclone aborts loudly when it is missing instead of treating one side as "everything deleted". One-way `sync`/`copy` modes are unaffected. Legacy `SYNC_BISYNC_CHECK_ACCESS` is accepted until 3.0.0. See [Optional Rclone replicate jobs](#optional-rclone-replicate-jobs). |
 
 ### Mail
 
 | Variable | Default | Description |
 | --- | --- | --- |
 | `MAILX_RCPT` | *(empty)* | If set, backup/check can mail logs (see [Mail notifications](#mail-notifications)). |
-| `MAILX_ON_ERROR` | `OFF` | When `ON`, backup and check only send mail after a **failed** run. Sync mails only when at least one job error occurred (see scripts). |
+| `MAILX_ON_ERROR` | `OFF` | When `ON`, backup and check only send mail after a **failed** run. Replicate mails only when at least one job error occurred (see scripts). |
 
 ### Webhook
 
@@ -265,7 +266,7 @@ Use standard AWS variables (`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_D
 
 ## Cron and time zones
 
-Crontab entries are written literally from `BACKUP_CRON`, `CHECK_CRON`, `SYNC_CRON`, `PRUNE_CRON` and `ROTATE_LOG_CRON`. Each entry is wrapped in `/bin/locked_run` so overlapping ticks log `⏭ <job> skipped: previous run still active` to `/var/log/cron.log` instead of failing silently. Ensure **`TZ`** matches how you expect schedules to fire. For UTC-only mental models, set `TZ=UTC`.
+Crontab entries are written literally from `BACKUP_CRON`, `CHECK_CRON`, `REPLICATE_CRON`, `PRUNE_CRON` and `ROTATE_LOG_CRON`. Each entry is wrapped in `/bin/locked_run` so overlapping ticks log `⏭ <job> skipped: previous run still active` to `/var/log/cron.log` instead of failing silently. Ensure **`TZ`** matches how you expect schedules to fire. For UTC-only mental models, set `TZ=UTC`.
 
 ---
 
@@ -281,8 +282,8 @@ Mount scripts into **`/hooks`**:
 | `/hooks/post-check.sh` | After check; receives **check exit code** as `$1` |
 | `/hooks/pre-prune.sh` | Before prune |
 | `/hooks/post-prune.sh` | After prune; receives **prune exit code** as `$1` |
-| `/hooks/pre-sync.sh` | Before sync batch |
-| `/hooks/post-sync.sh` | After sync batch; receives **aggregate exit code** as `$1` |
+| `/hooks/pre-replicate.sh` | Before replicate batch |
+| `/hooks/post-replicate.sh` | After replicate batch; receives **aggregate exit code** as `$1` |
 
 Hooks must be executable inside the container (`chmod +x`); a hook present but **not executable** is reported as an error in the cron log instead of silently doing nothing. Set **`HOOK_TIMEOUT`** to a positive integer to wrap each invocation in `timeout ${HOOK_TIMEOUT}s`; the runner logs `pre-*`/`post-*` start, exit code and duration in a uniform format and reports timeouts (exit `124`) prominently. Hook exit codes are logged but do **not** propagate to the worker exit code (the cron job is still considered successful when the underlying restic/rclone command succeeded).
 
@@ -341,12 +342,12 @@ services:
       PRUNE_CRON: "0 4 * * 0"                  # weekly; leave empty to disable
       RESTIC_PRUNE_ARGS: "--max-unused 10%"
 
-      # ─── Optional: Rclone bisync ───────────────────────────────────────────────
+      # ─── Optional: Rclone replicate (bisync/sync/copy) ────────────────────────
       RCLONE_CONFIG: /config/rclone.conf
-      SYNC_JOB_FILE: /config/sync_jobs.txt
-      SYNC_JOB_ARGS: "--exclude-from /config/exclude_sync.txt"
-      SYNC_CRON: "*/30 * * * *"                # leave empty to disable sync
-      SYNC_VERBOSE: "ON"
+      REPLICATE_JOB_FILE: /config/replicate_jobs.txt
+      REPLICATE_JOB_ARGS: "--exclude-from /config/exclude_sync.txt"
+      REPLICATE_CRON: "*/30 * * * *"           # leave empty to disable replicate
+      REPLICATE_VERBOSE: "ON"
 
       # ─── Optional: NFS-mounted repo target (then keep RESTIC_REPOSITORY=/mnt/restic) ─
       # NFS_TARGET: "nfs-server:/export/restic"
@@ -361,7 +362,7 @@ services:
       WEBHOOK_TIMEOUT: "15"
       WEBHOOK_ON_ERROR: "OFF"                  # OFF = post every run; ON = only on failure
 
-      # ─── Hooks (/hooks/{pre,post}-{backup,check,prune,sync}.sh) ────────────────
+      # ─── Hooks (/hooks/{pre,post}-{backup,check,prune,replicate}.sh) ──────────
       HOOK_TIMEOUT: "300"                      # seconds; 0 = no enforced timeout
 
       # ─── Log rotation (/var/log/cron.log) ──────────────────────────────────────
@@ -377,7 +378,7 @@ services:
 
     volumes:
       - /etc/localtime:/etc/localtime:ro
-      - ./config:/config:ro                    # rclone.conf, exclude lists, sync_jobs.txt, ca-bundle.pem
+      - ./config:/config:ro                    # rclone.conf, exclude lists, replicate_jobs.txt, ca-bundle.pem
       - ./config/msmtprc:/etc/msmtprc:ro       # only needed when MAILX_RCPT is set
       - ./hooks:/hooks:ro                      # only needed when you ship hook scripts
       - backup-logs:/var/log                   # persists last-*.json, cron.log, archives
@@ -482,17 +483,17 @@ Use `swift:container:/path` style URLs and populate the `OS_*` variables.
 
 ---
 
-## Optional Rclone sync jobs
+## Optional Rclone replicate jobs
 
-`SYNC_JOB_FILE` lines (semicolon-separated, comments and blank lines allowed):
+`REPLICATE_JOB_FILE` lines (semicolon-separated, comments and blank lines allowed):
 
 ```text
 # SOURCE;DESTINATION[;MODE[;EXTRA_ARGS]]
 #   MODE       bisync (default) | sync | copy
-#   EXTRA_ARGS rclone flags appended after the global SYNC_JOB_ARGS for THIS job only
+#   EXTRA_ARGS rclone flags appended after the global REPLICATE_JOB_ARGS for THIS job only
 #              (--resync is stripped from both for routine runs)
 
-# Two-column legacy form; runs as bisync with global SYNC_JOB_ARGS:
+# Two-column legacy form; runs as bisync with global REPLICATE_JOB_ARGS:
 /data/inbox;jottacloud:inbox
 
 # Bisync with a per-job exclude file in addition to the global one:
@@ -510,15 +511,17 @@ Use `swift:container:/path` style URLs and populate the `OS_*` variables.
 | `SOURCE` | yes | Local path or rclone remote path. |
 | `DESTINATION` | yes | Local path or rclone remote path. |
 | `MODE` | no (default `bisync`) | `bisync` keeps both sides in sync (recovery on failure). `sync` makes destination match source (deletions propagate). `copy` is additive, no deletes. |
-| `EXTRA_ARGS` | no | Per-job rclone flags appended after `SYNC_JOB_ARGS`. Shell-word split. `--resync` is filtered out so a routine run can never resync implicitly. |
+| `EXTRA_ARGS` | no | Per-job rclone flags appended after `REPLICATE_JOB_ARGS`. Shell-word split. `--resync` is filtered out so a routine run can never resync implicitly. |
 
-Schedule with `SYNC_CRON`. **Recovery procedure** (copy both directions then `bisync --resync`) only runs for `bisync` failures; `sync` and `copy` failures surface immediately without an automatic destructive recovery — that is intentional because a one-way `sync` failure may already represent the operator's intended state diverging. Mail is sent only when at least one job recorded an unrecoverable error (and `MAILX_RCPT` is set); the same payload is POSTed to `WEBHOOK_URL` when configured. Malformed lines (missing `SOURCE`/`DESTINATION` or unknown `MODE`) count as failed jobs and trigger the same notification path so a typo cannot produce a silently green run.
+Schedule with `REPLICATE_CRON`. **Recovery procedure** (copy both directions then `bisync --resync`) only runs for `bisync` failures; `sync` and `copy` failures surface immediately without an automatic destructive recovery — that is intentional because a one-way `sync` failure may already represent the operator's intended state diverging. Mail is sent only when at least one job recorded an unrecoverable error (and `MAILX_RCPT` is set); the same payload is POSTed to `WEBHOOK_URL` when configured. Malformed lines (missing `SOURCE`/`DESTINATION` or unknown `MODE`) count as failed jobs and trigger the same notification path so a typo cannot produce a silently green run.
+
+Legacy `SYNC_*` env vars and `/bin/bisync` remain accepted until 3.0.0 with deprecation warnings, but new deployments should use `REPLICATE_*` and `/bin/replicate`. The old sample name `config/sync_jobs.txt` is not installed anymore; rename it to `config/replicate_jobs.txt` or set `REPLICATE_JOB_FILE` to the path you mount.
 
 #### Bisync recovery hardening
 
 The default bisync recovery (copy both → `bisync --resync`) is convenient but can be **destructive** if one endpoint legitimately holds deletes that you do not want propagated back. Two safety knobs:
 
-1. **`SYNC_BISYNC_CHECK_ACCESS=ON`** appends `--check-access` to every bisync run and to the recovery resync. Rclone aborts loudly when the well-known marker file (`RCLONE_TEST` by default) is missing on either side — so a remote that has been wiped no longer looks like "everything got deleted intentionally" and no one-way deletes propagate.
+1. **`REPLICATE_BISYNC_CHECK_ACCESS=ON`** appends `--check-access` to every bisync run and to the recovery resync. Rclone aborts loudly when the well-known marker file (`RCLONE_TEST` by default) is missing on either side — so a remote that has been wiped no longer looks like "everything got deleted intentionally" and no one-way deletes propagate.
 
    Seed the marker once on both endpoints before turning the flag on:
 
@@ -595,7 +598,7 @@ Each worker writes a structured summary of its **last run** under `/var/log` aft
 | `/var/log/last-backup.json` | `/bin/backup` | `job`, `hostname`, `release`, `started_at`, `finished_at`, `duration_seconds`, `exit_code`, `repository` (masked), `backup_root_dir`, `restic_tag`, plus — when restic produced them — `snapshot_id`, `files_new` / `files_changed` / `files_unmodified`, `bytes_added` / `bytes_stored` (human strings such as `1.234 MiB`) |
 | `/var/log/last-check.json` | `/bin/check` | `job`, `hostname`, `release`, `started_at`, `finished_at`, `duration_seconds`, `exit_code`, `repository` (masked) |
 | `/var/log/last-prune.json` | `/bin/prune` | `job`, `hostname`, `release`, `started_at`, `finished_at`, `duration_seconds`, `exit_code`, `repository` (masked) |
-| `/var/log/last-sync.json` | `/bin/bisync` | `job`, `hostname`, `release`, `started_at`, `finished_at`, `duration_seconds`, `exit_code`, `sync_jobs_processed`, `sync_jobs_failed` |
+| `/var/log/last-replicate.json` | `/bin/replicate` | `job`, `hostname`, `release`, `started_at`, `finished_at`, `duration_seconds`, `exit_code`, `replicate_jobs_processed`, `replicate_jobs_failed` |
 | `/var/log/last-restore.json` | `/bin/restore` | `job`, `hostname`, `release`, `started_at`, `finished_at`, `duration_seconds`, `exit_code`, `repository` (masked), `snapshot`, `target`, `dry_run`, plus — when restic printed its summary line — `files_restored`, `bytes_restored` (human string), `elapsed_human`; on `Ctrl-C`/operator cancel `exit_code` is `130` and `cancelled` is `true`; when `--include` matches 0 files/dirs, `exit_code` is `3` and `include_zero_match` is `true` |
 
 Files are overwritten atomically each run (write to `*.tmp`, then `mv`). Mount `/var/log` on the host to scrape them, or feed them into Prometheus textfile collectors, Datadog log pipelines, or simple shell scripts. The backup-stats keys (`snapshot_id`, `files_*`, `bytes_*`) are best-effort: when a backup fails before restic prints them, they are simply omitted from the JSON.
@@ -608,7 +611,7 @@ Set **`METRICS_DIR`** to a writable path inside the container (for example `/var
 node_exporter --collector.textfile.directory=/var/log/textfile_collector
 ```
 
-Always-emitted gauges (one of each per `<job>` ∈ `backup`, `check`, `prune`, `sync`):
+Always-emitted gauges (one of each per `<job>` ∈ `backup`, `check`, `prune`, `replicate`, `restore`):
 
 | Metric | Meaning |
 | --- | --- |
@@ -617,7 +620,7 @@ Always-emitted gauges (one of each per `<job>` ∈ `backup`, `check`, `prune`, `
 | `restic_<job>_last_duration_seconds{hostname="…"}` | Wall-clock duration of the run. |
 | `restic_<job>_last_finished_timestamp{hostname="…"}` | Unix epoch seconds at which the run ended. Useful for `time() - restic_backup_last_finished_timestamp` alerting. |
 
-Extra numeric fields in `last-<job>.json` (for example `files_new`, `bytes_added` when restic produced bytes as a number, `sync_jobs_processed`, `sync_jobs_failed`) are emitted as `restic_<job>_last_<key>`. Non-numeric extras (such as the human-formatted `bytes_added="1.234 MiB"` or the masked `repository`) are intentionally skipped to keep the textfile strictly typed for Prometheus.
+Extra numeric fields in `last-<job>.json` (for example `files_new`, `bytes_added` when restic produced bytes as a number, `replicate_jobs_processed`, `replicate_jobs_failed`) are emitted as `restic_<job>_last_<key>`. Non-numeric extras (such as the human-formatted `bytes_added="1.234 MiB"` or the masked `repository`) are intentionally skipped to keep the textfile strictly typed for Prometheus.
 
 Files are atomic (`.tmp` + `mv`) so a node-exporter scrape never sees a partial file. Leave `METRICS_DIR` empty to disable the export entirely (default).
 
@@ -628,11 +631,11 @@ Files are atomic (`.tmp` + `mv`) so a node-exporter scrape never sees a partial 
 The image is intentionally chatty about what it ran and why, but never about secrets. The masking and redaction rules:
 
 - **Repository URLs** (`scheme://user:password@host`, `backend:user:password@host`) — userinfo is replaced with `:***` before being printed, written to `last-<job>.json`, posted to webhooks, or used in mail subjects (`mask_repository`).
-- **Sync source/destination** with inline credentials — same masking via `mask_endpoint`. Configured `rclone:` remotes have credentials in `rclone.conf` and never leak through.
+- **Replicate source/destination** with inline credentials — same masking via `mask_endpoint`. Configured `rclone:` remotes have credentials in `rclone.conf` and never leak through.
 - **Webhook URL** — only the `scheme://host/...` is logged; the full URL with per-recipient secrets in path/query (healthchecks.io UUIDs, Slack tokens, ntfy topics) never appears (`mask_webhook_url`).
 - **Webhook auth header** (`WEBHOOK_HEADER_AUTH`) — never echoed; logs only mention `auth header set`.
 - **Restic / msmtp passwords** — read from env or password file by restic/msmtp directly; never echoed by the helper scripts.
-- **`RESTIC_JOB_ARGS` / `RESTIC_FORGET_ARGS` / `RESTIC_PRUNE_ARGS` / `SYNC_JOB_ARGS`** — printed verbatim because they are caller-controlled. Avoid stuffing secrets into these (use `RESTIC_PASSWORD_FILE` and `--password-command` files instead).
+- **`RESTIC_JOB_ARGS` / `RESTIC_FORGET_ARGS` / `RESTIC_PRUNE_ARGS` / `REPLICATE_JOB_ARGS`** — printed verbatim because they are caller-controlled. Avoid stuffing secrets into these (use `RESTIC_PASSWORD_FILE` and `--password-command` files instead).
 - **Hook scripts** — the runner logs `pre-*` / `post-*` start, exit code and duration but never the script's stdout/stderr unless your hook itself prints. Make sure your hook does not echo secrets to stdout.
 
 To audit what your container actually logs:
@@ -767,7 +770,7 @@ Replace container name as needed.
 docker exec -ti restic-backup-helper /bin/backup
 docker exec -ti restic-backup-helper /bin/check
 docker exec -ti restic-backup-helper /bin/prune
-docker exec -ti restic-backup-helper /bin/bisync
+docker exec -ti restic-backup-helper /bin/replicate
 docker exec -ti restic-backup-helper /bin/rotate_log
 docker exec -ti restic-backup-helper restic snapshots
 docker exec -ti restic-backup-helper /bin/restore --list           # operator-friendly restore wrapper (see next section)
