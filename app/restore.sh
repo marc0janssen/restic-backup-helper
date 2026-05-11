@@ -181,8 +181,10 @@ done
 # ---------------------------------------------------------------------------
 
 # Print a tab-separated table of matching snapshots:
-#   index<TAB>id<TAB>time<TAB>tags<TAB>paths
-# Index is 1-based; rows are ordered oldest-first by `restic snapshots`.
+#   index<TAB>short_id<TAB>time<TAB>host<TAB>tags<TAB>paths
+# Index is 1-based and rows are emitted **newest-first** so callers can take
+# the first N rows to display "the N most recent". `restic snapshots --json`
+# itself orders oldest-first, so the END block below reverses + renumbers.
 # `restic snapshots --latest 1 --json` would only give us the very last one,
 # so we list all and post-filter to avoid an extra round-trip.
 list_snapshots_table() {
@@ -258,7 +260,6 @@ list_snapshots_table() {
 			return content
 		}
 		{
-			idx = $1
 			rec = $2
 			short_id = jget(rec, "short_id")
 			if (short_id == "") short_id = substr(jget(rec, "id"), 1, 8)
@@ -271,7 +272,18 @@ list_snapshots_table() {
 			# Filter by --since if provided. ISO 8601 strings compare
 			# lexicographically when both are YYYY-MM-DDTHH:MM:SS-formatted.
 			if (since != "" && short_time < since) next
-			printf "%s\t%s\t%s\t%s\t%s\t%s\n", idx, short_id, short_time, hostname, tags, paths
+			n++
+			out[n] = short_id "\t" short_time "\t" hostname "\t" tags "\t" paths
+		}
+		END {
+			# Reverse so the newest snapshot from `restic snapshots --json`
+			# (which emits oldest-first) becomes row 1, and renumber the
+			# leading column to a 1-based newest-first ordinal so the
+			# interactive prompt`s "index 1-N" maps to what is actually
+			# displayed.
+			for (i = n; i >= 1; i--) {
+				printf "%d\t%s\n", (n - i + 1), out[i]
+			}
 		}
 	' "/tmp/restore-snapshots.$$.tsv"
 
@@ -329,14 +341,23 @@ if [ "${HAD_FLAGS}" = "OFF" ] && [ -t 0 ] && [ -t 1 ]; then
 fi
 
 if [ "${INTERACTIVE}" = "ON" ]; then
-	echo "📋 Matching snapshots in ${MASKED_REPO} (tag='${TAG_FILTER:-*}' host='${HOST_FILTER:-*}'):"
+	echo "📋 Matching snapshots in ${MASKED_REPO} (tag='${TAG_FILTER:-*}' host='${HOST_FILTER:-*}', newest first):"
 	printf '%s\n' "${TABLE}" | print_snapshot_table 10
 	if [ "${SNAPSHOT_COUNT}" -eq 0 ]; then
 		echo "❌ Nothing to restore. Run /bin/restore --list to widen the filter, or pass --tag/--host." >&2
 		exit 1
 	fi
+	# Range shown in the prompt = number of rows actually displayed (max 10).
+	# Older snapshots remain reachable via their short-id (see `--list`).
+	shown_in_interactive=10
+	if [ "${SNAPSHOT_COUNT}" -lt "${shown_in_interactive}" ]; then
+		shown_in_interactive="${SNAPSHOT_COUNT}"
+	fi
+	if [ "${SNAPSHOT_COUNT}" -gt "${shown_in_interactive}" ]; then
+		echo "(showing ${shown_in_interactive} most recent of ${SNAPSHOT_COUNT}; run /bin/restore --list for all, or use a short-id below)"
+	fi
 	echo ""
-	read -r -p "Snapshot to restore [index 1-${SNAPSHOT_COUNT} or short-id, default=latest]: " choice
+	read -r -p "Snapshot to restore [index 1-${shown_in_interactive} or short-id, default=latest]: " choice
 	choice="${choice:-latest}"
 
 	if [[ "${choice}" =~ ^[0-9]+$ ]]; then

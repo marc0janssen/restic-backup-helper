@@ -16,6 +16,10 @@
 - **README "Restore (operator-friendly)" section** with flag table, interactive walkthrough, mail subject examples, hook reference, safety rails and the `last-restore.json` schema row in the per-run JSON summaries table.
 - **SBOM parity for `./build-testing-local.sh`.** The private-registry build now calls the shared `emit_sbom` helper after `docker buildx build --push`, mirroring `./build.sh` / `./build-testing.sh`. Gated by `SBOM=ON` (and a working `syft` on `PATH`) so existing local builds are unaffected by default. To prevent collisions with the Docker Hub SBOM artifacts that land in `./sbom/`, the local script defaults `SBOM_DIR=./sbom/local`; an explicit `SBOM_DIR` override still wins.
 
+#### Fixed
+
+- **`/bin/restore` snapshot ordering.** Interactive mode and `--list` are now sorted **newest-first**: the second awk pass in `list_snapshots_table` collects matching snapshots into an array and emits them in reverse order with a renumbered 1-based index in its `END` block, so row 1 is the most recent snapshot and `print_snapshot_table 10` shows "the 10 most recent" instead of "the 10 oldest". The interactive prompt now caps its `index 1-N` range at the number of rows actually displayed and, when the filter matched more snapshots than fit on screen, prints a one-line hint pointing operators to `/bin/restore --list` (or the short-id form) for older snapshots.
+
 ### 1.16.0-0.18.1 (2026-05-10)
 
 #### Added
