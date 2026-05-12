@@ -12,6 +12,12 @@ edit_uri: edit/develop/docs/
 
 docs_dir: docs
 
+# Emit foo.html instead of foo/index.html so the generated site is also
+# browsable directly from disk over file:// (handy for offline reading
+# and quick local previews without `mkdocs serve`). GitHub Pages still
+# resolves both forms.
+use_directory_urls: false
+
 theme:
   name: material
   language: en

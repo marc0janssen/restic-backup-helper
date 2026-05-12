@@ -62,7 +62,12 @@ jobs:
           path: site
 
   deploy:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    # Deploy from both main (production) and develop (preview), because the
+    # docs site currently lives on develop until the next release merge to
+    # main. Concurrency: pages (above) prevents overlapping deploys.
+    if: >-
+      github.event_name == 'push' &&
+      (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop')
     needs: build
     runs-on: ubuntu-latest
     environment:

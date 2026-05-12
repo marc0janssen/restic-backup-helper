@@ -46,7 +46,8 @@ If this image saves you time, you can [leave a tip on Ko-fi](https://ko-fi.com/m
 24. [Security](#security)
 25. [Troubleshooting](#troubleshooting)
 26. [Contributing](#contributing)
-27. [Further reading](#further-reading)
+27. [Documentation site (Material for MkDocs)](#documentation-site-material-for-mkdocs)
+28. [Further reading](#further-reading)
 
 ---
 
@@ -1034,6 +1035,40 @@ On Kubernetes, mount a `Secret` as a volume (or use `subPath`) and set `RESTIC_P
 ## Contributing
 
 Lint matrix, pre-commit setup and worker-script invariants are documented in [`CONTRIBUTING.md`](CONTRIBUTING.md). The same checks run in CI; install the hooks once with `pre-commit install` to catch shellcheck / shfmt / hadolint / yamllint / actionlint findings before you push.
+
+---
+
+## Documentation site (Material for MkDocs)
+
+A full Material for MkDocs site is published from [`docs/`](docs/) to [marc0janssen.github.io/restic-backup-helper](https://marc0janssen.github.io/restic-backup-helper/) by [`.github/workflows/docs.yml`](.github/workflows/docs.yml). Build with `mkdocs build --strict` (run in CI) emits one HTML file per page under `site/` (`use_directory_urls: false`, so `site/workers/backup.html` is also directly openable over `file://`).
+
+To preview the docs locally, create a Python virtual environment, install the docs requirements and run `mkdocs serve`. The activation command depends on your shell:
+
+**Bash / Zsh**
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r docs/requirements.txt
+mkdocs serve      # live preview at http://127.0.0.1:8000
+# or
+mkdocs build --strict     # one-shot, writes ./site/
+```
+
+**Fish**
+
+```fish
+python3 -m venv .venv
+source .venv/bin/activate.fish
+pip install -r docs/requirements.txt
+mkdocs serve
+# or
+mkdocs build --strict
+```
+
+Deactivate with `deactivate` in either shell. The `.venv/` directory and the generated `site/` directory are both gitignored.
+
+> Pages-source note: for the workflow’s `actions/deploy-pages@v4` step to actually publish, set **Settings → Pages → Build and deployment → Source** to **GitHub Actions** once on the repo. The `deploy` job runs on pushes to `main` and `develop`; `main` is the long-term production branch, `develop` is a preview channel until the next release merge.
 
 ---
 
