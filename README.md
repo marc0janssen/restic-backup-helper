@@ -6,7 +6,7 @@
 
 Docker image for scheduled [Restic](https://restic.net) backups, optional scheduled `restic check`, optional [Rclone](https://rclone.org) bidirectional sync (`bisync`), cron-driven automation, structured logs under `/var/log`, and optional mail notifications via `mailx` and [msmtp](https://marlam.de/msmtp/).
 
-**Docker Hub:** [marc0janssen/restic-backup-helper](https://hub.docker.com/r/marc0janssen/restic-backup-helper) · **Source:** [github.com/marc0janssen/restic-backup-helper](https://github.com/marc0janssen/restic-backup-helper)
+**Docker Hub:** [marc0janssen/restic-backup-helper](https://hub.docker.com/r/marc0janssen/restic-backup-helper) · **Source:** [github.com/marc0janssen/restic-backup-helper](https://github.com/marc0janssen/restic-backup-helper) · **Docs:** [marc0janssen.github.io/restic-backup-helper](https://marc0janssen.github.io/restic-backup-helper/)
 
 ---
 
@@ -69,15 +69,16 @@ If this image saves you time, you can [leave a tip on Ko-fi](https://ko-fi.com/m
 
 ## Image tags and release
 
-release: 2.2.1-0.18.1
+release: 2.2.2-0.18.1
 
 | Train | When to use | Example pull |
 | --- | --- | --- |
-| **Stable** | Production | `docker pull marc0janssen/restic-backup-helper:latest` or pinned `marc0janssen/restic-backup-helper:2.2.1-0.18.1` |
-| **Testing** | Pre-release / CI | `docker pull marc0janssen/restic-backup-helper:develop` or `marc0janssen/restic-backup-helper:2.2.1-0.18.1-dev` |
+| **Stable** | Production | `docker pull marc0janssen/restic-backup-helper:latest` or pinned `marc0janssen/restic-backup-helper:2.2.2-0.18.1` |
+| **Testing** | Pre-release / CI | `docker pull marc0janssen/restic-backup-helper:develop` or `marc0janssen/restic-backup-helper:2.2.2-0.18.1-dev` |
 
 > **Upgrading?**
 >
+> - **From 2.2.1 → 2.2.2:** patch / docs release. Adds a full Material for MkDocs documentation site under `docs/` (navigable Getting started / Concepts / Configuration / Workers / Operations / Deployment / Reference tabs, search, dark mode, mermaid diagrams) and a `.github/workflows/docs.yml` GitHub Pages deploy. No runtime / env-var changes. Hosted site: <https://marc0janssen.github.io/restic-backup-helper/>.
 > - **From 2.2.0 → 2.2.1:** patch release. CI-only fix in `app/snapshot_export.sh`: combined `# shellcheck disable=SC2317,SC2329` on the EXIT-trap `cleanup()` function and an explicit `copyErrorLog "${LAST_LOGFILE}" "${LAST_ERROR_LOGFILE}"` call to satisfy SC2119. No runtime behaviour change, no env-var change.
 > - **From 2.1.x → 2.2.0:** purely additive. New `/bin/snapshot-export` helper restores a selected snapshot (or include-filtered subtree) into a temporary workdir and packages it as a `.tar.gz` archive under `/restore` by default. It supports `--id`, `--include`, `--exclude`, `--output`, `--dry-run`, `--verify`, hooks, JSON, webhook, mail and Prometheus metrics.
 > - **From 2.0.x → 2.1.0:** purely additive. New `/bin/doctor` read-only diagnostics command for support/triage: prints release/tool versions, masked effective env, path checks, `restic cat config` probe, replicate job-file validation, hook executable status, recent `last-*.json` summaries and the tail of `cron.log`. `docker run … doctor` and `docker run … /bin/doctor` execute it directly without starting cron.

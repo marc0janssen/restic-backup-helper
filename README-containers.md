@@ -12,24 +12,25 @@ Scheduled [Restic](https://restic.net) backups, optional `restic check`, optiona
 
 ## Release
 
-release: 2.2.1-0.18.1
+release: 2.2.2-0.18.1
 
 **Stable**
 
 ```shell
 docker pull marc0janssen/restic-backup-helper:latest
-docker pull marc0janssen/restic-backup-helper:2.2.1-0.18.1
+docker pull marc0janssen/restic-backup-helper:2.2.2-0.18.1
 ```
 
 **Development (experimental)**
 
 ```shell
 docker pull marc0janssen/restic-backup-helper:develop
-docker pull marc0janssen/restic-backup-helper:2.2.1-0.18.1-dev
+docker pull marc0janssen/restic-backup-helper:2.2.2-0.18.1-dev
 ```
 
 > **Upgrading?**
 >
+> - **2.2.1 → 2.2.2:** docs/patch. Adds a Material for MkDocs documentation site (hosted at <https://marc0janssen.github.io/restic-backup-helper/>) plus a GitHub Pages deploy workflow. No runtime change.
 > - **2.2.0 → 2.2.1:** patch. CI-only shellcheck cleanup in `app/snapshot_export.sh` (SC2317/SC2119); no runtime change.
 > - **2.1.x → 2.2.0:** purely additive. New `/bin/snapshot-export` helper restores a selected snapshot or subtree into a temporary workdir and packages it as `.tar.gz` under `/restore` by default. Supports `--id`, `--include`, `--exclude`, `--output`, `--dry-run`, hooks, JSON, webhook, mail and metrics.
 > - **2.0.x → 2.1.0:** purely additive. New `/bin/doctor` read-only diagnostics command for support/triage: masked effective env, path checks, repository probe, replicate job-file validation, hook executable status and recent `/var/log` summaries. `docker run … doctor` runs it without starting cron.
@@ -48,7 +49,9 @@ docker pull marc0janssen/restic-backup-helper:2.2.1-0.18.1-dev
 | Tag | Meaning |
 | --- | --- |
 | `latest` | Current stable |
-| `<semver>-<restic>` | Pinned stable (helper version + Restic base), e.g. `2.2.1-0.18.1` |
+| `<semver>-<restic>` | Pinned stable (helper version + Restic base), e.g. `2.2.2-0.18.1` |
+
+Full documentation: <https://marc0janssen.github.io/restic-backup-helper/>
 | `develop` | Latest testing build |
 | `<semver>-<restic>-dev` | Pinned testing image |
 

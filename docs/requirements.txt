@@ -1,0 +1,4 @@
+# Pin runtimes loosely; CI/Pages job resolves the latest patch within the same minor.
+# `mkdocs-material` pulls in `mkdocs` and `pymdown-extensions` transitively.
+mkdocs-material>=9.5,<10
+mkdocs-git-revision-date-localized-plugin>=1.2,<2

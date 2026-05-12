@@ -7,3 +7,5 @@ build-testing-local.env
 build.env
 build-testing.env
 sbom/
+site/
+.cache/

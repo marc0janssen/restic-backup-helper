@@ -1,0 +1,36 @@
+/* Small tweaks layered on top of Material's defaults. */
+
+/* Slightly tighter table cells so the env-var tables stay readable. */
+.md-typeset table:not([class]) th,
+.md-typeset table:not([class]) td {
+  padding: 0.5rem 0.6rem;
+  font-size: 0.78rem;
+  line-height: 1.45;
+}
+
+/* Make inline code in tables a touch less loud. */
+.md-typeset table:not([class]) code {
+  background-color: var(--md-code-bg-color);
+  padding: 0.05rem 0.3rem;
+}
+
+/* Status pills used via `extra.status` (`new`, `deprecated`). */
+.md-status--new::after {
+  content: "new";
+  background-color: var(--md-accent-fg-color);
+  color: var(--md-default-bg-color);
+  border-radius: 0.5rem;
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  padding: 0.05rem 0.35rem;
+  margin-left: 0.4rem;
+  text-transform: uppercase;
+  vertical-align: middle;
+}
+
+.md-status--deprecated::after {
+  content: "deprecated";
+  background-color: #aa3322;
+  color: #fff;
+}

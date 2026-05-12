@@ -2,6 +2,35 @@
 
 ## Restic Backup Helper
 
+### 2.2.2-0.18.1 (2026-05-12)
+
+#### Added
+
+- **Material for MkDocs documentation site** under `docs/`. The site
+  splits the README content into navigable tabs (Getting started,
+  Concepts, Configuration, Workers, Operations, Deployment, Reference)
+  and adds material-specific affordances: dark/light palette toggle,
+  search, code-tabs, mermaid diagrams (for the boot flow, hook
+  lifecycle, replicate dispatch and repository state machine),
+  admonitions for warnings/tips and per-page git-revision-date stamps.
+  Includes `mkdocs.yml`, `docs/requirements.txt` (pinned
+  `mkdocs-material>=9.5,<10` + `mkdocs-git-revision-date-localized-plugin`)
+  and `docs/stylesheets/extra.css` for small tweaks on top of the
+  Material defaults.
+- **GitHub Pages workflow** at `.github/workflows/docs.yml`. Builds the
+  site with `mkdocs build --strict` on every PR / push touching
+  `docs/`, `mkdocs.yml`, `CHANGELOG.md` or the workflow itself, and
+  deploys to GitHub Pages from `main` only. PR builds upload the Pages
+  artifact for review but do not flip the live site.
+- **`.gitignore` excludes** `site/` (MkDocs build output) and `.cache/`
+  so the docs build does not leak into commits.
+
+#### Fixed
+
+- **Docs links to release-pinned image tags** in the anonymized
+  `examples/compose/cloud-reference.yml` and the docs site landing
+  examples are bumped to `2.2.2-0.18.1` to keep CI's version-guard happy.
+
 ### 2.2.1-0.18.1 (2026-05-11)
 
 #### Fixed
