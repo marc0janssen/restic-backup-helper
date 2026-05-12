@@ -72,6 +72,25 @@ webhook notifications**, **Prometheus textfile metrics** and
 
     [:octicons-arrow-right-24: Snapshot export](operations/snapshot-export.md)
 
+- :material-eye-check-outline: __Forget preview__
+
+    ---
+
+    `/bin/forget-preview` runs `restic forget --dry-run` with your
+    configured retention policy, host/tag-scoped by default.
+
+    [:octicons-arrow-right-24: Forget preview](operations/forget-preview.md)
+
+- :material-folder-eye-outline: __Mount snapshot__
+
+    ---
+
+    `/bin/mount-snapshot` exposes every matching snapshot read-only over
+    FUSE under `/fusemount`, with safe target validation and a clean
+    unmount on Ctrl+C / SIGTERM.
+
+    [:octicons-arrow-right-24: Mount snapshot](operations/mount-snapshot.md)
+
 - :material-stethoscope: __Doctor diagnostics__
 
     ---
@@ -161,7 +180,7 @@ The shortest "it backs up every night and yells when it breaks" setup:
 !!! tip "Pin your tags"
 
     Tagged images use the schema `<helper-semver>-<restic-version>`, e.g.
-    `2.2.2-0.18.1`. Pinning both protects you from surprise upstream
+    `2.4.0-0.18.1`. Pinning both protects you from surprise upstream
     behaviour changes. See [Image tags](reference/image-tags.md).
 
 ---
@@ -174,7 +193,7 @@ The shortest "it backs up every night and yells when it breaks" setup:
 | [Concepts](concepts/architecture.md) | You want to understand how cron, workers, locking and the filesystem layout fit together before changing config. |
 | [Configuration](configuration/environment-variables.md) | You're looking up an environment variable, hook name, mail/webhook flag or metric. |
 | [Workers](workers/backup.md) | You want to know exactly what `/bin/backup`, `/bin/check`, `/bin/prune`, `/bin/replicate` or `/bin/rotate_log` actually does. |
-| [Operations](operations/manual-runs.md) | You are an operator running things by hand: restore, snapshot export, diagnostics, troubleshooting. |
+| [Operations](operations/manual-runs.md) | You are an operator running things by hand: restore, snapshot export, forget preview, diagnostics, troubleshooting. |
 | [Deployment](deployment/docker-compose.md) | You're writing the Compose / Kubernetes manifest, or hardening the orchestration layer. |
 | [Reference](reference/json-summaries.md) | You're integrating with monitoring: JSON schema, Prometheus metric names, image tags, SBOM. |
 

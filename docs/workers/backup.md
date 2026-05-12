@@ -90,6 +90,16 @@ flowchart TD
 | --- | --- |
 | `RESTIC_FORGET_ARGS` | Shell-split arguments for `restic forget`. Examples: `--keep-daily 7`, `--keep-weekly 5`, `--keep-monthly 12`, `--keep-yearly 10`. Add `--prune` only if you do **not** run `PRUNE_CRON` separately. |
 
+Preview retention safely before relying on it:
+
+```shell
+docker exec -ti restic-backup-helper /bin/forget-preview
+```
+
+The preview uses `restic forget --dry-run`, `RESTIC_FORGET_ARGS`, and
+the current host/tag scope by default. See
+[Forget preview](../operations/forget-preview.md).
+
 ## Sample configurations
 
 === "Single tree with retention"
@@ -198,5 +208,9 @@ after a config change. See [Manual runs](../operations/manual-runs.md).
   syntax and `TZ`.
 - [Check worker](check.md) and [Prune worker](prune.md) — the typical
   companions on a different cadence.
+- [Forget preview](../operations/forget-preview.md) — validate retention
+  before the real post-backup forget runs.
+- [Mount snapshot](../operations/mount-snapshot.md) — read-only FUSE
+  browse of any snapshot under `/fusemount`.
 - [Multiple backup jobs](../deployment/multiple-jobs.md) — when one
   container is not enough.

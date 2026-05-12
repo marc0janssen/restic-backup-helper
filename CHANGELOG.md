@@ -2,6 +2,93 @@
 
 ## Restic Backup Helper
 
+### 2.4.0-0.18.1 (2026-05-12)
+
+#### Added
+
+- **`/bin/mount-snapshot` FUSE-mount helper.** Wraps `restic mount` with the
+  same flag vocabulary as `/bin/restore` and `/bin/snapshot-export`: defaults
+  `--target` to **`/fusemount`** — a dedicated, container-internal directory
+  created at image build (`mkdir -p /fusemount` in the Dockerfile) so the
+  FUSE mount never collides with `/bin/restore` output or a host bind-mount
+  on `/restore`. Scopes the visible snapshot tree to this container's
+  `--host "$HOSTNAME"` and `--tag "$RESTIC_TAG"` so cross-host repositories
+  stay tidy, supports repeatable `--path`, opt-in `--allow-other`, and an
+  explicit `--repo-wide` override. Refuses to mount on `/data`,
+  `BACKUP_ROOT_DIR` or other system/source directories unless `--force` is
+  passed (the FUSE mount would otherwise hide the backup source while
+  active). An `EXIT` trap calls `fusermount -u` / `umount` as a
+  belt-and-braces unmount so Ctrl+C, SIGTERM or a restic crash never leaves
+  a stale FUSE mount behind. The recommended browsing workflow is
+  `docker exec` / `docker cp` from a second terminal while the helper is
+  running; the new
+  [Browsing the mount from the host](https://marc0janssen.github.io/restic-backup-helper/operations/mount-snapshot.html#browsing-the-mount-from-the-host)
+  documentation section explains the three knobs (`user_allow_other`,
+  bind-mount `propagation: rshared`, host-side shared mount peer group)
+  needed if you do want the FUSE tree visible on the host filesystem path.
+- **Mount-snapshot observability.** The helper writes
+  `/var/log/mount-snapshot-last.log`, `/var/log/last-mount-snapshot.json`,
+  optional `/hooks/pre-mount-snapshot.sh` and
+  `/hooks/post-mount-snapshot.sh "$rc"`, mails/webhooks through the existing
+  notification helpers, and emits `restic_mount_snapshot.prom` when
+  `METRICS_DIR` is configured. `docker run … mount-snapshot` works as an
+  entrypoint pass-through without starting cron first. `/bin/doctor` now
+  enumerates the new hook pair and the new JSON summary in its read-only
+  diagnostics bundle.
+- **Mount-snapshot FUSE pre-flight + targeted hint.** The helper now
+  pre-flights every distinct cause of the opaque
+  `fusermount: exit status 1 / mount failed: Permission denied`
+  failure before invoking restic, by checking:
+
+    1. `/dev/fuse` — existence, character-device kind, r/w access.
+    2. `/usr/bin/fusermount` — presence in PATH, on-disk setuid bit.
+    3. `CapEff` in `/proc/self/status` — bit 21 (`CAP_SYS_ADMIN`,
+       mask `0x200000`).
+    4. `NoNewPrivs` in `/proc/self/status` — `1` means the kernel
+       ignores the setuid bit on `fusermount` at exec time, so FUSE
+       fails even with `CAP_SYS_ADMIN` and `/dev/fuse` correctly set.
+    5. `/proc/self/attr/current` — the active AppArmor profile.
+       Ubuntu/Debian (and any host shipping Docker's default AppArmor
+       template) load `docker-default (enforce)`, which denies
+       `mount(2)` regardless of `CAP_SYS_ADMIN`; FUSE bubbles up the
+       same opaque `Permission denied`. The helper aborts when the
+       profile is enforcing and tells the operator to add
+       `security_opt: [apparmor:unconfined]` for that container.
+
+  Each abort names the specific knob (`--cap-add SYS_ADMIN` /
+  `cap_add: [SYS_ADMIN]` / `securityContext.capabilities.add:
+  [SYS_ADMIN]`, `--device /dev/fuse` /
+  `devices: [/dev/fuse:/dev/fuse]`, **not**
+  `security_opt: [no-new-privileges:true]`, `security_opt:
+  [apparmor:unconfined]` / `securityContext.appArmorProfile.type:
+  Unconfined`, `apk add fuse`) so operators see the actual fix
+  instead of a post-mortem grep. When `restic mount` itself does
+  fail, the per-run log is still scanned for `fusermount` /
+  `Permission denied` markers and a numbered five-knob hint is
+  appended to `cron.log`. Documentation gains a dedicated
+  Troubleshooting section under
+  [Mount snapshot](https://marc0janssen.github.io/restic-backup-helper/operations/mount-snapshot.html#troubleshooting),
+  and `examples/compose/cloud-reference.yml` now sets
+  `security_opt: [apparmor:unconfined]` with an explanatory comment.
+
+### 2.3.0-0.18.1 (2026-05-12)
+
+#### Added
+
+- **`/bin/forget-preview` retention preview helper.** Runs `restic forget --dry-run`
+  using the configured `RESTIC_FORGET_ARGS` so operators can validate a
+  retention policy before the real post-backup forget runs. By default the
+  preview is scoped to `--host "$HOSTNAME"` and `--tag "$RESTIC_TAG"` so
+  shared repositories stay safe; repository-wide previews require an explicit
+  `--repo-wide` flag. Supports `--host`, `--tag`, `--policy` and `--extra`.
+- **Forget preview observability.** The helper writes
+  `/var/log/forget-preview-last.log`, `/var/log/last-forget-preview.json`,
+  optional `/hooks/pre-forget-preview.sh` and
+  `/hooks/post-forget-preview.sh "$rc"`, mails/webhooks through the existing
+  notification helpers, and emits `restic_forget_preview.prom` when
+  `METRICS_DIR` is configured. `docker run … forget-preview` now works as an
+  entrypoint pass-through without starting cron first.
+
 ### 2.2.2-0.18.1 (2026-05-12)
 
 #### Added

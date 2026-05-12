@@ -39,7 +39,7 @@ The image is based on **`restic/restic`** (Alpine). This repository owns applica
 | `Dockerfile` | Image definition; `restic/restic:<tag>`; release string via `ARG` / `ENV RESTIC_BACKUP_HELPER_RELEASE` at build time (no repo `.release` file) |
 | `app/entry.sh` | Container entrypoint |
 | `app/backup.sh`, `app/check.sh`, `app/replicate.sh`, `app/rotate_log.sh` | Cron-invoked workers |
-| `app/restore.sh`, `app/snapshot_export.sh`, `app/doctor.sh` | Operator-invoked helpers |
+| `app/restore.sh`, `app/snapshot_export.sh`, `app/forget_preview.sh`, `app/doctor.sh` | Operator-invoked helpers |
 | `app/install_rclone.sh` | Rclone install during image build |
 | `scripts/build-common.sh` | Shared logic for release versioning and Docker Hub builds |
 | `build.sh`, `build-testing.sh` | Stable / dev Docker Hub builds (read optional `build.env` / `build-testing.env`) |
@@ -47,9 +47,12 @@ The image is based on **`restic/restic`** (Alpine). This repository owns applica
 | `scripts/start_restic_helper_agent_compose.sh`, `scripts/docker-compose.yml` | Example/runtime helpers |
 | `config/` | Sample excludes, msmtp, replicate job definitions |
 | **`README.md`** | Primary documentation (GitHub, full detail) |
+| **`docs/` + `mkdocs.yml`** | Material for MkDocs documentation site; must stay aligned with user-facing behaviour |
 | **`README-containers.md`** | Docker Hub description: short summary, tags, links; **must stay aligned** with release/pull-tag lines that build scripts auto-patch |
 
 When adding or changing behaviour exposed to users, update **`README.md`** and, where it affects how users pull or understand the image on Docker Hub, **`README-containers.md`** as well (and **`CHANGELOG.md`** / **`VERSION`** when appropriate).
+
+Always update the Material for MkDocs site under **`docs/`** (and **`mkdocs.yml`** navigation when adding/removing pages) for user-facing behaviour changes, environment variables, scripts, deployment examples, troubleshooting guidance, operations helpers, release/versioning notes, or security-relevant changes. The hosted documentation must not lag behind `README.md`.
 
 ## README-containers.md (Docker Hub)
 

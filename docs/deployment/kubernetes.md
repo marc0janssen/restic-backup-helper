@@ -73,7 +73,7 @@ spec:
       hostname: backup-node
       containers:
         - name: restic-backup-helper
-          image: marc0janssen/restic-backup-helper:2.2.2-0.18.1
+          image: marc0janssen/restic-backup-helper:2.4.0-0.18.1
           imagePullPolicy: IfNotPresent
           env:
             - name: RESTIC_REPOSITORY
@@ -234,7 +234,7 @@ A `CronJob` could in theory replace `BACKUP_CRON`. Trade-offs:
 | Locking | `flock` + Restic's own lock. | Need `concurrencyPolicy: Forbid`. |
 | Hooks & notifications | Built in. | Need to re-implement at the manifest level. |
 | Restic auto-init | Built into the entrypoint. | Need an init container. |
-| Restore / snapshot-export | `kubectl exec -it … /bin/restore …` works. | Need a one-shot Pod. |
+| Restore / snapshot-export / forget-preview / mount-snapshot | `kubectl exec -it … /bin/restore …`, `/bin/forget-preview` and `/bin/mount-snapshot` work. | Need a one-shot Pod for standalone runs. |
 
 In practice the long-running Deployment shape is what most users want.
 If you absolutely need `CronJob` semantics, you are probably better off

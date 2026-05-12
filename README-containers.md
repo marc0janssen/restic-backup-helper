@@ -13,24 +13,26 @@ Scheduled [Restic](https://restic.net) backups, optional `restic check`, optiona
 
 ## Release
 
-release: 2.2.2-0.18.1
+release: 2.4.0-0.18.1
 
 **Stable**
 
 ```shell
 docker pull marc0janssen/restic-backup-helper:latest
-docker pull marc0janssen/restic-backup-helper:2.2.2-0.18.1
+docker pull marc0janssen/restic-backup-helper:2.4.0-0.18.1
 ```
 
 **Development (experimental)**
 
 ```shell
 docker pull marc0janssen/restic-backup-helper:develop
-docker pull marc0janssen/restic-backup-helper:2.2.2-0.18.1-dev
+docker pull marc0janssen/restic-backup-helper:2.4.0-0.18.1-dev
 ```
 
 > **Upgrading?**
 >
+> - **2.3.x → 2.4.0:** additive. New `/bin/mount-snapshot` helper wraps `restic mount` (FUSE) read-only under `/fusemount` (container-internal by design, never collides with `/bin/restore` output or host bind-mounts), scoped to this container's host/tag by default, with safe target validation, opt-in `--allow-other`, repeatable `--path`, an explicit `--repo-wide` override and an `EXIT` trap so SIGINT / SIGTERM / crash always unmounts cleanly. FUSE still requires `--cap-add SYS_ADMIN --device /dev/fuse` and, on hosts that ship AppArmor's `docker-default` profile, `--security-opt apparmor=unconfined`.
+> - **2.2.x → 2.3.0:** additive. New `/bin/forget-preview` helper runs `restic forget --dry-run` with `RESTIC_FORGET_ARGS`, host/tag-scoped by default and repository-wide only with `--repo-wide`.
 > - **2.2.1 → 2.2.2:** docs/patch. Adds a Material for MkDocs documentation site (hosted at <https://marc0janssen.github.io/restic-backup-helper/>) plus a GitHub Pages deploy workflow. No runtime change.
 > - **2.2.0 → 2.2.1:** patch. CI-only shellcheck cleanup in `app/snapshot_export.sh` (SC2317/SC2119); no runtime change.
 > - **2.1.x → 2.2.0:** purely additive. New `/bin/snapshot-export` helper restores a selected snapshot or subtree into a temporary workdir and packages it as `.tar.gz` under `/restore` by default. Supports `--id`, `--include`, `--exclude`, `--output`, `--dry-run`, hooks, JSON, webhook, mail and metrics.
@@ -50,11 +52,11 @@ docker pull marc0janssen/restic-backup-helper:2.2.2-0.18.1-dev
 | Tag | Meaning |
 | --- | --- |
 | `latest` | Current stable |
-| `<semver>-<restic>` | Pinned stable (helper version + Restic base), e.g. `2.2.2-0.18.1` |
-
-Full documentation: <https://marc0janssen.github.io/restic-backup-helper/>
+| `<semver>-<restic>` | Pinned stable (helper version + Restic base), e.g. `2.4.0-0.18.1` |
 | `develop` | Latest testing build |
 | `<semver>-<restic>-dev` | Pinned testing image |
+
+Full documentation: <https://marc0janssen.github.io/restic-backup-helper/>
 
 ---
 
@@ -70,6 +72,8 @@ Full documentation: <https://marc0janssen.github.io/restic-backup-helper/>
 | **Config check** | One-shot `docker run … config-check` (same env as prod) validates settings without cron |
 | **Doctor** | One-shot `/bin/doctor` or `docker run … doctor` read-only diagnostics for support/triage |
 | **Snapshot export** | One-shot `/bin/snapshot-export` or `docker run … snapshot-export` archives a selected snapshot/subtree as `.tar.gz` |
+| **Forget preview** | One-shot `/bin/forget-preview` or `docker run … forget-preview` previews `RESTIC_FORGET_ARGS` with `restic forget --dry-run` |
+| **Mount snapshot** | One-shot `/bin/mount-snapshot` or `docker run … mount-snapshot` mounts the repo read-only over FUSE under `/fusemount` (container-internal; needs `--cap-add SYS_ADMIN --device /dev/fuse` + `--security-opt apparmor=unconfined` on Ubuntu/Debian hosts) |
 | **Restore** | One-shot `/bin/restore`; interactive with a TTY, flag-driven otherwise |
 
 Startup (`/entry.sh`) can verify/init the repo when `RESTIC_CHECK_REPOSITORY_STATUS=ON`. Jobs use **`flock`** locks (`/var/run/*.lock`).
@@ -94,7 +98,7 @@ Startup (`/entry.sh`) can verify/init the repo when `RESTIC_CHECK_REPOSITORY_STA
 
 **Defaults from the image (see GitHub README for full table):** `RESTIC_CACHE_DIR=/.cache/restic`, `RESTIC_CHECK_REPOSITORY_STATUS=ON`, `RCLONE_CONFIG=/config/rclone.conf`, `REPLICATE_JOB_FILE=/config/replicate_jobs.txt`, `REPLICATE_VERBOSE=ON`, `ROTATE_LOG_CRON=0 0 * * 6`, `CRON_LOG_MAX_SIZE=1048576`, `MAX_CRON_LOG_ARCHIVES=5`, `TZ=Europe/Amsterdam`.
 
-**Forget policy:** set `RESTIC_FORGET_ARGS` (example: `--prune --keep-daily 7`) to run `restic forget` after a successful backup.
+**Forget policy:** set `RESTIC_FORGET_ARGS` (example: `--prune --keep-daily 7`) to run `restic forget` after a successful backup. Run `/bin/forget-preview` first to preview the policy safely (`--dry-run`, host/tag-scoped by default).
 
 **Mail:** `MAILX_RCPT` + mounted **`/etc/msmtprc`**; `MAILX_ON_ERROR=ON` limits backup/check mail to failures. Replicate mails only when errors occurred.
 
@@ -106,7 +110,7 @@ Startup (`/entry.sh`) can verify/init the repo when `RESTIC_CHECK_REPOSITORY_STA
 
 ## Hooks (`/hooks`)
 
-`pre-backup.sh`, `post-backup.sh` (backup exit code), `pre-check.sh`, `post-check.sh` (check exit code), `pre-prune.sh`, `post-prune.sh` (prune exit code), `pre-replicate.sh`, `post-replicate.sh` (aggregate replicate exit code), `pre-restore.sh`, `post-restore.sh` (restore exit code), `pre-snapshot-export.sh`, `post-snapshot-export.sh` (snapshot export exit code).
+`pre-backup.sh`, `post-backup.sh` (backup exit code), `pre-check.sh`, `post-check.sh` (check exit code), `pre-prune.sh`, `post-prune.sh` (prune exit code), `pre-replicate.sh`, `post-replicate.sh` (aggregate replicate exit code), `pre-restore.sh`, `post-restore.sh` (restore exit code), `pre-snapshot-export.sh`, `post-snapshot-export.sh` (snapshot export exit code), `pre-forget-preview.sh`, `post-forget-preview.sh` (forget preview exit code), `pre-mount-snapshot.sh`, `post-mount-snapshot.sh` (mount snapshot exit code, called after unmount).
 
 ---
 

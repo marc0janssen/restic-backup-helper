@@ -2,7 +2,7 @@
 # No top-level `version:` is needed.
 #
 # This file is intentionally verbose. It documents the runtime surface of
-# restic-backup-helper 2.2.2 with anonymized example values. Trim everything you
+# restic-backup-helper 2.3.0 with anonymized example values. Trim everything you
 # do not use before deploying it.
 #
 # Required at runtime at minimum:
@@ -26,9 +26,9 @@
 services:
   restic-cloud:
     container_name: restic-cloud
-    image: registry.example.invalid/restic-backup-helper:2.2.2-0.18.1-dev
+    image: registry.example.invalid/restic-backup-helper:2.4.0-0.18.1-dev
     # Alternative for Docker Hub stable images:
-    # image: marc0janssen/restic-backup-helper:2.2.2-0.18.1
+    # image: marc0janssen/restic-backup-helper:2.4.0-0.18.1
     hostname: backup-host
     restart: always
     labels:
@@ -41,6 +41,17 @@ services:
       - SYS_ADMIN
     devices:
       - /dev/fuse
+    # FUSE / mount-snapshot extras. On Ubuntu/Debian hosts (and any host shipping
+    # Docker's default AppArmor template) the `docker-default` profile denies the
+    # `mount(2)` syscall regardless of CAP_SYS_ADMIN, so `restic mount` /
+    # /bin/mount-snapshot fail with `fusermount: mount failed: Permission denied`.
+    # Setting `apparmor:unconfined` is required there; on hosts without AppArmor
+    # the option is silently ignored.
+    # If you also harden the cron-driven container with `no-new-privileges:true`,
+    # run `mount-snapshot` from a separate one-shot container instead (that flag
+    # makes the kernel ignore the setuid bit on /usr/bin/fusermount at exec time).
+    security_opt:
+      - apparmor:unconfined
 
     healthcheck:
       # Strong probe: fails when credentials, rclone.conf or repository
@@ -203,6 +214,11 @@ services:
       - /:/host:ro
 
       # Restore target. /bin/restore defaults to /restore unless --target is set.
+      # /bin/mount-snapshot does NOT use this path; it mounts FUSE on the
+      # container-internal /fusemount by default. Browse it from the host via
+      # `docker exec` / `docker cp` while mount-snapshot is running. If you
+      # want the FUSE tree to appear on a host path, see
+      # docs/operations/mount-snapshot.md "Browsing the mount from the host".
       - /srv/example/restic-cloud/restore:/restore
 
     # Optional: follow cron.log as the container foreground process.

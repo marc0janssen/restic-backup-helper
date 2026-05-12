@@ -12,6 +12,7 @@ automatically created if you do not mount them; the rest are conventions.
 | `/config` | Recommended mount for `rclone.conf`, exclude/include files, msmtprc, replicate job file. | `-v ./config:/config` | Bind-mount; some backends update `rclone.conf` (token refresh) so it may need write access. |
 | `/hooks` | Optional mount for `/hooks/{pre,post}-<job>.sh`. | `-v ./hooks:/hooks:ro` | Hooks must be executable inside the container. |
 | `/restore` | Convention for `restic restore --target /restore` and `/bin/snapshot-export --output`. | `-v ./restore:/restore` | Refuses non-empty target unless `--force` (restore wrapper). |
+| `/fusemount` | Default `--target` for `/bin/mount-snapshot` (FUSE). Container-internal by design — keeps the FUSE mount separate from `/bin/restore` output and host bind-mounts. | n/a (no host bind-mount needed; browse via `docker exec ... cat` / `tar` streams — `docker cp` does **not** see FUSE mounts) | Refuses non-empty target unless `--force`; opt in to host visibility with `--allow-other` + `bind: propagation: rshared` on a separate `/fusemount` bind-mount. |
 | `/mnt/restic` | Default `RESTIC_REPOSITORY` location for local disk / NFS. | `-v restic-repo:/mnt/restic` *or* `NFS_TARGET=…` | Mount target of `NFS_TARGET` when set. |
 | `/var/log` | Cron log, per-run JSON summaries, Prometheus textfiles. | `-v backup-logs:/var/log` | Persist if you scrape `last-*.json` or compressed `cron_log_*.tar.gz`. |
 | `/.cache/restic` | Restic cache directory. | `-v restic-cache:/.cache/restic` | Persist to speed up subsequent backups; safe to throw away. |
@@ -62,13 +63,25 @@ a `restic_<job>.prom` Prometheus textfile.
 ├── snapshot-export-mail-last.log
 ├── last-snapshot-export.json
 │
+├── forget-preview-last.log               # /bin/forget-preview, per-run log
+├── forget-preview-error-last.log
+├── forget-preview-mail-last.log
+├── last-forget-preview.json
+│
+├── mount-snapshot-last.log                # /bin/mount-snapshot, per-session log
+├── mount-snapshot-error-last.log
+├── mount-snapshot-mail-last.log
+├── last-mount-snapshot.json
+│
 └── textfile_collector/                   # only when METRICS_DIR is set
     ├── restic_backup.prom
     ├── restic_check.prom
     ├── restic_prune.prom
     ├── restic_replicate.prom
     ├── restic_restore.prom
-    └── restic_snapshot_export.prom
+    ├── restic_snapshot_export.prom
+    ├── restic_forget_preview.prom
+    └── restic_mount_snapshot.prom
 ```
 
 `*-last.log` files are overwritten every run (no rolling). `last-*.json`

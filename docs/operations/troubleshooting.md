@@ -204,6 +204,56 @@ into a single command.
     `--owner UID:GID` to set ownership of the restored tree, or write a
     `/hooks/post-restore.sh` that does whatever you need.
 
+??? failure "`/bin/mount-snapshot` exits with `fusermount: mount failed: Permission denied`"
+
+    `restic mount` (FUSE) needs **all** of the following on the
+    container that runs the helper, and `/bin/mount-snapshot`
+    pre-flights every one of them — the abort message names the
+    specific knob that is wrong:
+
+    - `--cap-add SYS_ADMIN` (compose: `cap_add: [SYS_ADMIN]`; Kubernetes:
+      `securityContext.capabilities.add: [SYS_ADMIN]`). The helper
+      checks `CapEff` in `/proc/self/status` for bit 21
+      (`0x200000`); when the bit is missing it aborts with the
+      observed `CapEff` value so you can spot which capability set
+      you ended up with.
+    - `--device /dev/fuse` (compose: `devices: [/dev/fuse:/dev/fuse]`;
+      Kubernetes: a `hostPath` `/dev/fuse` volume plus
+      `volumeDevices`).
+    - `/usr/bin/fusermount` must keep its setuid bit at runtime.
+      Starting the container with `--security-opt
+      no-new-privileges:true` (compose: `security_opt:
+      [no-new-privileges:true]`) leaves the on-disk bit alone but
+      tells the kernel to ignore it at exec; the helper reads
+      `NoNewPrivs` from `/proc/self/status` and aborts when it is
+      `1`.
+    - The AppArmor profile must allow `mount(2)`. On Ubuntu/Debian
+      hosts (and any host shipping Docker's default AppArmor
+      template) the active profile is `docker-default (enforce)`,
+      which **denies `mount(2)` even with `CAP_SYS_ADMIN`**, so FUSE
+      fails with the same `Permission denied`. The helper reads
+      `/proc/self/attr/current` and aborts when the profile is
+      enforcing; add `security_opt: [apparmor:unconfined]` (compose),
+      `--security-opt apparmor=unconfined` (docker run),
+      `container.apparmor.security.beta.kubernetes.io/<container>:
+      unconfined` annotation (Kubernetes ≤1.29) or
+      `securityContext.appArmorProfile.type: Unconfined` (Kubernetes
+      ≥1.30) for this container.
+    - The image must ship the `fuse` apk package so that
+      `/usr/bin/fusermount` exists at all. The current helper image
+      installs it in the Dockerfile; if you are seeing
+      `❌ /usr/bin/fusermount is missing from PATH` your image is
+      older than the package addition — rebuild from the current
+      sources or `apk add --no-cache fuse` for a one-shot smoke test.
+
+    If you keep the cron-driven container hardened with
+    `no-new-privileges:true` or `apparmor=docker-default`, run
+    `mount-snapshot` from a **separate** short-lived container without
+    those flags, with `--cap-add SYS_ADMIN --device /dev/fuse
+    --security-opt apparmor=unconfined` and your normal repository
+    env. See [Mount snapshot →
+    Troubleshooting](mount-snapshot.md#troubleshooting).
+
 ## Networking
 
 ??? failure "Pull / push fails via corporate proxy to a private registry or LAN host"
