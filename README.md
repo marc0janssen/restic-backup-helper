@@ -3,6 +3,7 @@
 [![Quality Checks](https://github.com/marc0janssen/restic-backup-helper/actions/workflows/quality-checks.yml/badge.svg)](https://github.com/marc0janssen/restic-backup-helper/actions/workflows/quality-checks.yml)
 [![Smoke Test](https://github.com/marc0janssen/restic-backup-helper/actions/workflows/smoke-test.yml/badge.svg)](https://github.com/marc0janssen/restic-backup-helper/actions/workflows/smoke-test.yml)
 [![Security Scan](https://github.com/marc0janssen/restic-backup-helper/actions/workflows/security-scan.yml/badge.svg)](https://github.com/marc0janssen/restic-backup-helper/actions/workflows/security-scan.yml)
+[![Docs](https://github.com/marc0janssen/restic-backup-helper/actions/workflows/docs.yml/badge.svg)](https://github.com/marc0janssen/restic-backup-helper/actions/workflows/docs.yml)
 
 Docker image for scheduled [Restic](https://restic.net) backups, optional scheduled `restic check`, optional [Rclone](https://rclone.org) bidirectional sync (`bisync`), cron-driven automation, structured logs under `/var/log`, and optional mail notifications via `mailx` and [msmtp](https://marlam.de/msmtp/).
 
@@ -1074,6 +1075,7 @@ Deactivate with `deactivate` in either shell. The `.venv/` directory and the gen
 
 ## Further reading
 
+- **Documentation site (Material for MkDocs):** <https://marc0janssen.github.io/restic-backup-helper/>
 - [CHANGELOG.md](CHANGELOG.md)
 - [BACKLOG.md](BACKLOG.md)
 - [GitHub Releases](https://github.com/marc0janssen/restic-backup-helper/releases)

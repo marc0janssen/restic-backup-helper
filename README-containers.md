@@ -3,10 +3,11 @@
 [![Quality Checks](https://github.com/marc0janssen/restic-backup-helper/actions/workflows/quality-checks.yml/badge.svg)](https://github.com/marc0janssen/restic-backup-helper/actions/workflows/quality-checks.yml)
 [![Smoke Test](https://github.com/marc0janssen/restic-backup-helper/actions/workflows/smoke-test.yml/badge.svg)](https://github.com/marc0janssen/restic-backup-helper/actions/workflows/smoke-test.yml)
 [![Security Scan](https://github.com/marc0janssen/restic-backup-helper/actions/workflows/security-scan.yml/badge.svg)](https://github.com/marc0janssen/restic-backup-helper/actions/workflows/security-scan.yml)
+[![Docs](https://github.com/marc0janssen/restic-backup-helper/actions/workflows/docs.yml/badge.svg)](https://github.com/marc0janssen/restic-backup-helper/actions/workflows/docs.yml)
 
 Scheduled [Restic](https://restic.net) backups, optional `restic check`, optional [Rclone](https://rclone.org) **replicate** jobs (`bisync` / `sync` / `copy`), cron automation, logs under `/var/log`, optional mail via **msmtp** + **mailx**. Based on **`restic/restic`** Alpine.
 
-**GitHub (full manual, Compose, hooks, env matrix):** [github.com/marc0janssen/restic-backup-helper](https://github.com/marc0janssen/restic-backup-helper)
+**Documentation:** [marc0janssen.github.io/restic-backup-helper](https://marc0janssen.github.io/restic-backup-helper/) · **GitHub (full manual, Compose, hooks, env matrix):** [github.com/marc0janssen/restic-backup-helper](https://github.com/marc0janssen/restic-backup-helper)
 
 ---
 
@@ -117,7 +118,8 @@ Do not embed secrets in image tags or public Hub descriptions. Use env files, se
 
 ## Links
 
-- **Documentation:** [README.md on GitHub](https://github.com/marc0janssen/restic-backup-helper/blob/master/README.md)
+- **Documentation site (Material for MkDocs):** <https://marc0janssen.github.io/restic-backup-helper/>
+- **Full manual (README on GitHub):** [README.md](https://github.com/marc0janssen/restic-backup-helper/blob/master/README.md)
 - **Changelog:** [CHANGELOG.md](https://github.com/marc0janssen/restic-backup-helper/blob/master/CHANGELOG.md)
 - **Issues / source:** [GitHub repository](https://github.com/marc0janssen/restic-backup-helper)
 
