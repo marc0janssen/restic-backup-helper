@@ -210,5 +210,7 @@ after a config change. See [Manual runs](../operations/manual-runs.md).
   companions on a different cadence.
 - [Forget preview](../operations/forget-preview.md) — validate retention
   before the real post-backup forget runs.
+- [Mount snapshot](../operations/mount-snapshot.md) — read-only FUSE
+  browse of any snapshot under `/fusemount`.
 - [Multiple backup jobs](../deployment/multiple-jobs.md) — when one
   container is not enough.

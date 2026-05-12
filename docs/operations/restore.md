@@ -192,6 +192,8 @@ channel-specific notifications, or chowning the restore target in a way
 
 - [Snapshot export](snapshot-export.md) — package a snapshot/subtree as a
   `tar.gz` instead of restoring into a target.
+- [Mount snapshot](mount-snapshot.md) — browse snapshots read-only over
+  FUSE without copying anything to disk first.
 - [Manual runs](manual-runs.md) — running `/bin/restore` from `docker
   run` instead of `docker exec`.
 - [Hooks](../configuration/hooks.md) — `pre-restore.sh` /

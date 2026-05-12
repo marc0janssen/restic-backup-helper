@@ -38,7 +38,7 @@ ARG RCLONE_VERSION=""
 COPY /app/install_rclone.sh /install_rclone.sh
 RUN RCLONE_VERSION="${RCLONE_VERSION}" bash /install_rclone.sh && rm -rf /install_rclone.sh
 
-RUN mkdir -p /mnt/restic /var/spool/cron/crontabs /var/log
+RUN mkdir -p /mnt/restic /var/spool/cron/crontabs /var/log /fusemount
 
 ENV RESTIC_REPOSITORY="/mnt/restic"
 ENV RESTIC_PASSWORD=""
@@ -112,6 +112,12 @@ COPY /app/snapshot_export.sh /bin/snapshot-export
 # Operator retention preview helper: runs restic forget --dry-run using
 # RESTIC_FORGET_ARGS and host/tag scope by default.
 COPY /app/forget_preview.sh /bin/forget-preview
+# Operator FUSE-mount helper: wraps `restic mount` with safe target
+# validation (refuses /data / BACKUP_ROOT_DIR / system dirs unless --force)
+# and an EXIT trap that unmounts cleanly on Ctrl+C, SIGTERM or crash.
+# Defaults --target to /fusemount (container-internal) so the FUSE mount
+# never collides with /bin/restore output or a host bind-mount on /restore.
+COPY /app/mount_snapshot.sh /bin/mount-snapshot
 # Operator-friendly restore wrapper: flag-driven for scripts/CI, interactive
 # when invoked from `docker exec -ti`. Not cron-driven by design (restores are
 # always operator-initiated); shares mail/webhook/metrics plumbing with the
@@ -127,7 +133,7 @@ ARG RESTIC_BACKUP_HELPER_RELEASE=unknown
 LABEL org.opencontainers.image.title="restic-backup-helper" \
 	org.opencontainers.image.version="${RESTIC_BACKUP_HELPER_RELEASE}"
 ENV RESTIC_BACKUP_HELPER_RELEASE=${RESTIC_BACKUP_HELPER_RELEASE}
-RUN chmod 755 /entry.sh /bin/backup /bin/check /bin/replicate /bin/rotate_log /bin/prune /bin/doctor /bin/snapshot-export /bin/forget-preview /bin/restore /bin/locked_run \
+RUN chmod 755 /entry.sh /bin/backup /bin/check /bin/replicate /bin/rotate_log /bin/prune /bin/doctor /bin/snapshot-export /bin/forget-preview /bin/mount-snapshot /bin/restore /bin/locked_run \
 	&& ln -s replicate /bin/bisync
 
 # set sendmail-path

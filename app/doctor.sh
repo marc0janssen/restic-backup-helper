@@ -247,6 +247,7 @@ report_hooks() {
 		pre-restore post-restore
 		pre-snapshot-export post-snapshot-export
 		pre-forget-preview post-forget-preview
+		pre-mount-snapshot post-mount-snapshot
 	)
 	local phase hook found
 	found=0
@@ -283,6 +284,7 @@ report_last_json() {
 		/var/log/last-restore.json
 		/var/log/last-snapshot-export.json
 		/var/log/last-forget-preview.json
+		/var/log/last-mount-snapshot.json
 	)
 
 	for file in "${files[@]}"; do

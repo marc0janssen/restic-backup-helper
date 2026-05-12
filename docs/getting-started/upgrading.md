@@ -15,6 +15,48 @@ omitted; see the full [Changelog](../changelog.md) for every release.
 See [Versioning policy](../concepts/versioning.md) for the full semver
 contract.
 
+## 2.3.x → 2.4.0
+
+Purely additive. New `/bin/mount-snapshot` helper wraps `restic mount`
+(FUSE) read-only under `/fusemount`, scoped to this container's
+`--host "$HOSTNAME"` and `--tag "$RESTIC_TAG"` by default.
+
+Defaults are designed for the common case "give me last night's
+snapshot tree, scoped to this host": mounts on `/fusemount`
+(container-internal by design, created at image build, never collides
+with `/bin/restore` output or a host bind-mount on `/restore`).
+Created if missing, must be empty unless `--force`. The helper refuses
+`/data`, `BACKUP_ROOT_DIR` and other system/source directories
+without `--force`, and registers an `EXIT` trap that calls
+`fusermount -u` (with `umount` fallback) so SIGINT, SIGTERM or a
+restic crash always unmounts cleanly.
+
+Use `--repo-wide` to expose every snapshot, `--path` (repeatable) to
+filter by snapshot path, and `--allow-other` when another UID (e.g. a
+host bind-mount consumer) needs read access to the FUSE tree.
+
+FUSE inside the container still requires `--cap-add SYS_ADMIN
+--device /dev/fuse` (or the Kubernetes `securityContext` equivalents).
+On Ubuntu/Debian hosts (Docker's default AppArmor profile) you also
+need `--security-opt apparmor=unconfined` because the `docker-default`
+profile denies `mount(2)` regardless of `CAP_SYS_ADMIN`; the helper
+pre-flights this and aborts early with a precise hint if any one of
+the four FUSE knobs is wrong.
+
+!!! info "Default `--target` changed within the 2.4.0 development cycle"
+
+    Earlier 2.4.0 development tags defaulted to `--target /restore`.
+    The released 2.4.0 defaults to `--target /fusemount` to prevent
+    collisions with `/bin/restore` and host bind-mounts. If you wired
+    a workflow against the old default, pass `--target /restore`
+    explicitly (or update your scripts to the new path).
+
+It writes `/var/log/last-mount-snapshot.json`, supports
+`pre/post-mount-snapshot` hooks, webhooks, mail and the
+`restic_mount_snapshot.prom` Prometheus textfile.
+
+[Mount snapshot :material-arrow-right:](../operations/mount-snapshot.md)
+
 ## 2.2.x → 2.3.0
 
 Purely additive. New `/bin/forget-preview` helper previews retention with

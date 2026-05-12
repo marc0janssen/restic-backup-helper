@@ -81,6 +81,16 @@ webhook notifications**, **Prometheus textfile metrics** and
 
     [:octicons-arrow-right-24: Forget preview](operations/forget-preview.md)
 
+- :material-folder-eye-outline: __Mount snapshot__
+
+    ---
+
+    `/bin/mount-snapshot` exposes every matching snapshot read-only over
+    FUSE under `/fusemount`, with safe target validation and a clean
+    unmount on Ctrl+C / SIGTERM.
+
+    [:octicons-arrow-right-24: Mount snapshot](operations/mount-snapshot.md)
+
 - :material-stethoscope: __Doctor diagnostics__
 
     ---
@@ -170,7 +180,7 @@ The shortest "it backs up every night and yells when it breaks" setup:
 !!! tip "Pin your tags"
 
     Tagged images use the schema `<helper-semver>-<restic-version>`, e.g.
-    `2.3.0-0.18.1`. Pinning both protects you from surprise upstream
+    `2.4.0-0.18.1`. Pinning both protects you from surprise upstream
     behaviour changes. See [Image tags](reference/image-tags.md).
 
 ---

@@ -178,6 +178,8 @@ Use `tar -xzvf <archive> -C /target` to extract on the destination.
 ## See also
 
 - [Restore](restore.md) — the in-place restore wrapper.
+- [Mount snapshot](mount-snapshot.md) — read-only FUSE browse of any
+  snapshot under `/restore` without producing an archive on disk.
 - [Manual runs](manual-runs.md) — `docker run … snapshot-export` for an
   ephemeral one-shot.
 - [JSON summaries](../reference/json-summaries.md) —

@@ -5,8 +5,8 @@ twist that the published tag combines **the helper semver** with **the
 Restic base image version**:
 
 ```text
-<helper-semver>-<restic-version>          # stable, e.g. 2.3.0-0.18.1
-<helper-semver>-<restic-version>-dev      # testing, e.g. 2.3.0-0.18.1-dev
+<helper-semver>-<restic-version>          # stable, e.g. 2.4.0-0.18.1
+<helper-semver>-<restic-version>-dev      # testing, e.g. 2.4.0-0.18.1-dev
 ```
 
 ## What each bump means
@@ -14,13 +14,13 @@ Restic base image version**:
 | Bump | Trigger | Examples |
 | --- | --- | --- |
 | **PATCH** (`x.y.Z+1`) | Bugfix, docs-only change, rebuild tweak, Restic patch bump without behaviour change. | `2.2.0 → 2.2.1` (shellcheck cleanup), `2.2.1 → 2.2.2` (this docs site). |
-| **MINOR** (`x.Y+1.0`) | New feature, new environment variable, new script hook or materially new behaviour. Drop-in compatible. | `2.0.0 → 2.1.0` (`/bin/doctor`), `2.1.0 → 2.2.0` (`/bin/snapshot-export`), `2.2.2 → 2.3.0` (`/bin/forget-preview`). |
+| **MINOR** (`x.Y+1.0`) | New feature, new environment variable, new script hook or materially new behaviour. Drop-in compatible. | `2.0.0 → 2.1.0` (`/bin/doctor`), `2.1.0 → 2.2.0` (`/bin/snapshot-export`), `2.2.2 → 2.3.0` (`/bin/forget-preview`), `2.3.0 → 2.4.0` (`/bin/mount-snapshot`). |
 | **MAJOR** (`X+1.0.0`) | Breaking configuration, path, or runtime contract change. | `1.18.0 → 2.0.0` (`bisync` → `replicate` rename). |
 
 ## What the tag tells you
 
 ```text
-2.3.0-0.18.1-dev
+2.4.0-0.18.1-dev
 │   │ │   │
 │   │ │   └── -dev suffix → testing train
 │   │ └────── Restic base image tag (FROM restic/restic:0.18.1)
@@ -28,7 +28,7 @@ Restic base image version**:
 └──────────── helper MAJOR.MINOR (operator helper feature line)
 ```
 
-So `2.3.0-0.18.1-dev` is "helper 2.3.0 on top of Restic 0.18.1, testing
+So `2.4.0-0.18.1-dev` is "helper 2.4.0 on top of Restic 0.18.1, testing
 build". Pinning the full tag locks both layers.
 
 ## Why a coupled tag

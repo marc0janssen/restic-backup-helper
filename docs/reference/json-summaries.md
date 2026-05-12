@@ -12,9 +12,9 @@ scrape never sees a partial document.
 
 | Field | Type | Description |
 | --- | --- | --- |
-| `job` | string | One of `backup`, `check`, `prune`, `replicate`, `restore`, `snapshot-export`, `forget-preview`. |
+| `job` | string | One of `backup`, `check`, `prune`, `replicate`, `restore`, `snapshot-export`, `forget-preview`, `mount-snapshot`. |
 | `hostname` | string | Container hostname. Set explicitly in Compose / Kubernetes for stable labels. |
-| `release` | string | `${VERSION}-${restic_base}` baked at build time, e.g. `2.3.0-0.18.1`. |
+| `release` | string | `${VERSION}-${restic_base}` baked at build time, e.g. `2.4.0-0.18.1`. |
 | `started_at` | string | ISO 8601 in container `TZ`. |
 | `finished_at` | string | ISO 8601 in container `TZ`. |
 | `started_epoch` | integer | Unix epoch seconds at start. |
@@ -49,7 +49,7 @@ common fields and `exit_code`.
 {
   "job": "backup",
   "hostname": "backup-node",
-  "release": "2.3.0-0.18.1",
+  "release": "2.4.0-0.18.1",
   "started_at": "2026-05-11T02:00:00+0200",
   "finished_at": "2026-05-11T02:05:12+0200",
   "started_epoch": 1762828800,
@@ -102,7 +102,7 @@ snapshots.
 {
   "job": "replicate",
   "hostname": "backup-node",
-  "release": "2.3.0-0.18.1",
+  "release": "2.4.0-0.18.1",
   "started_at": "2026-05-11T09:00:00+0200",
   "finished_at": "2026-05-11T09:11:23+0200",
   "duration_seconds": 683,
@@ -147,7 +147,7 @@ Exit codes:
 {
   "job": "snapshot-export",
   "hostname": "backup-node",
-  "release": "2.3.0-0.18.1",
+  "release": "2.4.0-0.18.1",
   "started_at": "2026-05-11T15:30:00+0200",
   "finished_at": "2026-05-11T15:31:12+0200",
   "duration_seconds": 72,
@@ -162,6 +162,42 @@ Exit codes:
   "files_restored": 4523,
   "bytes_restored": "567.89 MiB",
   "elapsed_human": "1m12s"
+}
+```
+
+### `last-mount-snapshot.json`
+
+`/bin/mount-snapshot` records one entry **per mount session**, written
+after restic releases the FUSE mount:
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `target` | string | Mountpoint used (default `/restore`). |
+| `repo_wide` | string | `ON` when `--repo-wide` was used, otherwise `OFF`. |
+| `allow_other` | string | `ON` when `--allow-other` was used, otherwise `OFF`. |
+| `host_filter` | string \| omitted | Host filter used; omitted when `repo_wide=ON`. |
+| `tag_filter` | string \| omitted | Tag filter used; omitted when `repo_wide=ON`. |
+| `path_filters` | string \| omitted | Space-separated list of `--path` values, when any were passed. |
+
+`duration_seconds` measures the length of the mount session itself
+(from "restic mount started" to "FUSE unmounted"); for ad-hoc operator
+browsing this can be minutes-to-hours.
+
+```json
+{
+  "job": "mount-snapshot",
+  "hostname": "backup-node",
+  "release": "2.4.0-0.18.1",
+  "started_at": "2026-05-12T17:00:00+0200",
+  "finished_at": "2026-05-12T17:12:31+0200",
+  "duration_seconds": 751,
+  "exit_code": 0,
+  "repository": "rclone:jottacloud:backups",
+  "target": "/restore",
+  "repo_wide": "OFF",
+  "allow_other": "OFF",
+  "host_filter": "backup-node",
+  "tag_filter": "backup-node-data"
 }
 ```
 

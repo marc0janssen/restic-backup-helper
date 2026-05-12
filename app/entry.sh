@@ -76,6 +76,10 @@ if [ "${1:-}" = "forget-preview" ] || [ "${1:-}" = "/bin/forget-preview" ]; then
 	shift
 	exec /bin/forget-preview "$@"
 fi
+if [ "${1:-}" = "mount-snapshot" ] || [ "${1:-}" = "/bin/mount-snapshot" ]; then
+	shift
+	exec /bin/mount-snapshot "$@"
+fi
 
 # shellcheck source=app/lib.sh
 . /bin/lib.sh

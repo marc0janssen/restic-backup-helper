@@ -69,6 +69,7 @@ repo's `app/` directory at image build time:
 | `/bin/restore` | `app/restore.sh` | Operator-driven | Wrapper around `restic restore`. |
 | `/bin/snapshot-export` | `app/snapshot_export.sh` | Operator-driven | `restic restore` + `tar.gz` archive. |
 | `/bin/forget-preview` | `app/forget_preview.sh` | Operator-driven | `restic forget --dry-run` retention preview. |
+| `/bin/mount-snapshot` | `app/mount_snapshot.sh` | Operator-driven | `restic mount` (FUSE) with safe target validation and clean unmount. |
 | `/bin/doctor` | `app/doctor.sh` | Operator-driven | Read-only diagnostics. |
 | `/bin/locked_run` | `app/locked_run.sh` | Wraps every cron entry | Per-job `flock`; logs skips. |
 
