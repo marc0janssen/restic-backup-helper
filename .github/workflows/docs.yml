@@ -23,6 +23,11 @@ permissions:
   pages: write
   id-token: write
 
+env:
+  # Opt in before GitHub switches JavaScript actions from Node.js 20 to 24
+  # by default. This keeps Pages artifact upload/deploy warnings out of CI.
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
 concurrency:
   group: pages
   cancel-in-progress: true
