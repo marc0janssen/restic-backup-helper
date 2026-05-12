@@ -8,7 +8,7 @@ These instructions apply to the whole repository.
 
 ## Project Context
 
-This repository builds **`marc0janssen/restic-backup-helper`**, a Docker image for scheduled [Restic](https://restic.net) backups, repository checks, optional Rclone sync, logging and mail notifications.
+This repository builds **`marc0janssen/restic-backup-helper`**, a Docker image for scheduled [Restic](https://restic.net) backups, repository checks, optional Rclone replicate jobs, logging and mail notifications.
 
 The image is based on **`restic/restic`** (Alpine). This repository owns application scripts under `app/`, container entrypoint behaviour, cron wiring, configuration samples, build tooling and documentation—not the Restic core itself.
 
@@ -38,13 +38,14 @@ The image is based on **`restic/restic`** (Alpine). This repository owns applica
 |------|------|
 | `Dockerfile` | Image definition; `restic/restic:<tag>`; release string via `ARG` / `ENV RESTIC_BACKUP_HELPER_RELEASE` at build time (no repo `.release` file) |
 | `app/entry.sh` | Container entrypoint |
-| `app/backup.sh`, `app/check.sh`, `app/bisync.sh`, `app/rotate_log.sh` | Cron-invoked workers |
+| `app/backup.sh`, `app/check.sh`, `app/replicate.sh`, `app/rotate_log.sh` | Cron-invoked workers |
+| `app/restore.sh`, `app/snapshot_export.sh`, `app/doctor.sh` | Operator-invoked helpers |
 | `app/install_rclone.sh` | Rclone install during image build |
 | `scripts/build-common.sh` | Shared logic for release versioning and Docker Hub builds |
 | `build.sh`, `build-testing.sh` | Stable / dev Docker Hub builds (read optional `build.env` / `build-testing.env`) |
 | `build-testing-local.sh` | Private-registry build; pushes only `:testing` (optional `build-testing-local.env`) |
 | `scripts/start_restic_helper_agent_compose.sh`, `scripts/docker-compose.yml` | Example/runtime helpers |
-| `config/` | Sample excludes, msmtp, sync job definitions |
+| `config/` | Sample excludes, msmtp, replicate job definitions |
 | **`README.md`** | Primary documentation (GitHub, full detail) |
 | **`README-containers.md`** | Docker Hub description: short summary, tags, links; **must stay aligned** with release/pull-tag lines that build scripts auto-patch |
 
@@ -69,7 +70,7 @@ Release image tags follow **`${semver}-${RESTIC_VERSION}`** (stable) or **`${sem
 - **MINOR**: new feature, new environment variable, new script hook or materially new behaviour.
 - **MAJOR**: breaking configuration, path, or runtime contract change.
 
-Running **`./build.sh`** or **`./build-testing.sh`** bumps the **patch** component of `VERSION` and updates README/Dockerfile as implemented in `scripts/build-common.sh`. When submitting agent-made changes, still align **`CHANGELOG.md`** and **`VERSION`** with the nature of the change unless the user runs those scripts themselves.
+Running **`./build.sh`** or **`./build-testing.sh`** does **not** change `VERSION` or README files: they build and push using the current **`VERSION`** line plus **`VERSION_RESTIC`** from env (stable: `x.y.z-<restic>`, testing: `x.y.z-<restic>-dev`). **`Dockerfile` `FROM restic/restic:`** is still rewritten from **`VERSION_RESTIC`** when you build. Bump **`VERSION`**, **`CHANGELOG.md`**, and README release lines yourself (or use **`./scripts/update-restic-base.sh`** when changing the Restic base tag — that script still bumps the helper patch semver by design).
 
 ### How versioning becomes visible in git
 
@@ -81,9 +82,9 @@ Without running the publish scripts, nothing updates **`VERSION`** or the README
 | **`CHANGELOG.md`** | Human-readable list of changes per release; add an entry when you bump version meaningfully. |
 | **`README.md`** / **`README-containers.md`** | Must stay aligned: `release:` and example `docker pull …:<semver>-<restic>` / `-dev` tags. |
 
-After **`./build.sh`** / **`./build-testing.sh`**, patch bumps and README `sed` updates happen in one go; if you only **`git commit`** without building, manually bump **`VERSION`** (and MINOR/MAJOR when required) and edit **`CHANGELOG.md`** and README release sections so the repo matches AGENTS.
+Before publishing a new image, manually bump **`VERSION`** (and MINOR/MAJOR when required), edit **`CHANGELOG.md`**, and align **`README.md`** / **`README-containers.md`** `release:` and pinned pull examples with **`VERSION`** + **`Dockerfile`** `FROM` (see CI versioning guard in `scripts/ci-quality-checks.sh`).
 
-When you touch user-facing release metadata, keep machine-oriented lines in **`README.md`** and **`README-containers.md`** consistent with the scripts (both get the same `release:` / pull-tag updates from `build.sh` / `build-testing.sh`). See **README-containers.md (Docker Hub)** above for Hub-specific rules.
+When you touch user-facing release metadata, keep **`README.md`** and **`README-containers.md`** consistent with each other and with **`VERSION`**. See **README-containers.md (Docker Hub)** above for Hub-specific rules.
 
 ## Build And Env Files
 
@@ -130,5 +131,6 @@ For behaviour changes in cron scripts, reason through failure modes (empty env, 
 - Do not commit unless the user asks.
 - Keep commits focused.
 - Use clear commit messages.
+- Preferred commit identity for this repository is `Marco Janssen <marco@mjanssen.nl>`; do not change git config automatically, but use or recommend this email when commit identity needs to be set explicitly.
 - Check `git status --short` before and after staging.
 - Do not stage unrelated files or gitignored local env files.

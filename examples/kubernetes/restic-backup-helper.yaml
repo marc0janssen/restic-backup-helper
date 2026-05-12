@@ -1,0 +1,195 @@
+# Kubernetes example manifest for marc0janssen/restic-backup-helper.
+#
+# Bundles three resources in one file: Secret (Restic password + msmtp config),
+# PersistentVolumeClaim (cron.log + last-*.json + *.prom textfiles), and
+# Deployment (single replica, internal cron, no plaintext passwords in env).
+# Apply with: kubectl apply -n backup -f restic-backup-helper.yaml
+#
+# Notes:
+#   * Replace <YOUR_*> placeholders before applying.
+#   * The container runs as root because cron, FUSE and NFS workflows require
+#     it; tighten capabilities at the cluster layer (PodSecurity, NetworkPolicy,
+#     seccomp/AppArmor) instead of trying to drop them inside this image.
+#   * For backup *sources*: this example shows two patterns — `hostPath` for
+#     a single-node setup, and `persistentVolumeClaim` (commented) for a CSI
+#     driver such as NFS / Longhorn. Pick one and delete the other.
+#   * Cache (/.cache/restic) is an emptyDir so it survives restarts within a
+#     Pod but does not require a PVC. Switch to a PVC for very large repos.
+
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: restic-backup-helper
+  labels:
+    app.kubernetes.io/name: restic-backup-helper
+type: Opaque
+stringData:
+  # Strongly recommended: load these from your secret manager (sealed-secrets,
+  # external-secrets, sops, vault) instead of committing this manifest.
+  restic-password: "REPLACE_ME"
+  msmtprc: |
+    defaults
+    auth           on
+    tls            on
+    tls_trust_file /etc/ssl/certs/ca-certificates.crt
+    logfile        /var/log/msmtp.log
+
+    account        relay
+    host           smtp.example.com
+    port           587
+    from           backup@example.com
+    user           backup@example.com
+    password       REPLACE_ME
+
+    account default : relay
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: restic-backup-helper-logs
+  labels:
+    app.kubernetes.io/name: restic-backup-helper
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+  # storageClassName: <YOUR_DEFAULT_STORAGE_CLASS>
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: restic-backup-helper
+  labels:
+    app.kubernetes.io/name: restic-backup-helper
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate # Single replica; do not run two cron containers in parallel.
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: restic-backup-helper
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: restic-backup-helper
+    spec:
+      hostname: backup-node
+      restartPolicy: Always
+      containers:
+        - name: restic
+          image: marc0janssen/restic-backup-helper:latest
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            # FUSE / restic mount needs SYS_ADMIN; reading restricted source
+            # paths needs DAC_READ_SEARCH. Keep the rest dropped by default.
+            capabilities:
+              add:
+                - DAC_READ_SEARCH
+                - SYS_ADMIN
+              drop:
+                - ALL
+          env:
+            # Restic core
+            - name: RESTIC_REPOSITORY
+              value: "s3:https://s3.example.com/my-bucket/restic"
+            - name: RESTIC_PASSWORD_FILE
+              value: /run/secrets/restic-password
+            - name: RESTIC_TAG
+              value: daily
+            - name: RESTIC_CACHE_DIR
+              value: /.cache/restic
+            - name: RESTIC_CHECK_REPOSITORY_STATUS
+              value: "ON"
+            - name: RESTIC_AUTO_UNLOCK
+              value: "OFF" # multi-host repos are safer with auto-unlock OFF
+            # Backup
+            - name: BACKUP_CRON
+              value: "0 2 * * *"
+            - name: BACKUP_ROOT_DIR
+              value: /data
+            - name: RESTIC_FORGET_ARGS
+              value: "--keep-daily 7 --keep-weekly 5 --keep-monthly 12 --keep-yearly 10"
+            # Optional schedules (leave blank to disable)
+            - name: CHECK_CRON
+              value: "37 3 * * 0"
+            - name: PRUNE_CRON
+              value: "0 4 * * 0"
+            - name: RESTIC_PRUNE_ARGS
+              value: "--max-unused 10%"
+            - name: REPLICATE_CRON
+              value: ""
+            # Notifications
+            - name: MAILX_RCPT
+              value: ops@example.com
+            - name: MAILX_ON_ERROR
+              value: "ON"
+            - name: WEBHOOK_URL
+              value: "" # e.g. https://hc-ping.com/<uuid>
+            - name: WEBHOOK_ON_ERROR
+              value: "OFF"
+            - name: HOOK_TIMEOUT
+              value: "300"
+            # Prometheus textfile collector — point a sidecar / DaemonSet
+            # node-exporter --collector.textfile.directory at this path.
+            - name: METRICS_DIR
+              value: /var/log/textfile_collector
+            - name: TZ
+              value: Europe/Amsterdam
+          volumeMounts:
+            - name: restic-secret
+              mountPath: /run/secrets/restic-password
+              subPath: restic-password
+              readOnly: true
+            - name: restic-secret
+              mountPath: /etc/msmtprc
+              subPath: msmtprc
+              readOnly: true
+            - name: cache
+              mountPath: /.cache/restic
+            - name: logs
+              mountPath: /var/log
+            - name: source
+              mountPath: /data
+              readOnly: true
+          # Strong probe — fails when credentials or repo reachability break.
+          livenessProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - "restic cat config >/dev/null 2>&1 || exit 1"
+            initialDelaySeconds: 60
+            periodSeconds: 900
+            timeoutSeconds: 30
+          readinessProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - "test -f /var/log/cron.log || exit 1"
+            initialDelaySeconds: 10
+            periodSeconds: 60
+            timeoutSeconds: 5
+      volumes:
+        - name: restic-secret
+          secret:
+            secretName: restic-backup-helper
+            defaultMode: 0o400
+        - name: cache
+          emptyDir: {}
+        - name: logs
+          persistentVolumeClaim:
+            claimName: restic-backup-helper-logs
+        # Pick ONE source pattern below and delete the other.
+        - name: source
+          hostPath:
+            path: /srv/documents
+            type: Directory
+        # - name: source
+        #   persistentVolumeClaim:
+        #     claimName: documents-pvc

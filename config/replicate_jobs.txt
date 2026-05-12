@@ -1,0 +1,22 @@
+# REPLICATE JOBS
+#
+# Format: SOURCE;DESTINATION[;MODE[;EXTRA_ARGS]]
+#   MODE       bisync (default) | sync | copy
+#   EXTRA_ARGS rclone flags appended after the global REPLICATE_JOB_ARGS for
+#              THIS job only (--resync is filtered out for routine runs)
+#
+# Comment lines starting with '#' and blank lines are ignored.
+# Recovery procedure (copy both + --resync) only runs for bisync failures.
+
+# Two-column legacy form; runs as bisync with global REPLICATE_JOB_ARGS:
+/volume1/inbox;jottasync:/inbox
+/volume1/photo;jottasync:/photo
+
+# Bisync with a per-job exclude file in addition to the global one:
+# /volume1/projects;jottasync:/projects;bisync;--exclude-from /config/projects-exclude.txt
+
+# One-way push (rclone sync) — destination is made to mirror the source:
+# /volume1/static-site;s3:my-bucket/site;sync
+
+# Additive copy (no deletes propagate):
+# /volume1/archive;jottasync:/archive;copy;--immutable

@@ -34,6 +34,11 @@ Precedence (hoog → laag): CLI --repo / --platform → niet-lege export in je s
 
 Environment:
   VERSION_RESTIC   Same as build-testing.sh (default 0.18.1); keep in sync with Dockerfile FROM.
+  SBOM             Set to ON to generate SPDX + CycloneDX SBOMs of the pushed
+                   image via syft (requires syft on PATH). Default: off.
+  SBOM_DIR         Output directory for SBOM artifacts. Default: ./sbom/local
+                   so private-registry SBOMs do not overwrite the Docker Hub
+                   testing/stable SBOMs (which default to ./sbom/).
 
 Docker tag pushed (only):
   <LOCAL_REPO>:testing
@@ -159,12 +164,22 @@ if ! is_semver "${image_version}"; then
 fi
 
 RELEASE="${image_version}-${VERSION_RESTIC}-dev"
+# emit_sbom() (in scripts/build-common.sh) reads RESTIC_NEW_RELEASE for the
+# SBOM filename; expose RELEASE under that name so the same helper works for
+# build.sh, build-testing.sh and this private-registry variant.
+RESTIC_NEW_RELEASE="${RELEASE}"
+# Keep private-registry SBOMs out of the Docker Hub ./sbom/ pool by default
+# so contributors who run both build flows on the same machine don't clobber
+# each other's artifacts. Honours an explicit SBOM_DIR override.
+export SBOM_DIR="${SBOM_DIR:-${REPO_ROOT}/sbom/local}"
 
 docker buildx build --no-cache --platform "${PLATFORM_ARG}" --push \
 	--build-arg "RESTIC_BACKUP_HELPER_RELEASE=${RELEASE}" \
 	-t "${LOCAL_REPO_ARG}:testing" \
 	-t "${LOCAL_REPO_ARG}:${RELEASE}" \
 	-f ./Dockerfile .
+
+emit_sbom "${LOCAL_REPO_ARG}:${RELEASE}"
 
 echo ""
 echo "Pushed ${LOCAL_REPO_ARG}:testing  (RESTIC_BACKUP_HELPER_RELEASE=${RELEASE})"

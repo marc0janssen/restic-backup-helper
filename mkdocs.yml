@@ -1,0 +1,178 @@
+site_name: Restic Backup Helper
+site_description: >-
+  Docker image for scheduled Restic backups, integrity checks, prune,
+  Rclone replication, structured observability and operator helpers.
+site_url: https://marc0janssen.github.io/restic-backup-helper/
+site_author: Marco Janssen
+copyright: Copyright &copy; 2024-2026 Marco Janssen — MIT licensed
+
+repo_name: marc0janssen/restic-backup-helper
+repo_url: https://github.com/marc0janssen/restic-backup-helper
+edit_uri: edit/develop/docs/
+
+docs_dir: docs
+
+# Emit foo.html instead of foo/index.html so the generated site is also
+# browsable directly from disk over file:// (handy for offline reading
+# and quick local previews without `mkdocs serve`). GitHub Pages still
+# resolves both forms.
+use_directory_urls: false
+
+theme:
+  name: material
+  language: en
+  logo: assets/logo.svg
+  favicon: assets/logo.svg
+  font:
+    text: Inter
+    code: JetBrains Mono
+  icon:
+    repo: fontawesome/brands/github
+    edit: material/pencil
+    view: material/eye
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.tabs
+    - navigation.tabs.sticky
+    - navigation.sections
+    - navigation.indexes
+    - navigation.top
+    - navigation.footer
+    - navigation.tracking
+    - toc.follow
+    - search.suggest
+    - search.highlight
+    - search.share
+    - content.action.edit
+    - content.action.view
+    - content.code.copy
+    - content.code.annotate
+    - content.tabs.link
+    - content.tooltips
+
+extra_css:
+  - stylesheets/extra.css
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/marc0janssen/restic-backup-helper
+    - icon: fontawesome/brands/docker
+      link: https://hub.docker.com/r/marc0janssen/restic-backup-helper
+    - icon: fontawesome/brands/python
+      link: https://hub.docker.com/r/marc0janssen/restic-backup-helper
+  status:
+    new: Recently added
+    deprecated: Deprecated
+
+plugins:
+  - search
+  - git-revision-date-localized:
+      enable_creation_date: true
+      type: timeago
+      fallback_to_build_date: true
+
+markdown_extensions:
+  - abbr
+  - admonition
+  - attr_list
+  - def_list
+  - footnotes
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+      title: On this page
+  - pymdownx.betterem
+  - pymdownx.caret
+  - pymdownx.critic
+  - pymdownx.details
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.keys
+  - pymdownx.mark
+  - pymdownx.smartsymbols
+  - pymdownx.snippets:
+      check_paths: true
+      base_path:
+        - .
+        - docs
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
+      slugify: !!python/object/apply:pymdownx.slugs.slugify
+        kwds:
+          case: lower
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - pymdownx.tilde
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+
+nav:
+  - Home: index.md
+  - Getting started:
+      - Installation: getting-started/installation.md
+      - Quick start: getting-started/quick-start.md
+      - Upgrading: getting-started/upgrading.md
+  - Concepts:
+      - Architecture: concepts/architecture.md
+      - Filesystem layout: concepts/filesystem-layout.md
+      - Cron and time zones: concepts/cron-and-time-zones.md
+      - Versioning policy: concepts/versioning.md
+  - Configuration:
+      - Environment variables: configuration/environment-variables.md
+      - Backup backends: configuration/backends.md
+      - Hooks: configuration/hooks.md
+      - Mail notifications: configuration/mail.md
+      - Webhooks: configuration/webhooks.md
+      - Prometheus metrics: configuration/metrics.md
+      - Log rotation: configuration/log-rotation.md
+  - Workers:
+      - Backup: workers/backup.md
+      - Check: workers/check.md
+      - Prune: workers/prune.md
+      - Replicate: workers/replicate.md
+      - Log rotation: workers/rotate-log.md
+  - Operations:
+      - Manual runs: operations/manual-runs.md
+      - Restore: operations/restore.md
+      - Snapshot export: operations/snapshot-export.md
+      - Diagnostics (doctor): operations/diagnostics.md
+      - Troubleshooting: operations/troubleshooting.md
+  - Deployment:
+      - Docker run: deployment/docker.md
+      - Docker Compose: deployment/docker-compose.md
+      - Multiple backup jobs: deployment/multiple-jobs.md
+      - Kubernetes: deployment/kubernetes.md
+      - Hardening: deployment/hardening.md
+  - Reference:
+      - JSON summaries: reference/json-summaries.md
+      - Prometheus metrics: reference/prometheus-metrics.md
+      - Image tags: reference/image-tags.md
+      - Supply chain (SBOM, Trivy): reference/supply-chain.md
+  - Security: security.md
+  - Contributing: contributing.md
+  - Changelog: changelog.md

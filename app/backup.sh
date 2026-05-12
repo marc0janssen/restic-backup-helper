@@ -6,76 +6,34 @@
 # Description: Script for performing backups with Restic
 # =========================================================
 
+set -Eeuo pipefail
+
 # Define log files
 LAST_LOGFILE="/var/log/backup-last.log"
 LAST_ERROR_LOGFILE="/var/log/backup-error-last.log"
 LAST_MAIL_LOGFILE="/var/log/backup-mail-last.log"
 
-# Mask repository credentials before logging
-mask_repository() {
-	local repo="$1"
-	local rest="$repo"
-	local masked=""
-	local before after last_part prefix
+# shellcheck source=lib.sh
+. /bin/lib.sh
 
-	while [[ "$rest" == *"@"* ]]; do
-		before="${rest%%@*}"
-		after="${rest#*@}"
-		last_part="${before##*/}"
-
-		if [[ "$before" == *":"* && "$last_part" == *":"* ]]; then
-			prefix="${before%:*}"
-			masked+="${prefix}:***@"
-		else
-			masked+="${before}@"
-		fi
-
-		rest="$after"
-	done
-
-	masked+="$rest"
-	printf '%s' "$masked"
-}
-
-if [ -n "${RESTIC_REPOSITORY}" ]; then
+if [ -n "${RESTIC_REPOSITORY:-}" ]; then
 	MASKED_REPO=$(mask_repository "${RESTIC_REPOSITORY}")
 else
-	MASKED_REPO="${RESTIC_REPOSITORY}"
+	MASKED_REPO="${RESTIC_REPOSITORY:-}"
 fi
 
 # Releasestring: ENV gezet bij image build (build-arg)
 RELEASE="${RESTIC_BACKUP_HELPER_RELEASE:-unknown}"
 
-# Function to copy error log
-copyErrorLog() {
-	cp "${LAST_LOGFILE}" "${LAST_ERROR_LOGFILE}"
-}
-
-# Function to write to the last log file
-logLast() {
-	echo "$1" >>"${LAST_LOGFILE}"
-}
-
-# Function to log messages to both console and log file
-log() {
-	local message="$1"
-	echo "${message}"
-	logLast "${message}"
-}
-
-# If the RESTIC_PUBLICKEY variable is set, add the --cacert option with its value; otherwise, leave it empty.
-#[ -n "${RESTIC_PUBLICKEY}" ] && CACERT_OPTION="--cacert ${RESTIC_PUBLICKEY}" || CACERT_OPTION=""
+# Build --cacert flags from RESTIC_CACERT (no-op when unset).
+build_restic_cacert_args
 
 # Clear log files
 rm -f "${LAST_LOGFILE}" "${LAST_MAIL_LOGFILE}"
 
-# Check if pre-backup script exists and execute it
-if [ -f "/hooks/pre-backup.sh" ]; then
-	log "🚀 Starting pre-backup script..."
-	/hooks/pre-backup.sh
-else
-	log "ℹ️ Pre-backup script not found..."
-fi
+# Pre-hook is informational; never abort the backup on a failing pre-hook
+# (matches historical behaviour before `set -e`).
+run_hook "pre-backup" || true
 
 # Record start time
 start=$(date +%s)
@@ -85,11 +43,12 @@ log "🔄 Starting Backup at $(date +"%Y-%m-%d %a %H:%M:%S")"
 
 # Log environment variables
 logLast "RELEASE: ${RELEASE}"
-logLast "BACKUP_CRON: ${BACKUP_CRON}"
-logLast "BACKUP_ROOT_DIR: ${BACKUP_ROOT_DIR}"
-logLast "RESTIC_TAG: ${RESTIC_TAG}"
-logLast "RESTIC_FORGET_ARGS: ${RESTIC_FORGET_ARGS}"
-logLast "RESTIC_JOB_ARGS: ${RESTIC_JOB_ARGS}"
+logLast "BACKUP_CRON: ${BACKUP_CRON:-}"
+logLast "BACKUP_ROOT_DIR: ${BACKUP_ROOT_DIR:-}"
+logLast "RESTIC_TAG: ${RESTIC_TAG:-}"
+logLast "RESTIC_FORGET_ARGS: ${RESTIC_FORGET_ARGS:-}"
+logLast "RESTIC_JOB_ARGS: ${RESTIC_JOB_ARGS:-}"
+logLast "RESTIC_CACERT: ${RESTIC_CACERT:-}"
 logLast "RESTIC_REPOSITORY: ${MASKED_REPO}"
 
 if [ -z "${BACKUP_ROOT_DIR:-}" ] && [ -z "${RESTIC_JOB_ARGS:-}" ]; then
@@ -97,9 +56,9 @@ if [ -z "${BACKUP_ROOT_DIR:-}" ] && [ -z "${RESTIC_JOB_ARGS:-}" ]; then
 fi
 
 # Perform backup
-if [ -n "${BACKUP_ROOT_DIR}" ]; then
+if [ -n "${BACKUP_ROOT_DIR:-}" ]; then
 	log "📦 Performing backup of ${BACKUP_ROOT_DIR}..."
-elif [ -n "${RESTIC_JOB_ARGS}" ]; then
+elif [ -n "${RESTIC_JOB_ARGS:-}" ]; then
 	log "📦 Performing backup using RESTIC_JOB_ARGS..."
 else
 	log "📦 Performing backup with restic defaults..."
@@ -107,19 +66,28 @@ fi
 
 backup_cmd=(backup)
 
-if [ -n "${RESTIC_JOB_ARGS}" ]; then
+if [ -n "${RESTIC_JOB_ARGS:-}" ]; then
 	read -r -a restic_job_args <<<"${RESTIC_JOB_ARGS}"
 	backup_cmd+=("${restic_job_args[@]}")
 fi
 
-backup_cmd+=("--tag=${RESTIC_TAG?"Missing environment variable RESTIC_TAG"}")
+if [ -z "${RESTIC_TAG:-}" ]; then
+	log "❌ RESTIC_TAG is unset or empty. Set it to a non-empty value (e.g. 'daily', '${HOSTNAME:-host}-data') so snapshots can be filtered by tag. Aborting backup."
+	exit 2
+fi
+backup_cmd+=("--tag=${RESTIC_TAG}")
 
-if [ -n "${BACKUP_ROOT_DIR}" ]; then
+if [ -n "${BACKUP_ROOT_DIR:-}" ]; then
 	backup_cmd+=("${BACKUP_ROOT_DIR}")
 fi
 
-restic "${backup_cmd[@]}" >>"${LAST_LOGFILE}" 2>&1
-backupRC=$?
+# if/else captures restic's exit code without aborting under `set -e` —
+# downstream forget / unlock / mail / webhook all need backupRC.
+if restic "${RESTIC_CACERT_ARGS[@]}" "${backup_cmd[@]}" >>"${LAST_LOGFILE}" 2>&1; then
+	backupRC=0
+else
+	backupRC=$?
+fi
 logLast "Finished backup at $(date +"%Y-%m-%d %a %H:%M:%S")"
 
 # Error handling
@@ -127,17 +95,24 @@ if [ "$backupRC" -eq 0 ]; then
 	log "✅ Backup Successful"
 else
 	log "❌ Backup Failed with Status ${backupRC}"
-	log "🔓 Unlocking repository..."
-	restic unlock
+	if should_auto_unlock; then
+		log "🔓 Unlocking repository (RESTIC_AUTO_UNLOCK=ON)..."
+		restic "${RESTIC_CACERT_ARGS[@]}" unlock || true
+	else
+		log "ℹ️ Skipping automatic 'restic unlock' (RESTIC_AUTO_UNLOCK!=ON). Inspect with 'restic list locks' and run 'restic unlock' manually if the lock is stale, or set RESTIC_AUTO_UNLOCK=ON to restore the previous default behaviour."
+	fi
 	copyErrorLog
 fi
 
 # Execute forget if backup was successful and RESTIC_FORGET_ARGS is set
-if [ "$backupRC" -eq 0 ] && [ -n "${RESTIC_FORGET_ARGS}" ]; then
+if [ "$backupRC" -eq 0 ] && [ -n "${RESTIC_FORGET_ARGS:-}" ]; then
 	log "🧹 Forgetting old snapshots based on: ${RESTIC_FORGET_ARGS}"
 	read -r -a forget_args <<<"${RESTIC_FORGET_ARGS}"
-	restic forget "${forget_args[@]}" >>"${LAST_LOGFILE}" 2>&1
-	rc=$?
+	if restic "${RESTIC_CACERT_ARGS[@]}" forget "${forget_args[@]}" >>"${LAST_LOGFILE}" 2>&1; then
+		rc=0
+	else
+		rc=$?
+	fi
 	logLast "Finished forget at $(date +"%Y-%m-%d %a %H:%M:%S")"
 
 	# Error handling for forget
@@ -145,8 +120,12 @@ if [ "$backupRC" -eq 0 ] && [ -n "${RESTIC_FORGET_ARGS}" ]; then
 		log "✅ Forget Successful"
 	else
 		log "❌ Forget Failed with Status ${rc}"
-		log "🔓 Unlocking repository..."
-		restic unlock
+		if should_auto_unlock; then
+			log "🔓 Unlocking repository (RESTIC_AUTO_UNLOCK=ON)..."
+			restic "${RESTIC_CACERT_ARGS[@]}" unlock || true
+		else
+			log "ℹ️ Skipping automatic 'restic unlock' (RESTIC_AUTO_UNLOCK!=ON); see backup-failure log entry above for guidance."
+		fi
 		copyErrorLog
 	fi
 fi
@@ -159,24 +138,50 @@ seconds=$((duration % 60))
 
 log "🏁 Finished backup at $(date +"%Y-%m-%d %a %H:%M:%S") after ${minutes}m ${seconds}s"
 
-# Send mail notification (on failure if MAILX_ON_ERROR=ON, else always when MAILX_RCPT set)
-if [ -n "${MAILX_RCPT}" ] && {
-	[ "${MAILX_ON_ERROR^^}" != "ON" ] || { [ "${MAILX_ON_ERROR^^}" == "ON" ] && [ "$backupRC" -ne 0 ]; }
-}; then
-	log "📧 Sending email notification to ${MAILX_RCPT}..."
-	if mail -v -s "Result of the last ${HOSTNAME} backup run on ${MASKED_REPO}" "${MAILX_RCPT}" <"${LAST_LOGFILE}" >"${LAST_MAIL_LOGFILE}" 2>&1; then
-		log "✅ Mail notification successfully sent"
-	else
-		log "❌ Sending mail notification FAILED. Check ${LAST_MAIL_LOGFILE} for further information."
-	fi
+parse_restic_backup_stats "${LAST_LOGFILE}"
+
+last_run_extras=(
+	"repository" "${MASKED_REPO}"
+	"backup_root_dir" "${BACKUP_ROOT_DIR:-}"
+	"restic_tag" "${RESTIC_TAG:-}"
+)
+if [ -n "${BACKUP_STATS_SNAPSHOT_ID}" ]; then
+	last_run_extras+=("snapshot_id" "${BACKUP_STATS_SNAPSHOT_ID}")
+fi
+if [ -n "${BACKUP_STATS_FILES_NEW}" ]; then
+	last_run_extras+=(
+		"files_new" "${BACKUP_STATS_FILES_NEW}"
+		"files_changed" "${BACKUP_STATS_FILES_CHANGED}"
+		"files_unmodified" "${BACKUP_STATS_FILES_UNMODIFIED}"
+	)
+fi
+if [ -n "${BACKUP_STATS_BYTES_ADDED}" ]; then
+	last_run_extras+=(
+		"bytes_added" "${BACKUP_STATS_BYTES_ADDED}"
+		"bytes_stored" "${BACKUP_STATS_BYTES_STORED}"
+	)
 fi
 
-# Check if post-backup script exists and execute it
-if [ -f "/hooks/post-backup.sh" ]; then
-	log "🚀 Starting post-backup script..."
-	/hooks/post-backup.sh "$backupRC"
-else
-	log "ℹ️ Post-backup script not found..."
+write_last_run_json "backup" "${backupRC}" "${start}" "${end}" "${last_run_extras[@]}"
+
+notify_webhook "backup" "${backupRC}" "${start}" "${end}" "${last_run_extras[@]}" || true
+
+write_metrics_for_job "backup" "${backupRC}" "${start}" "${end}" "${last_run_extras[@]}" || true
+
+# Build a richer mail subject: "[OK] Backup larak · 5m12s · 1.234 MiB new (snap a1b2c3d4)".
+mail_details=""
+if [ -n "${BACKUP_STATS_BYTES_ADDED}" ]; then
+	mail_details+="${BACKUP_STATS_BYTES_ADDED} new"
+elif [ -n "${BACKUP_STATS_FILES_NEW}" ]; then
+	mail_details+="${BACKUP_STATS_FILES_NEW} new files"
 fi
+if [ -n "${BACKUP_STATS_SNAPSHOT_ID}" ]; then
+	[ -n "${mail_details}" ] && mail_details+=" "
+	mail_details+="(snap ${BACKUP_STATS_SNAPSHOT_ID:0:8})"
+fi
+[ -n "${mail_details}" ] || mail_details="${MASKED_REPO}"
+notify_mail "$(format_subject "Backup" "${backupRC}" "${duration}" "${mail_details}")" "${backupRC}" || true
+
+run_hook "post-backup" "$backupRC" || true
 
 exit "$backupRC"

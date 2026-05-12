@@ -1,0 +1,217 @@
+# Compose V2 reference stack for a cloud-backed Restic repository.
+# No top-level `version:` is needed.
+#
+# This file is intentionally verbose. It documents the runtime surface of
+# restic-backup-helper 2.2.2 with anonymized example values. Trim everything you
+# do not use before deploying it.
+#
+# Required at runtime at minimum:
+#   * RESTIC_REPOSITORY
+#   * RESTIC_PASSWORD_FILE or RESTIC_PASSWORD
+#   * RESTIC_TAG
+#   * BACKUP_CRON
+#   * at least one backup source volume matching BACKUP_ROOT_DIR / RESTIC_JOB_ARGS
+#
+# 2.0.0 rename note:
+#   * /bin/bisync became /bin/replicate.
+#   * SYNC_* became REPLICATE_*.
+#   * /config/sync_jobs.txt became /config/replicate_jobs.txt.
+#   * /hooks/pre-sync.sh and /hooks/post-sync.sh became
+#     /hooks/pre-replicate.sh and /hooks/post-replicate.sh.
+#   * /var/log/last-sync.json and /var/log/sync-last.log became
+#     /var/log/last-replicate.json and /var/log/replicate-last.log.
+# Legacy SYNC_* env vars and /bin/bisync are still accepted until 3.0.0 with
+# deprecation warnings, but new deployments should use the names below.
+
+services:
+  restic-cloud:
+    container_name: restic-cloud
+    image: registry.example.invalid/restic-backup-helper:2.2.2-0.18.1-dev
+    # Alternative for Docker Hub stable images:
+    # image: marc0janssen/restic-backup-helper:2.2.2-0.18.1
+    hostname: backup-host
+    restart: always
+    labels:
+      - com.centurylinklabs.watchtower.enable=false
+
+    # Needed for `restic mount` and for reading source paths under tight ACLs.
+    # Remove only when your source paths and restore workflows do not need them.
+    cap_add:
+      - DAC_READ_SEARCH
+      - SYS_ADMIN
+    devices:
+      - /dev/fuse
+
+    healthcheck:
+      # Strong probe: fails when credentials, rclone.conf or repository
+      # reachability break.
+      test: ["CMD-SHELL", "restic cat config >/dev/null 2>&1 || exit 1"]
+      interval: 15m
+      timeout: 30s
+      start_period: 2m
+      start_interval: 10s
+
+    environment:
+      # ============================================================
+      # Restic core
+      # ============================================================
+      RESTIC_REPOSITORY: rclone:cloudremote:backups          # default: /mnt/restic
+      RESTIC_PASSWORD_FILE: /run/secrets/restic_password     # default: ""; preferred over RESTIC_PASSWORD
+      # RESTIC_PASSWORD: ""                                  # default: ""; less secure fallback
+      RESTIC_TAG: backup-host                                # default: automated; explicit empty value is a hard failure
+      RESTIC_CACHE_DIR: /tmp/cache_dir                       # default: /.cache/restic
+      TMPDIR: /tmp/restic/                                   # not a Dockerfile default; Restic uses it for temp files
+      RESTIC_CHECK_REPOSITORY_STATUS: "ON"                   # default: ON; auto-init only when probe exits 10
+      RESTIC_AUTO_UNLOCK: "OFF"                              # default: OFF; safer for multi-host repositories
+      # RESTIC_CACERT: /config/ca-bundle.pem                 # default: ""; PEM file for private CA / TLS proxy
+      # NFS_TARGET: nfs-server.example.invalid:/export/restic # default: ""; only for NFS-mounted repositories
+
+      # ============================================================
+      # Backup job
+      # ============================================================
+      BACKUP_CRON: "5 */4 * * *"                             # default: 0 */6 * * *
+      BACKUP_ROOT_DIR: ""                                    # default: ""; paths come from --files-from below
+      RESTIC_JOB_ARGS: "--exclude-file /config/exclude_files.txt --files-from /config/include_files.txt --skip-if-unchanged --verbose=2"
+      RESTIC_FORGET_ARGS: "--keep-daily 7 --keep-weekly 8 --keep-monthly 12"
+
+      # ============================================================
+      # Optional scheduled integrity check
+      # ============================================================
+      CHECK_CRON: ""                                         # default: ""; example: "37 3 * * 0"
+      # RESTIC_CHECK_ARGS: "--read-data-subset 5%"            # default: ""
+
+      # ============================================================
+      # Optional standalone prune
+      # ============================================================
+      PRUNE_CRON: ""                                         # default: ""; example: "0 4 * * 0"
+      RESTIC_PRUNE_ARGS: "--max-unused 10%"                  # default: ""
+
+      # ============================================================
+      # Optional Rclone replicate (bisync/sync/copy)
+      # ============================================================
+      RCLONE_CONFIG: /config/rclone.conf                     # default: /config/rclone.conf
+      REPLICATE_JOB_FILE: /config/replicate_jobs.txt         # default: /config/replicate_jobs.txt
+      REPLICATE_JOB_ARGS: ""                                 # default: ""; global rclone args for every job
+      REPLICATE_CRON: ""                                     # default: ""; empty disables replicate
+      REPLICATE_VERBOSE: "ON"                                # default: ON; echo replicate logs to stdout
+      REPLICATE_BISYNC_CHECK_ACCESS: "OFF"                   # default: OFF; ON requires RCLONE_TEST marker on both sides
+      # replicate_jobs.txt format:
+      #   SOURCE;DESTINATION[;MODE[;EXTRA_ARGS]]
+      #   MODE = bisync (default) | sync | copy
+      #   --resync is stripped from routine runs; recovery adds it explicitly.
+
+      # ============================================================
+      # Hooks
+      # ============================================================
+      # Executed when present in /hooks and executable:
+      #   pre-backup.sh    / post-backup.sh    "$exit_code"
+      #   pre-check.sh     / post-check.sh     "$exit_code"
+      #   pre-prune.sh     / post-prune.sh     "$exit_code"
+      #   pre-replicate.sh / post-replicate.sh "$aggregate_exit_code"
+      #   pre-restore.sh   / post-restore.sh   "$exit_code"
+      #   pre-snapshot-export.sh / post-snapshot-export.sh "$exit_code"
+      HOOK_TIMEOUT: "300"                                   # default: 0; seconds, 0 disables timeout enforcement
+
+      # ============================================================
+      # Mail notifications (mailx via msmtp)
+      # ============================================================
+      MAILX_RCPT: ops@example.com                           # default: ""; empty disables mail
+      MAILX_ON_ERROR: "ON"                                  # default: OFF; ON sends only on failure
+
+      # ============================================================
+      # Webhook notifications
+      # ============================================================
+      WEBHOOK_URL: ""                                       # default: ""; e.g. https://hc-ping.com/<uuid>
+      WEBHOOK_HEADER_AUTH: ""                               # default: ""; e.g. Bearer token, never commit real tokens
+      WEBHOOK_TIMEOUT: "10"                                 # default: 10 seconds
+      WEBHOOK_ON_ERROR: "OFF"                               # default: OFF; healthchecks usually wants every run
+
+      # ============================================================
+      # Prometheus textfile collector
+      # ============================================================
+      # Emits restic_<job>_last_* gauges for:
+      #   backup, check, prune, replicate, restore
+      METRICS_DIR: /var/log/textfile_collector              # default: ""; set + mount for node-exporter scraping
+
+      # ============================================================
+      # Log rotation for /var/log/cron.log
+      # ============================================================
+      ROTATE_LOG_CRON: "0 */6 * * *"                        # default: 0 0 * * 6
+      CRON_LOG_MAX_SIZE: "1048576"                          # default: 1048576 (1 MiB)
+      MAX_CRON_LOG_ARCHIVES: "5"                            # default: 5
+
+      # ============================================================
+      # OpenStack Swift
+      # Only relevant when RESTIC_REPOSITORY uses swift:...
+      # ============================================================
+      OS_AUTH_URL: ""                                       # default: ""
+      OS_PROJECT_ID: ""                                     # default: ""
+      OS_PROJECT_NAME: ""                                   # default: ""
+      OS_USER_DOMAIN_NAME: Default                          # default: Default
+      OS_PROJECT_DOMAIN_ID: Default                         # default: Default
+      OS_USERNAME: ""                                       # default: ""
+      OS_PASSWORD: ""                                       # default: ""
+      OS_REGION_NAME: ""                                    # default: ""
+      OS_INTERFACE: ""                                      # default: ""
+      OS_IDENTITY_API_VERSION: "3"                          # default: 3
+
+      # ============================================================
+      # Locale / time
+      # ============================================================
+      TZ: Europe/Amsterdam                                  # default: Europe/Amsterdam
+
+    secrets:
+      - restic_password
+
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+
+      # Config / hooks.
+      # /config commonly contains:
+      #   rclone.conf
+      #   include_files.txt
+      #   exclude_files.txt
+      #   replicate_jobs.txt
+      #   msmtprc
+      #   ca-bundle.pem
+      - /srv/example/restic-cloud/config:/config:ro
+      - /srv/example/restic-cloud/config/msmtprc:/etc/msmtprc:ro
+      - /srv/example/restic-cloud/hooks:/hooks:ro
+
+      # Logs, last-*.json files and Prometheus textfile metrics.
+      # Useful files:
+      #   /var/log/cron.log
+      #   /var/log/last-backup.json
+      #   /var/log/last-check.json
+      #   /var/log/last-prune.json
+      #   /var/log/last-replicate.json
+      #   /var/log/last-restore.json
+      #   /var/log/textfile_collector/restic_<job>.prom
+      - /srv/example/restic-cloud/log:/var/log
+      - /srv/example/restic-cloud/metrics:/var/log/textfile_collector
+
+      # Restic temp and cache.
+      - /srv/example/restic-cloud/tmp:/tmp/restic
+      - restic-cache:/tmp/cache_dir
+      # Alternative bind mount:
+      # - /srv/example/restic-cloud/cache_dir:/tmp/cache_dir
+
+      # Backup sources.
+      # Keep source mounts read-only. If using --files-from, list container paths
+      # such as /data or /host/home/example in /config/include_files.txt.
+      - /srv/example/source:/data:ro
+      - /:/host:ro
+
+      # Restore target. /bin/restore defaults to /restore unless --target is set.
+      - /srv/example/restic-cloud/restore:/restore
+
+    # Optional: follow cron.log as the container foreground process.
+    # The image entrypoint already starts cron; this keeps compose logs useful.
+    command: ["tail", "-fn0", "/var/log/cron.log"]
+
+secrets:
+  restic_password:
+    file: /srv/example/restic-cloud/restic.password          # chmod 600 on the host
+
+volumes:
+  restic-cache:

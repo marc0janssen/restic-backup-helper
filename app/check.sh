@@ -6,92 +6,52 @@
 # Description: Script for verifying repository integrity with Restic
 # =========================================================
 
-# Define log files
-LAST_CHECK_LOGFILE="/var/log/check-last.log"
-LAST_ERROR_CHECK_LOGFILE="/var/log/check-error-last.log"
+set -Eeuo pipefail
+
+# Define log files (kept on disk under their existing names; variable names are
+# unified to LAST_LOGFILE / LAST_ERROR_LOGFILE so /bin/lib.sh helpers can be
+# shared with /bin/backup and /bin/replicate).
+LAST_LOGFILE="/var/log/check-last.log"
+LAST_ERROR_LOGFILE="/var/log/check-error-last.log"
 LAST_MAIL_LOGFILE="/var/log/check-mail-last.log"
 
-# Mask repository credentials before logging
-mask_repository() {
-	local repo="$1"
-	local rest="$repo"
-	local masked=""
-	local before after last_part prefix
+# shellcheck source=lib.sh
+. /bin/lib.sh
 
-	while [[ "$rest" == *"@"* ]]; do
-		before="${rest%%@*}"
-		after="${rest#*@}"
-		last_part="${before##*/}"
-
-		if [[ "$before" == *":"* && "$last_part" == *":"* ]]; then
-			prefix="${before%:*}"
-			masked+="${prefix}:***@"
-		else
-			masked+="${before}@"
-		fi
-
-		rest="$after"
-	done
-
-	masked+="$rest"
-	printf '%s' "$masked"
-}
-
-if [ -n "${RESTIC_REPOSITORY}" ]; then
+if [ -n "${RESTIC_REPOSITORY:-}" ]; then
 	MASKED_REPO=$(mask_repository "${RESTIC_REPOSITORY}")
 else
-	MASKED_REPO="${RESTIC_REPOSITORY}"
+	MASKED_REPO="${RESTIC_REPOSITORY:-}"
 fi
 
 # Releasestring: ENV gezet bij image build (build-arg)
 RELEASE="${RESTIC_BACKUP_HELPER_RELEASE:-unknown}"
 
-# Function to copy error log
-copyErrorLog() {
-	cp "${LAST_CHECK_LOGFILE}" "${LAST_ERROR_CHECK_LOGFILE}"
-}
-
-# Function to write to the last log file
-logLast() {
-	echo "$1" >>"${LAST_CHECK_LOGFILE}"
-}
-
-# Function to log messages to both console and log file
-log() {
-	local message="$1"
-	echo "${message}"
-	logLast "${message}"
-}
-
-# If the RESTIC_PUBLICKEY variable is set, add the --cacert option with its value; otherwise, leave it empty.
-#[ -n "${RESTIC_PUBLICKEY}" ] && CACERT_OPTION="--cacert ${RESTIC_PUBLICKEY}" || CACERT_OPTION=""
+# Build --cacert flags from RESTIC_CACERT (no-op when unset).
+build_restic_cacert_args
 
 # Clear log files
-rm -f "${LAST_CHECK_LOGFILE}" "${LAST_MAIL_LOGFILE}"
+rm -f "${LAST_LOGFILE}" "${LAST_MAIL_LOGFILE}"
 
-# Check if pre-check script exists and execute it
-if [ -f "/hooks/pre-check.sh" ]; then
-	log "🚀 Starting pre-check script..."
-	/hooks/pre-check.sh
-else
-	log "ℹ️ Pre-check script not found..."
-fi
+# Pre-hook is informational; never abort the check on a failing pre-hook
+# (matches historical behaviour before `set -e`).
+run_hook "pre-check" || true
 
 # Record start time
 start=$(date +%s)
 
 # Note check start
 log "🔍 Starting Check at $(date +"%Y-%m-%d %a %H:%M:%S")"
-#log "Starting Check at $(date)" >> "${LAST_CHECK_LOGFILE}"
 
 # Log environment variables
 logLast "RELEASE: ${RELEASE}"
-logLast "CHECK_CRON: ${CHECK_CRON}"
-logLast "RESTIC_CHECK_ARGS: ${RESTIC_CHECK_ARGS}"
+logLast "CHECK_CRON: ${CHECK_CRON:-}"
+logLast "RESTIC_CHECK_ARGS: ${RESTIC_CHECK_ARGS:-}"
+logLast "RESTIC_CACERT: ${RESTIC_CACERT:-}"
 logLast "RESTIC_REPOSITORY: ${MASKED_REPO}"
 
 # Perform repository check
-if [ -n "${RESTIC_CHECK_ARGS}" ]; then
+if [ -n "${RESTIC_CHECK_ARGS:-}" ]; then
 	log "🔍 Verifying repository integrity using RESTIC_CHECK_ARGS..."
 else
 	log "🔍 Verifying repository integrity with restic defaults..."
@@ -99,13 +59,17 @@ fi
 
 check_cmd=(check)
 
-if [ -n "${RESTIC_CHECK_ARGS}" ]; then
+if [ -n "${RESTIC_CHECK_ARGS:-}" ]; then
 	read -r -a restic_check_args <<<"${RESTIC_CHECK_ARGS}"
 	check_cmd+=("${restic_check_args[@]}")
 fi
 
-restic "${check_cmd[@]}" >>"${LAST_CHECK_LOGFILE}" 2>&1
-checkRC=$?
+# if/else captures restic's exit code without aborting under `set -e`.
+if restic "${RESTIC_CACERT_ARGS[@]}" "${check_cmd[@]}" >>"${LAST_LOGFILE}" 2>&1; then
+	checkRC=0
+else
+	checkRC=$?
+fi
 logLast "Finished check at $(date +"%Y-%m-%d %a %H:%M:%S")"
 
 # Error handling
@@ -113,8 +77,12 @@ if [ "$checkRC" -eq 0 ]; then
 	log "✅ Check Successful"
 else
 	log "❌ Check Failed with Status ${checkRC}"
-	log "🔓 Unlocking repository..."
-	restic unlock
+	if should_auto_unlock; then
+		log "🔓 Unlocking repository (RESTIC_AUTO_UNLOCK=ON)..."
+		restic "${RESTIC_CACERT_ARGS[@]}" unlock || true
+	else
+		log "ℹ️ Skipping automatic 'restic unlock' (RESTIC_AUTO_UNLOCK!=ON). Inspect with 'restic list locks' and run 'restic unlock' manually if the lock is stale, or set RESTIC_AUTO_UNLOCK=ON to restore the previous default behaviour."
+	fi
 	copyErrorLog
 fi
 
@@ -126,24 +94,18 @@ seconds=$((duration % 60))
 
 log "🏁 Finished check at $(date +"%Y-%m-%d %a %H:%M:%S") after ${minutes}m ${seconds}s"
 
-# Send mail notification (on failure if MAILX_ON_ERROR=ON, else always when MAILX_RCPT set)
-if [ -n "${MAILX_RCPT}" ] && {
-	[ "${MAILX_ON_ERROR^^}" != "ON" ] || { [ "${MAILX_ON_ERROR^^}" == "ON" ] && [ "$checkRC" -ne 0 ]; }
-}; then
-	log "📧 Sending email notification to ${MAILX_RCPT}..."
-	if mail -v -s "Result of the last ${HOSTNAME} check run on ${MASKED_REPO}" "${MAILX_RCPT}" <"${LAST_CHECK_LOGFILE}" >"${LAST_MAIL_LOGFILE}" 2>&1; then
-		log "✅ Mail notification successfully sent"
-	else
-		log "❌ Sending mail notification FAILED. Check ${LAST_MAIL_LOGFILE} for further information."
-	fi
-fi
+# Persist a structured per-run summary for external monitoring.
+write_last_run_json "check" "${checkRC}" "${start}" "${end}" \
+	"repository" "${MASKED_REPO}"
 
-# Check if post-check script exists and execute it
-if [ -f "/hooks/post-check.sh" ]; then
-	log "🚀 Starting post-check script..."
-	/hooks/post-check.sh "$checkRC"
-else
-	log "ℹ️ Post-check script not found..."
-fi
+# POST the same payload to WEBHOOK_URL when configured (no-op otherwise).
+notify_webhook "check" "${checkRC}" "${start}" "${end}" \
+	"repository" "${MASKED_REPO}" || true
+
+write_metrics_for_job "check" "${checkRC}" "${start}" "${end}" || true
+
+notify_mail "$(format_subject "Check" "${checkRC}" "${duration}" "${MASKED_REPO}")" "${checkRC}" || true
+
+run_hook "post-check" "$checkRC" || true
 
 exit "$checkRC"

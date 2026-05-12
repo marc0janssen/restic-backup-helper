@@ -1,9 +1,42 @@
 FROM restic/restic:0.18.1
 
-RUN apk update && apk upgrade && apk add --update --no-cache mailx fuse curl libcap sudo bash rclone tzdata msmtp sshpass
+# rclone is intentionally NOT installed via apk; install_rclone.sh fetches a
+# checksum-verified upstream binary so the image always ships a current,
+# reproducible rclone (Alpine's package version often lags upstream features
+# needed for backends like Jottacloud / S3 / Drive).
+#
+# Why each apk package:
+#   bash         worker scripts use bash 4+ syntax (${var,,}, etc.)
+#   curl         used by install_rclone.sh for downloads/checksums and by
+#                /bin/lib.sh::notify_webhook for HTTP webhook delivery
+#   fuse         needed for `restic mount` (FUSE) when browsing snapshots
+#   libcap       provides setcap helpers used by FUSE / NFS workflows
+#   mailx + msmtp  /bin/lib.sh::notify_mail pipes the per-run log via mail(1);
+#                msmtp is the SMTP relay (sendmail symlink set below)
+#   sshpass      used by `sftp:` repositories that need non-key SSH auth
+#   sudo         retained for hook scripts that need to drop privileges
+#   tzdata       enables the TZ env var so cron fires in the operator's TZ
+#   util-linux   ships `script(1)`, used by /bin/restore --verbose to wrap
+#                restic in a pseudo-TTY so its native in-place progress bar
+#                (`[time] X% files, MiB/s, ETA …`) renders even when the
+#                wrapper tees stdout into restore-last.log. Without it the
+#                tee pipe makes restic believe stdout is not a terminal and
+#                the bar is suppressed.
+#
+# `apk upgrade` deliberately omitted: the Restic base image is rebuilt by
+# upstream on a known cadence; running `apk upgrade` here makes the helper
+# image non-reproducible across builds without adding meaningful security
+# value beyond the base layer's existing patch level. CVE coverage is the
+# Trivy/security-scan workflow's job and rebuilds against newer upstream tags.
+RUN apk add --no-cache bash curl fuse libcap mailx msmtp sshpass sudo tzdata util-linux
 
+# Optional pinning. Empty value (default) installs the latest stable rclone:
+# version is resolved via downloads.rclone.org/version.txt, then the zip is
+# downloaded from /v<version>/ and checksum-verified against the per-version
+# SHA256SUMS. Pass --build-arg RCLONE_VERSION=1.74.1 to pin a specific version.
+ARG RCLONE_VERSION=""
 COPY /app/install_rclone.sh /install_rclone.sh
-RUN bash /install_rclone.sh && rm -rf /install_rclone.sh
+RUN RCLONE_VERSION="${RCLONE_VERSION}" bash /install_rclone.sh && rm -rf /install_rclone.sh
 
 RUN mkdir -p /mnt/restic /var/spool/cron/crontabs /var/log
 
@@ -15,22 +48,39 @@ ENV RESTIC_CACHE_DIR="/.cache/restic"
 ENV RESTIC_FORGET_ARGS=""
 ENV RESTIC_JOB_ARGS=""
 ENV RESTIC_CHECK_ARGS=""
+ENV RESTIC_PRUNE_ARGS=""
 ENV RESTIC_CHECK_REPOSITORY_STATUS="ON"
 ENV RESTIC_CACERT=""
+ENV RESTIC_AUTO_UNLOCK="OFF"
 ENV NFS_TARGET=""
 ENV BACKUP_CRON="0 */6 * * *"
 ENV BACKUP_ROOT_DIR=""
 ENV CHECK_CRON=""
+ENV PRUNE_CRON=""
 ENV RCLONE_CONFIG="/config/rclone.conf"
-ENV SYNC_JOB_FILE="/config/sync_jobs.txt"
+ENV REPLICATE_JOB_FILE="/config/replicate_jobs.txt"
+ENV REPLICATE_JOB_ARGS=""
+ENV REPLICATE_CRON=""
+ENV REPLICATE_VERBOSE="ON"
+ENV REPLICATE_BISYNC_CHECK_ACCESS="OFF"
+# Deprecated compatibility aliases for the old sync/bisync surface; accepted
+# by /entry.sh and /bin/replicate until 3.0.0. Prefer REPLICATE_* above.
+ENV SYNC_JOB_FILE=""
 ENV SYNC_JOB_ARGS=""
 ENV SYNC_CRON=""
-ENV SYNC_VERBOSE="ON"
+ENV SYNC_VERBOSE=""
+ENV SYNC_BISYNC_CHECK_ACCESS=""
+ENV METRICS_DIR=""
 ENV ROTATE_LOG_CRON="0 0 * * 6"
 ENV CRON_LOG_MAX_SIZE="1048576"
 ENV MAX_CRON_LOG_ARCHIVES="5"
+ENV HOOK_TIMEOUT="0"
 ENV MAILX_RCPT=""
 ENV MAILX_ON_ERROR="OFF"
+ENV WEBHOOK_URL=""
+ENV WEBHOOK_HEADER_AUTH=""
+ENV WEBHOOK_TIMEOUT="10"
+ENV WEBHOOK_ON_ERROR="OFF"
 ENV OS_AUTH_URL=""
 ENV OS_PROJECT_ID=""
 ENV OS_PROJECT_NAME=""
@@ -50,14 +100,32 @@ VOLUME /data
 COPY /app/entry.sh /entry.sh
 COPY /app/backup.sh /bin/backup
 COPY /app/check.sh /bin/check
-COPY /app/bisync.sh /bin/bisync
+COPY /app/replicate.sh /bin/replicate
 COPY /app/rotate_log.sh /bin/rotate_log
+COPY /app/prune.sh /bin/prune
+# Read-only diagnostics: prints effective env, path checks, repo probe, hooks,
+# replicate job-file validation and recent last-*.json/log context.
+COPY /app/doctor.sh /bin/doctor
+# Operator export helper: restores a snapshot/subtree into a temporary workdir
+# and packages it as a tar.gz archive under /restore (or --output).
+COPY /app/snapshot_export.sh /bin/snapshot-export
+# Operator-friendly restore wrapper: flag-driven for scripts/CI, interactive
+# when invoked from `docker exec -ti`. Not cron-driven by design (restores are
+# always operator-initiated); shares mail/webhook/metrics plumbing with the
+# other workers.
+COPY /app/restore.sh /bin/restore
+# Lock-aware cron wrapper used by /entry.sh to log "skipped: previous run
+# still active" instead of leaving cron with an opaque flock exit code.
+COPY /app/locked_run.sh /bin/locked_run
+# Sourced by /entry.sh and the workers; kept readable but not executable.
+COPY /app/lib.sh /bin/lib.sh
 # Baked at build: ./build.sh passes --build-arg (no repo .release file).
 ARG RESTIC_BACKUP_HELPER_RELEASE=unknown
 LABEL org.opencontainers.image.title="restic-backup-helper" \
 	org.opencontainers.image.version="${RESTIC_BACKUP_HELPER_RELEASE}"
 ENV RESTIC_BACKUP_HELPER_RELEASE=${RESTIC_BACKUP_HELPER_RELEASE}
-RUN chmod 755 /entry.sh /bin/backup /bin/check /bin/bisync /bin/rotate_log
+RUN chmod 755 /entry.sh /bin/backup /bin/check /bin/replicate /bin/rotate_log /bin/prune /bin/doctor /bin/snapshot-export /bin/restore /bin/locked_run \
+	&& ln -s replicate /bin/bisync
 
 # set sendmail-path
 RUN rm -rf /usr/sbin/sendmail && ln -s /usr/bin/msmtp /usr/sbin/sendmail

@@ -1,0 +1,61 @@
+# Optional pre-commit configuration for contributors. Mirrors the linter
+# matrix that scripts/ci-quality-checks.sh runs in CI so problems show up
+# locally before pushing. Install once with `pre-commit install`.
+#
+# Tools: pre-commit (https://pre-commit.com), shellcheck, shfmt, hadolint,
+# yamllint, actionlint. Most of these are also installable via apk/brew/apt.
+
+repos:
+  # Generic hygiene
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-merge-conflict
+      - id: check-yaml
+        args: [--allow-multiple-documents]
+        exclude: ^(scripts/docker-compose\.yml|examples/.*\.ya?ml)$
+        # ^ Compose files use $VAR style that PyYAML happily parses but the
+        # `:?` modifier is non-standard YAML to some validators. The CI YAML
+        # check uses yamllint instead, which handles these gracefully.
+      - id: check-added-large-files
+        args: [--maxkb=512]
+
+  # Shell scripts
+  - repo: https://github.com/koalaman/shellcheck-precommit
+    rev: v0.10.0
+    hooks:
+      - id: shellcheck
+        args:
+          [
+            "-x",
+            "-e",
+            "SC1007,SC1091,SC2002,SC2016,SC2027,SC2034,SC2086,SC2154,SC2236",
+          ]
+
+  - repo: https://github.com/scop/pre-commit-shfmt
+    rev: v3.10.0-2
+    hooks:
+      - id: shfmt
+        args: ["-d"] # show diff, do not auto-fix
+
+  # Dockerfile
+  - repo: https://github.com/hadolint/hadolint
+    rev: v2.12.1-beta
+    hooks:
+      - id: hadolint-docker
+
+  # YAML lint (mirrors CI yamllint pass)
+  - repo: https://github.com/adrienverge/yamllint
+    rev: v1.35.1
+    hooks:
+      - id: yamllint
+        args: ["--strict"]
+        exclude: ^(scripts/docker-compose\.yml|examples/.*\.ya?ml)$
+
+  # GitHub Actions workflows
+  - repo: https://github.com/rhysd/actionlint
+    rev: v1.7.7
+    hooks:
+      - id: actionlint

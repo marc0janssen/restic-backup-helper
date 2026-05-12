@@ -83,7 +83,7 @@ main() {
 		exit 1
 	fi
 
-	log_info "Seeding smoke volume (backup source + bisync dirs)"
+	log_info "Seeding smoke volume (backup source + replicate dirs)"
 	docker compose -f ci/docker-compose.smoke.yml exec -T "${service}" \
 		sh -c 'mkdir -p /data/backup_src /data/sync_a /data/sync_b && printf "%s\n" smoke-ci > /data/backup_src/smoke.txt && printf "%s\n" bisync-a > /data/sync_a/a.txt'
 
@@ -107,10 +107,10 @@ main() {
 	log_info "Running repository check"
 	docker compose -f ci/docker-compose.smoke.yml exec -T "${service}" /bin/check
 
-	log_info "Running bisync (local pair)"
-	docker compose -f ci/docker-compose.smoke.yml exec -T "${service}" /bin/bisync
+	log_info "Running replicate (local pair, bisync mode)"
+	docker compose -f ci/docker-compose.smoke.yml exec -T "${service}" /bin/replicate
 
-	log_info "Verifying bisync replicated file"
+	log_info "Verifying replicate copied file"
 	docker compose -f ci/docker-compose.smoke.yml exec -T "${service}" \
 		sh -c 'test -f /data/sync_b/a.txt'
 
@@ -123,7 +123,7 @@ main() {
 	docker compose -f ci/docker-compose.smoke.yml exec -T "${service}" \
 		sh -c 'ls /var/log/cron_log_*.tar.gz >/dev/null'
 
-	log_info "Smoke test passed (backup, check, bisync, rotate_log, hooks, forget policy)"
+	log_info "Smoke test passed (backup, check, replicate, rotate_log, hooks, forget policy)"
 }
 
 main "$@"
