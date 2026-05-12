@@ -72,6 +72,10 @@ if [ "${1:-}" = "snapshot-export" ] || [ "${1:-}" = "/bin/snapshot-export" ]; th
 	shift
 	exec /bin/snapshot-export "$@"
 fi
+if [ "${1:-}" = "forget-preview" ] || [ "${1:-}" = "/bin/forget-preview" ]; then
+	shift
+	exec /bin/forget-preview "$@"
+fi
 
 # shellcheck source=app/lib.sh
 . /bin/lib.sh

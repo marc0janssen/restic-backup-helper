@@ -73,7 +73,7 @@ provide it at runtime*.
 | Variable | Default | Description |
 | --- | --- | --- |
 | `MAILX_RCPT` | *(empty)* | When set, workers can mail per-run logs. See [Mail notifications](mail.md). |
-| `MAILX_ON_ERROR` | `OFF` | When `ON`, backup / check / prune / restore / snapshot-export only mail on **failure**. Replicate mails only when at least one job recorded an error. |
+| `MAILX_ON_ERROR` | `OFF` | When `ON`, backup / check / prune / restore / snapshot-export / forget-preview only mail on **failure**. Replicate mails only when at least one job recorded an error. |
 
 ## Webhook
 
@@ -139,7 +139,7 @@ RESTIC_BACKUP_HELPER_RELEASE=…`. Read it from inside the container:
 
 ```shell
 docker exec restic-backup-helper printenv RESTIC_BACKUP_HELPER_RELEASE
-# → 2.2.2-0.18.1
+# → 2.3.0-0.18.1
 ```
 
 `/bin/doctor` includes the release in its `Runtime` section and every

@@ -2,6 +2,24 @@
 
 ## Restic Backup Helper
 
+### 2.3.0-0.18.1 (2026-05-12)
+
+#### Added
+
+- **`/bin/forget-preview` retention preview helper.** Runs `restic forget --dry-run`
+  using the configured `RESTIC_FORGET_ARGS` so operators can validate a
+  retention policy before the real post-backup forget runs. By default the
+  preview is scoped to `--host "$HOSTNAME"` and `--tag "$RESTIC_TAG"` so
+  shared repositories stay safe; repository-wide previews require an explicit
+  `--repo-wide` flag. Supports `--host`, `--tag`, `--policy` and `--extra`.
+- **Forget preview observability.** The helper writes
+  `/var/log/forget-preview-last.log`, `/var/log/last-forget-preview.json`,
+  optional `/hooks/pre-forget-preview.sh` and
+  `/hooks/post-forget-preview.sh "$rc"`, mails/webhooks through the existing
+  notification helpers, and emits `restic_forget_preview.prom` when
+  `METRICS_DIR` is configured. `docker run … forget-preview` now works as an
+  entrypoint pass-through without starting cron first.
+
 ### 2.2.2-0.18.1 (2026-05-12)
 
 #### Added

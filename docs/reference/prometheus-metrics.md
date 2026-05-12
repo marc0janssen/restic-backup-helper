@@ -19,13 +19,14 @@ ${METRICS_DIR}/
 ├── restic_prune.prom
 ├── restic_replicate.prom
 ├── restic_restore.prom
-└── restic_snapshot_export.prom
+├── restic_snapshot_export.prom
+└── restic_forget_preview.prom
 ```
 
 ## Always-emitted gauges
 
 For each `<job>` ∈ `backup`, `check`, `prune`, `replicate`, `restore`,
-`snapshot_export`:
+`snapshot_export`, `forget_preview`:
 
 | Metric | Type | Description |
 | --- | --- | --- |

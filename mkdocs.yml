@@ -160,6 +160,7 @@ nav:
       - Manual runs: operations/manual-runs.md
       - Restore: operations/restore.md
       - Snapshot export: operations/snapshot-export.md
+      - Forget preview: operations/forget-preview.md
       - Diagnostics (doctor): operations/diagnostics.md
       - Troubleshooting: operations/troubleshooting.md
   - Deployment:

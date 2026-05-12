@@ -44,6 +44,7 @@ flowchart LR
         J4[last-replicate.json]
         J5[last-restore.json]
         J6[last-snapshot-export.json]
+        J7[last-forget-preview.json]
     end
     subgraph Tail
         T1[Last 40 lines /var/log/cron.log]
@@ -58,7 +59,7 @@ flowchart LR
 | **Repository probe** | Non-mutating `restic cat config`. Exit 10 is reported as "repository missing/not initialized"; doctor never initializes it. The probe output is masked before printing. |
 | **Replicate** | Effective `REPLICATE_*` values and validation of `REPLICATE_JOB_FILE` rows (`SOURCE;DESTINATION[;MODE[;EXTRA_ARGS]]`) with endpoints masked. |
 | **Hooks** | Each known hook path is listed with executable status (`executable`, `not executable`, `not found`). |
-| **Recent JSON summaries** | The latest `last-{backup,check,prune,replicate,restore,snapshot-export}.json` content if present. |
+| **Recent JSON summaries** | The latest `last-{backup,check,prune,replicate,restore,snapshot-export,forget-preview}.json` content if present. |
 | **Recent cron log** | Last 40 lines of `/var/log/cron.log`. |
 | **Summary** | `warnings: N`, `errors: N`. Exit non-zero only on errors. |
 
@@ -124,7 +125,7 @@ caller-controlled. Avoid stuffing secrets into them — use a
 
 ```text
 == Runtime ==
-release:            2.2.2-0.18.1
+release:            2.3.0-0.18.1
 hostname:           backup-node
 date:               2026-05-11 Mon 21:13:42 +0200
 timezone:           Europe/Amsterdam
@@ -178,10 +179,12 @@ hooks/pre-restore.sh: not found
 hooks/post-restore.sh: not found
 hooks/pre-snapshot-export.sh: not found
 hooks/post-snapshot-export.sh: not found
+hooks/pre-forget-preview.sh: not found
+hooks/post-forget-preview.sh: not found
 
 == Recent JSON summaries ==
 last-backup.json:
-{"job":"backup","hostname":"backup-node","release":"2.2.2-0.18.1","started_at":"2026-05-11T02:00:00+0200","finished_at":"2026-05-11T02:05:12+0200","duration_seconds":312,"exit_code":0,"repository":"rclone:jottacloud:backups","backup_root_dir":"","restic_tag":"backup-node-data","snapshot_id":"a1b2c3d4","files_new":12,"files_changed":4,"files_unmodified":21034,"bytes_added":"1.234 MiB"}
+{"job":"backup","hostname":"backup-node","release":"2.3.0-0.18.1","started_at":"2026-05-11T02:00:00+0200","finished_at":"2026-05-11T02:05:12+0200","duration_seconds":312,"exit_code":0,"repository":"rclone:jottacloud:backups","backup_root_dir":"","restic_tag":"backup-node-data","snapshot_id":"a1b2c3d4","files_new":12,"files_changed":4,"files_unmodified":21034,"bytes_added":"1.234 MiB"}
 ...
 
 == Recent cron log ==

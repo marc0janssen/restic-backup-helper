@@ -18,7 +18,7 @@ volumes:
 | Variable | Default | Description |
 | --- | --- | --- |
 | `MAILX_RCPT` | *(empty)* | Recipient address. Empty = mail disabled. |
-| `MAILX_ON_ERROR` | `OFF` | When `ON`, backup / check / prune / restore / snapshot-export only mail on **failure**. Replicate mails only when at least one job recorded an error. |
+| `MAILX_ON_ERROR` | `OFF` | When `ON`, backup / check / prune / restore / snapshot-export / forget-preview only mail on **failure**. Replicate mails only when at least one job recorded an error. |
 
 ## Sample `msmtprc`
 
@@ -64,11 +64,12 @@ at the inbox tells you status, host, run length and the headline metric:
 | Restore | `[OK] Restore larak · 1m12s · 4523 files (567.89 MiB) → /restore` |
 | Restore (dry-run) | `[OK] Restore larak · 4s · DRY-RUN · 4523 files (567.89 MiB) → /restore` |
 | Snapshot export | `[OK] Snapshot export larak · 1m12s · 4523 files (567.89 MiB) → /restore/snapshot-export-….tar.gz` |
+| Forget preview | `[OK] Forget preview larak · 2s · rclone:jottacloud:backups` |
 
 `<details>` is whichever short metric makes sense for the worker:
 
 - **Backup**: `<bytes-added> new (snap <short-id>)` or `<paths>` on failure.
-- **Check / Prune**: repository URL (masked).
+- **Check / Prune / Forget preview**: repository URL (masked).
 - **Replicate**: `N jobs (X failed)`.
 - **Restore / Snapshot-export**: `<files-restored> files (<bytes-restored>) → <target>`.
 
@@ -93,6 +94,7 @@ boring: silence on green, page on red. It applies to:
 - `/bin/prune`
 - `/bin/restore`
 - `/bin/snapshot-export`
+- `/bin/forget-preview`
 
 `/bin/replicate` is slightly different: it always mails when at least
 one **job** in the batch fails, regardless of `MAILX_ON_ERROR`, because

@@ -20,6 +20,8 @@ executable, and the workers will run them automatically.
 | `/hooks/post-restore.sh` | `/bin/restore` | Restore exit code |
 | `/hooks/pre-snapshot-export.sh` | `/bin/snapshot-export` | *none* |
 | `/hooks/post-snapshot-export.sh` | `/bin/snapshot-export` | Snapshot-export exit code |
+| `/hooks/pre-forget-preview.sh` | `/bin/forget-preview` | *none* |
+| `/hooks/post-forget-preview.sh` | `/bin/forget-preview` | Forget-preview exit code |
 
 Hooks must be **executable** inside the container (`chmod +x`). A hook
 present but not executable is reported as an error in `cron.log`, not

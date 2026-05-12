@@ -62,13 +62,19 @@ a `restic_<job>.prom` Prometheus textfile.
 ├── snapshot-export-mail-last.log
 ├── last-snapshot-export.json
 │
+├── forget-preview-last.log               # /bin/forget-preview, per-run log
+├── forget-preview-error-last.log
+├── forget-preview-mail-last.log
+├── last-forget-preview.json
+│
 └── textfile_collector/                   # only when METRICS_DIR is set
     ├── restic_backup.prom
     ├── restic_check.prom
     ├── restic_prune.prom
     ├── restic_replicate.prom
     ├── restic_restore.prom
-    └── restic_snapshot_export.prom
+    ├── restic_snapshot_export.prom
+    └── restic_forget_preview.prom
 ```
 
 `*-last.log` files are overwritten every run (no rolling). `last-*.json`

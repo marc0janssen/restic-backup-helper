@@ -15,6 +15,26 @@ omitted; see the full [Changelog](../changelog.md) for every release.
 See [Versioning policy](../concepts/versioning.md) for the full semver
 contract.
 
+## 2.2.x → 2.3.0
+
+Purely additive. New `/bin/forget-preview` helper previews retention with
+`restic forget --dry-run` using `RESTIC_FORGET_ARGS`.
+
+By default it scopes the preview to the current container's `HOSTNAME`
+and `RESTIC_TAG`, which is safer for repositories shared by multiple
+hosts. Use `--repo-wide` only when you intentionally want to preview the
+policy against every snapshot in the repository.
+
+It writes `/var/log/last-forget-preview.json`, supports
+`pre/post-forget-preview` hooks, webhooks, mail and Prometheus metrics.
+
+[Forget preview :material-arrow-right:](../operations/forget-preview.md)
+
+## 2.2.1 → 2.2.2
+
+Patch / docs release. Adds the Material for MkDocs documentation site
+under `docs/` and the GitHub Pages workflow. No runtime behaviour change.
+
 ## 2.2.0 → 2.2.1
 
 Patch release. CI-only fix in `app/snapshot_export.sh`:

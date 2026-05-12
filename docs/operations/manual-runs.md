@@ -20,6 +20,7 @@ docker exec -ti restic-backup-helper /bin/rotate_log
 docker exec -ti restic-backup-helper /bin/restore --list
 docker exec -ti restic-backup-helper /bin/restore --id 5a3f2c8b --target /restore
 docker exec -ti restic-backup-helper /bin/snapshot-export --id latest
+docker exec -ti restic-backup-helper /bin/forget-preview
 docker exec -ti restic-backup-helper /bin/doctor
 
 # Raw restic / rclone for the rare case where you need to peek under the hood.
@@ -70,6 +71,14 @@ docker run --rm \
   -v ./restore:/restore \
   marc0janssen/restic-backup-helper:latest \
   snapshot-export --id latest --include /data/documents
+
+# Retention preview.
+docker run --rm \
+  --env-file restic.env \
+  -v ./config:/config:ro \
+  -v ./restic.password:/run/secrets/restic_password:ro \
+  marc0janssen/restic-backup-helper:latest \
+  forget-preview --policy "--keep-daily 7 --keep-weekly 4"
 ```
 
 Recognised entrypoint subcommands:
@@ -79,6 +88,7 @@ Recognised entrypoint subcommands:
 | `config-check` | Validate env and critical paths; exits `0` or `1`. Does not run backups. |
 | `doctor` or `/bin/doctor` | Read-only diagnostics bundle. Does not run backups. |
 | `snapshot-export` or `/bin/snapshot-export` | Pass remaining args to `/bin/snapshot-export`. |
+| `forget-preview` or `/bin/forget-preview` | Pass remaining args to `/bin/forget-preview`; always uses `restic forget --dry-run`. |
 
 Anything else falls through to the normal cron startup.
 
@@ -128,4 +138,6 @@ files without a full restore. `Ctrl+C` unmounts.
 - [Restore](restore.md) — the operator-driven restore wrapper.
 - [Snapshot export](snapshot-export.md) — package a snapshot as a
   `tar.gz`.
+- [Forget preview](forget-preview.md) — preview `RESTIC_FORGET_ARGS`
+  safely with host/tag scope by default.
 - [Troubleshooting](troubleshooting.md) — common manual-run hiccups.
