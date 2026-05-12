@@ -131,5 +131,6 @@ For behaviour changes in cron scripts, reason through failure modes (empty env, 
 - Do not commit unless the user asks.
 - Keep commits focused.
 - Use clear commit messages.
+- Preferred commit identity for this repository is `Marco Janssen <marco@mjanssen.nl>`; do not change git config automatically, but use or recommend this email when commit identity needs to be set explicitly.
 - Check `git status --short` before and after staging.
 - Do not stage unrelated files or gitignored local env files.
