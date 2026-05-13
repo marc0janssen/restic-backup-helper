@@ -20,6 +20,13 @@ volumes:
 | `MAILX_RCPT` | *(empty)* | Recipient address. Empty = mail disabled. |
 | `MAILX_ON_ERROR` | `OFF` | When `ON`, backup / check / prune / restore / snapshot-export / forget-preview / mount-snapshot only mail on **failure**. Replicate mails only when at least one job recorded an error. |
 
+!!! tip "Validate without waiting for a failure"
+
+    Run [`/bin/notify-test --mail`](../operations/notify-test.md) after
+    editing `msmtprc`, rotating SMTP passwords or changing `MAILX_RCPT`.
+    The test uses the same `notify_mail` helper as real workers, but
+    delivery failures affect the helper exit code so CI can catch them.
+
 ## Sample `msmtprc`
 
 A minimal config that uses TLS to a third-party SMTP relay. Adjust the

@@ -141,7 +141,7 @@ RESTIC_BACKUP_HELPER_RELEASE=…`. Read it from inside the container:
 
 ```shell
 docker exec restic-backup-helper printenv RESTIC_BACKUP_HELPER_RELEASE
-# → 2.9.0-0.18.1
+# → 2.10.0-0.18.1
 ```
 
 `/bin/doctor` includes the release in its `Runtime` section and every

@@ -25,6 +25,7 @@ docker exec -ti restic-backup-helper /bin/mount-snapshot
 docker exec -ti restic-backup-helper /bin/unlock --dry-run
 docker exec -ti restic-backup-helper /bin/sources-report --no-size
 docker exec -ti restic-backup-helper /bin/init-repo --dry-run
+docker exec -ti restic-backup-helper /bin/notify-test --dry-run
 docker exec -ti restic-backup-helper /bin/doctor
 docker exec -ti restic-backup-helper /bin/cron-list
 
@@ -125,6 +126,13 @@ docker run --rm \
   -v ./restic.password:/run/secrets/restic_password:ro \
   marc0janssen/restic-backup-helper:latest \
   init-repo --dry-run
+
+# Notification plumbing test (mail and/or webhook, depending on env).
+docker run --rm \
+  --env-file restic.env \
+  -v ./config/msmtprc:/etc/msmtprc:ro \
+  marc0janssen/restic-backup-helper:latest \
+  notify-test --dry-run
 ```
 
 Recognised entrypoint subcommands:
@@ -140,6 +148,7 @@ Recognised entrypoint subcommands:
 | `unlock` or `/bin/unlock` | Pass remaining args to `/bin/unlock`. Audited manual `restic unlock` wrapper; supports `--dry-run` and `--remove-all`. |
 | `sources-report` or `/bin/sources-report` | Pass remaining args to `/bin/sources-report`. Pre-flight inventory of `BACKUP_ROOT_DIR` + `--files-from` / `--exclude-file`; supports `--no-size`, `--depth N`, `--source`, `--files-from`. |
 | `init-repo` or `/bin/init-repo` | Pass remaining args to `/bin/init-repo`. Audited `restic init` wrapper; supports `--dry-run`, `--yes`, and `-- restic-init-flags...` passthrough (e.g. `--repository-version=2`). |
+| `notify-test` or `/bin/notify-test` | Pass remaining args to `/bin/notify-test`. Sends labelled mail/webhook tests through the same helpers used by real workers; supports `--mail`, `--webhook`, `--all`, `--dry-run`, `--subject`, `--message`. |
 
 Anything else falls through to the normal cron startup.
 
@@ -223,4 +232,6 @@ between-snapshot diff, in-place tar streams).
 - [Init repo](init-repo.md) — audited `restic init` wrapper with
   `--dry-run`, confirmation prompt and `--yes` for non-interactive
   bootstraps.
+- [Notify test](notify-test.md) — validate mail/webhook delivery
+  plumbing through the same helper functions used by real jobs.
 - [Troubleshooting](troubleshooting.md) — common manual-run hiccups.

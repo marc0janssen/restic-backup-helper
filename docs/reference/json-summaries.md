@@ -14,7 +14,7 @@ scrape never sees a partial document.
 | --- | --- | --- |
 | `job` | string | One of `backup`, `check`, `prune`, `replicate`, `restore`, `snapshot-export`, `forget-preview`, `mount-snapshot`. |
 | `hostname` | string | Container hostname. Set explicitly in Compose / Kubernetes for stable labels. |
-| `release` | string | `${VERSION}-${restic_base}` baked at build time, e.g. `2.9.0-0.18.1`. |
+| `release` | string | `${VERSION}-${restic_base}` baked at build time, e.g. `2.10.0-0.18.1`. |
 | `started_at` | string | ISO 8601 in container `TZ`. |
 | `finished_at` | string | ISO 8601 in container `TZ`. |
 | `started_epoch` | integer | Unix epoch seconds at start. |
@@ -50,7 +50,7 @@ common fields and `exit_code`.
 {
   "job": "backup",
   "hostname": "backup-node",
-  "release": "2.9.0-0.18.1",
+  "release": "2.10.0-0.18.1",
   "started_at": "2026-05-11T02:00:00+0200",
   "finished_at": "2026-05-11T02:05:12+0200",
   "started_epoch": 1762828800,
@@ -126,7 +126,7 @@ snapshots.
 {
   "job": "replicate",
   "hostname": "backup-node",
-  "release": "2.9.0-0.18.1",
+  "release": "2.10.0-0.18.1",
   "started_at": "2026-05-11T09:00:00+0200",
   "finished_at": "2026-05-11T09:11:23+0200",
   "duration_seconds": 683,
@@ -171,7 +171,7 @@ Exit codes:
 {
   "job": "snapshot-export",
   "hostname": "backup-node",
-  "release": "2.9.0-0.18.1",
+  "release": "2.10.0-0.18.1",
   "started_at": "2026-05-11T15:30:00+0200",
   "finished_at": "2026-05-11T15:31:12+0200",
   "duration_seconds": 72,
@@ -211,7 +211,7 @@ browsing this can be minutes-to-hours.
 {
   "job": "mount-snapshot",
   "hostname": "backup-node",
-  "release": "2.9.0-0.18.1",
+  "release": "2.10.0-0.18.1",
   "started_at": "2026-05-12T17:00:00+0200",
   "finished_at": "2026-05-12T17:12:31+0200",
   "duration_seconds": 751,
@@ -242,7 +242,7 @@ emits the common fields plus:
 {
   "job": "unlock",
   "hostname": "backup-node",
-  "release": "2.9.0-0.18.1",
+  "release": "2.10.0-0.18.1",
   "started_at": "2026-05-13T13:25:00+0200",
   "finished_at": "2026-05-13T13:25:01+0200",
   "duration_seconds": 1,
@@ -283,7 +283,7 @@ with per-source / per-files-from / per-exclude-file detail:
 {
   "job": "sources-report",
   "hostname": "backup-node",
-  "release": "2.9.0-0.18.1",
+  "release": "2.10.0-0.18.1",
   "started_at": "2026-05-13T15:30:00+0200",
   "finished_at": "2026-05-13T15:30:08+0200",
   "duration_seconds": 8,
@@ -332,7 +332,7 @@ common fields plus:
 {
   "job": "init-repo",
   "hostname": "backup-node",
-  "release": "2.9.0-0.18.1",
+  "release": "2.10.0-0.18.1",
   "started_at": "2026-05-13T16:30:00+0200",
   "finished_at": "2026-05-13T16:30:02+0200",
   "duration_seconds": 2,
@@ -350,6 +350,35 @@ common fields plus:
 See [Init repo](../operations/init-repo.md) for the full flag
 reference, the type-to-confirm prompt and the dry-run verdict
 matrix.
+
+### `last-notify-test.json`
+
+`/bin/notify-test` (the operator-driven mail/webhook delivery test)
+emits the common fields plus:
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `target_mode` | string | `auto`, `mail`, `webhook` or `all`. |
+| `dry_run` | string | `ON` / `OFF`. |
+| `mail_requested` | string | `ON` when mail delivery was selected. |
+| `webhook_requested` | string | `ON` when webhook delivery was selected. |
+| `mail_configured` | string | `ON` when `MAILX_RCPT` was set. |
+| `webhook_configured` | string | `ON` when `WEBHOOK_URL` was set. |
+| `mail_result` | string | `delivered`, `failed`, `dry-run` or `skipped`. |
+| `webhook_result` | string | `delivered`, `failed`, `dry-run` or `skipped`. |
+| `mail_rc` | string | Raw return code from `notify_mail`. |
+| `webhook_rc` | string | Raw return code from `notify_webhook`. |
+| `webhook_url` | string | Masked webhook URL (`scheme://host/...`). |
+| `webhook_auth_header_set` | string | `ON` when `WEBHOOK_HEADER_AUTH` was present. |
+| `mail_on_error` | string | Original `MAILX_ON_ERROR` value observed at runtime. |
+| `webhook_on_error` | string | Original `WEBHOOK_ON_ERROR` value observed at runtime. |
+| `webhook_timeout` | string | Effective `WEBHOOK_TIMEOUT` value. |
+| `subject` | string | Subject prefix / webhook detail. |
+| `message` | string | Optional operator message. |
+| `duration_so_far_seconds` | string | Runtime at the moment the JSON extras were rendered. |
+
+See [Notify test](../operations/notify-test.md) for target-selection
+rules and why delivery failures affect this helper's exit code.
 
 ## Reading the files
 

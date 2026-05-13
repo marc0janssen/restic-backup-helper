@@ -166,6 +166,7 @@ nav:
       - Unlock: operations/unlock.md
       - Sources report: operations/sources-report.md
       - Init repo: operations/init-repo.md
+      - Notify test: operations/notify-test.md
       - Diagnostics (doctor): operations/diagnostics.md
       - Troubleshooting: operations/troubleshooting.md
   - Deployment:

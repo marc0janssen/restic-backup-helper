@@ -187,7 +187,7 @@ Example:
 {
   "job": "sources-report",
   "hostname": "backup-node",
-  "release": "2.9.0-0.18.1",
+  "release": "2.10.0-0.18.1",
   "started_at": "2026-05-13T15:30:00+0200",
   "finished_at": "2026-05-13T15:30:08+0200",
   "duration_seconds": 8,

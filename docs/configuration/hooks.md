@@ -32,6 +32,8 @@ executable, and the workers will run them automatically.
 | `/hooks/post-sources-report.sh` | `/bin/sources-report` | Sources-report exit code |
 | `/hooks/pre-init-repo.sh` | `/bin/init-repo` | *none* |
 | `/hooks/post-init-repo.sh` | `/bin/init-repo` | Init-repo exit code |
+| `/hooks/pre-notify-test.sh` | `/bin/notify-test` | *none* |
+| `/hooks/post-notify-test.sh` | `/bin/notify-test` | Notify-test exit code |
 
 Hooks must be **executable** inside the container (`chmod +x`). A hook
 present but not executable is reported as an error in `cron.log`, not

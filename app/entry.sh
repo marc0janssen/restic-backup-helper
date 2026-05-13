@@ -95,6 +95,10 @@ if [ "${1:-}" = "init-repo" ] || [ "${1:-}" = "/bin/init-repo" ]; then
 	shift
 	exec /bin/init-repo "$@"
 fi
+if [ "${1:-}" = "notify-test" ] || [ "${1:-}" = "/bin/notify-test" ]; then
+	shift
+	exec /bin/notify-test "$@"
+fi
 
 # shellcheck source=app/lib.sh
 . /bin/lib.sh

@@ -2,6 +2,57 @@
 
 ## Restic Backup Helper
 
+### 2.10.0-0.18.1 (2026-05-13)
+
+This release adds a first-class notification plumbing test so operators
+can validate SMTP and webhook configuration before waiting for a real
+backup failure. `/bin/notify-test` sends clearly-labelled mail and/or
+webhook notifications through the same `notify_mail` / `notify_webhook`
+helpers used by real jobs, but unlike real jobs, delivery failures
+affect the helper exit code so CI and manual smoke tests can catch bad
+`msmtprc`, `MAILX_RCPT`, `WEBHOOK_URL`, auth headers and timeout
+settings.
+
+#### Added
+
+- **`/bin/notify-test` operator-driven mail/webhook test.** Default
+  mode sends to every configured target (`MAILX_RCPT` and/or
+  `WEBHOOK_URL`); `--mail`, `--webhook` and `--all` select a narrower
+  or stricter target set. `--dry-run` prints what would be sent without
+  invoking `mail` or `curl`, while still writing JSON / metrics /
+  hooks. `--subject TEXT` and `--message TEXT` let operators label the
+  test. The helper intentionally forces the test delivery to send even
+  when `MAILX_ON_ERROR=ON` / `WEBHOOK_ON_ERROR=ON`, while preserving
+  those original policy values in logs and JSON. Emits the standard
+  worker surface: `/var/log/notify-test-last.log`,
+  `/var/log/notify-test-mail-last.log`,
+  `/var/log/last-notify-test.json` (target mode, requested/configured
+  targets, delivery results, raw mail/webhook return codes, masked
+  webhook URL, auth-header-present flag, timeout, subject/message),
+  `restic_notify_test.prom` when `METRICS_DIR` is set, plus
+  `pre-notify-test` / `post-notify-test "$rc"` hooks. Reachable via
+  `docker exec … /bin/notify-test` and the entrypoint shortcut
+  `docker run … notify-test`.
+- **Documentation: `/bin/notify-test` operations page**
+  ([`docs/operations/notify-test.md`](https://marc0janssen.github.io/restic-backup-helper/operations/notify-test.html))
+  with quick-start examples, target-selection rules, dry-run behaviour,
+  JSON schema, exit-code table and cross-links from mail/webhook
+  configuration, manual runs, hooks and reference pages.
+
+#### Notes
+
+- No new environment variables; `/bin/notify-test` reuses
+  `MAILX_RCPT`, `MAILX_ON_ERROR`, `WEBHOOK_URL`,
+  `WEBHOOK_HEADER_AUTH`, `WEBHOOK_TIMEOUT`, `WEBHOOK_ON_ERROR`,
+  `METRICS_DIR` and `HOOK_TIMEOUT`.
+- Exit codes: `0` (requested test notification(s) delivered, or
+  dry-run completed), `1` (at least one requested delivery failed),
+  `2` (configuration / argument error such as no targets or missing
+  requested target).
+- Internal SemVer policy: MINOR rather than PATCH because
+  `/bin/notify-test` is a new in-container helper with its own JSON
+  schema, Prometheus textfile and hook family.
+
 ### 2.9.0-0.18.1 (2026-05-13)
 
 This release adds an **audited operator counterpart** to the entrypoint

@@ -127,6 +127,17 @@ webhook notifications**, **Prometheus textfile metrics** and
 
     [:octicons-arrow-right-24: Init repo](operations/init-repo.md)
 
+- :material-bell-check-outline: __Notify test__
+
+    ---
+
+    `/bin/notify-test` sends clearly-labelled test mail and/or webhook
+    payloads through the same helpers used by real workers, so you can
+    validate `msmtprc`, `MAILX_RCPT`, `WEBHOOK_URL`, auth headers and
+    timeout handling before waiting for a real failure.
+
+    [:octicons-arrow-right-24: Notify test](operations/notify-test.md)
+
 - :material-stethoscope: __Doctor diagnostics__
 
     ---
@@ -216,7 +227,7 @@ The shortest "it backs up every night and yells when it breaks" setup:
 !!! tip "Pin your tags"
 
     Tagged images use the schema `<helper-semver>-<restic-version>`, e.g.
-    `2.9.0-0.18.1`. Pinning both protects you from surprise upstream
+    `2.10.0-0.18.1`. Pinning both protects you from surprise upstream
     behaviour changes. See [Image tags](reference/image-tags.md).
 
 ---
