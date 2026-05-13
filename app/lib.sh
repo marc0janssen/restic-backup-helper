@@ -15,6 +15,12 @@
 #     legacy SYNC_VERBOSE) so user-facing verbosity keeps its existing
 #     semantics.
 #   - errorlog() always echoes to stdout regardless of LOG_VERBOSE.
+#   - Sourcing this file has ONE side effect: resolve_restic_repository_file
+#     runs at the bottom of the file so every helper that sources lib.sh
+#     observes RESTIC_REPOSITORY already populated from RESTIC_REPOSITORY_FILE
+#     when the latter is set (mirrors restic's native RESTIC_PASSWORD_FILE
+#     precedence and prevents restic's "--repo and --repository-file are
+#     mutually exclusive" failure when both are present).
 # =========================================================
 
 # Mask repository credentials in URLs of the form scheme://user:password@host
@@ -615,3 +621,56 @@ write_metrics_for_job() {
 		done
 	} >"${tmp}" && mv -f "${tmp}" "${target}"
 }
+
+# Resolve RESTIC_REPOSITORY_FILE into RESTIC_REPOSITORY so every consumer
+# (entrypoint banner, repository probe, cron-driven workers and restic itself)
+# observes a single string. Mirrors restic's native RESTIC_PASSWORD_FILE
+# precedence: the file content wins when the file is readable and non-empty.
+# After a successful promotion the RESTIC_REPOSITORY_FILE env var is unset so
+# restic does not fail with "--repo and --repository-file are mutually
+# exclusive" when both happen to be set (which is the default for this image
+# because the Dockerfile bakes RESTIC_REPOSITORY=/mnt/restic).
+#
+# Parsing rule: the first non-blank, non-comment line of the file is taken as
+# the repository URL. Leading/trailing whitespace and an optional trailing
+# CR (CRLF files) are stripped. Lines beginning with `#` (after optional
+# whitespace) are treated as comments.
+#
+# Failure modes leave both env vars untouched so downstream config-check /
+# doctor / restic surface the misconfiguration with their usual error
+# contexts:
+#   - RESTIC_REPOSITORY_FILE set but path not readable.
+#   - RESTIC_REPOSITORY_FILE set but file is blank / comments-only.
+#
+# When RESTIC_REPOSITORY is explicitly set to a non-default value AND
+# RESTIC_REPOSITORY_FILE is also set, a single stderr warning is emitted so
+# operators see that the file wins (matches the documented precedence).
+resolve_restic_repository_file() {
+	local repo_file="${RESTIC_REPOSITORY_FILE:-}"
+	[ -n "${repo_file}" ] || return 0
+
+	if [ ! -r "${repo_file}" ]; then
+		echo "⚠️  RESTIC_REPOSITORY_FILE='${repo_file}' is not readable; leaving RESTIC_REPOSITORY unchanged." >&2
+		return 0
+	fi
+
+	local resolved
+	resolved="$(awk 'NF && !/^[[:space:]]*#/ { sub(/^[[:space:]]+/,""); sub(/[[:space:]]+$/,""); sub(/\r$/,""); print; exit }' "${repo_file}")"
+
+	if [ -z "${resolved}" ]; then
+		echo "⚠️  RESTIC_REPOSITORY_FILE='${repo_file}' contains no repository URL (only blank lines or comments); leaving RESTIC_REPOSITORY unchanged." >&2
+		return 0
+	fi
+
+	if [ -n "${RESTIC_REPOSITORY:-}" ] &&
+		[ "${RESTIC_REPOSITORY}" != "/mnt/restic" ] &&
+		[ "${RESTIC_REPOSITORY}" != "${resolved}" ]; then
+		echo "⚠️  Both RESTIC_REPOSITORY and RESTIC_REPOSITORY_FILE are set; RESTIC_REPOSITORY_FILE takes precedence (mirrors restic's RESTIC_PASSWORD_FILE precedence)." >&2
+	fi
+
+	RESTIC_REPOSITORY="${resolved}"
+	export RESTIC_REPOSITORY
+	unset RESTIC_REPOSITORY_FILE
+}
+
+resolve_restic_repository_file

@@ -308,7 +308,7 @@ report_command_version "bash" bash --version
 section "Effective environment"
 map_legacy_replicate_env_for_report
 for name in \
-	RESTIC_REPOSITORY RESTIC_PASSWORD_FILE RESTIC_PASSWORD RESTIC_TAG RESTIC_CACHE_DIR TMPDIR \
+	RESTIC_REPOSITORY RESTIC_REPOSITORY_FILE RESTIC_PASSWORD_FILE RESTIC_PASSWORD RESTIC_TAG RESTIC_CACHE_DIR TMPDIR \
 	RESTIC_CHECK_REPOSITORY_STATUS RESTIC_AUTO_UNLOCK RESTIC_CACERT NFS_TARGET \
 	BACKUP_CRON BACKUP_ROOT_DIR RESTIC_JOB_ARGS RESTIC_FORGET_ARGS RESTIC_INIT_ARGS \
 	CHECK_CRON RESTIC_CHECK_ARGS FORGET_CRON PRUNE_CRON RESTIC_PRUNE_ARGS \
@@ -324,8 +324,18 @@ for name in \
 done
 
 section "Configuration checks"
-if [ -z "${RESTIC_REPOSITORY:-}" ]; then
-	fail "RESTIC_REPOSITORY is empty."
+if [ -n "${RESTIC_REPOSITORY_FILE:-}" ]; then
+	# resolve_restic_repository_file (auto-invoked by lib.sh) left
+	# RESTIC_REPOSITORY_FILE set, meaning promotion failed: file is
+	# unreadable, empty or only contains comments. Surface the exact reason
+	# so the operator does not have to guess.
+	if [ ! -r "${RESTIC_REPOSITORY_FILE}" ]; then
+		fail "RESTIC_REPOSITORY_FILE is set but not readable (${RESTIC_REPOSITORY_FILE})"
+	else
+		fail "RESTIC_REPOSITORY_FILE is set but contains no repository URL (${RESTIC_REPOSITORY_FILE})"
+	fi
+elif [ -z "${RESTIC_REPOSITORY:-}" ]; then
+	fail "RESTIC_REPOSITORY is empty (set RESTIC_REPOSITORY or RESTIC_REPOSITORY_FILE)."
 else
 	ok "RESTIC_REPOSITORY is set to $(mask_repository "${RESTIC_REPOSITORY}")"
 fi

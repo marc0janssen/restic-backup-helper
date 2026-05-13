@@ -2,6 +2,86 @@
 
 ## Restic Backup Helper
 
+### 2.11.0-0.18.1 (2026-05-13)
+
+This release promotes `RESTIC_REPOSITORY_FILE` to a first-class alternative
+to `RESTIC_REPOSITORY`, matching restic's native precedence model for
+`RESTIC_PASSWORD_FILE`. The image used to bake
+`ENV RESTIC_REPOSITORY=/mnt/restic` in the Dockerfile, so a compose file
+that set only `RESTIC_REPOSITORY_FILE` ended up with both env vars
+populated and the entrypoint banner / repository probe printed the
+literal `/mnt/restic` default; downstream restic invocations would have
+aborted with `Options --repo and --repository-file are mutually
+exclusive`. The helper now reads the file at startup, promotes its first
+non-blank, non-comment line into `RESTIC_REPOSITORY`, and unsets
+`RESTIC_REPOSITORY_FILE` so every consumer — banner, probe, cron-driven
+workers and restic itself — observes a single coherent value.
+
+#### Added
+
+- **`RESTIC_REPOSITORY_FILE` first-class support.** New
+  `resolve_restic_repository_file` helper in `app/lib.sh` runs as a
+  side-effect when `lib.sh` is sourced and:
+  - Reads the first non-blank, non-comment line of the file with
+    leading/trailing whitespace and an optional trailing CR stripped.
+    Lines starting with `#` (after optional whitespace) are treated as
+    comments.
+  - Promotes the line into `RESTIC_REPOSITORY` and unsets
+    `RESTIC_REPOSITORY_FILE` on success, so the rest of the runtime
+    (entrypoint banner, `restic cat config` probe, all
+    cron-driven workers and operator helpers like `/bin/doctor`,
+    `/bin/init-repo`, `/bin/sources-report`) observes the resolved URL
+    and restic no longer fails with
+    `Options --repo and --repository-file are mutually exclusive`.
+  - Emits a single stderr warning when both `RESTIC_REPOSITORY` is set
+    to a non-default value and `RESTIC_REPOSITORY_FILE` is present, so
+    the override is visible in `cron.log` / `docker logs`.
+  - Leaves both env vars untouched and emits a warning when the file is
+    unreadable or empty/comments-only, so `config-check` / `/bin/doctor`
+    can surface the misconfiguration with their usual context.
+- **`config-check` and `/bin/doctor` understand
+  `RESTIC_REPOSITORY_FILE`.** `config-check` accepts the file as a valid
+  source for the repository and reports the specific reason when
+  promotion failed (unreadable path vs. blank/comments-only). `/bin/doctor`
+  shows `RESTIC_REPOSITORY_FILE` in its `Effective environment` section
+  and reuses the same diagnostic when the file is set but unusable.
+
+#### Fixed
+
+- The entrypoint startup banner
+  (`✅ Assuming repository '…' is online…`) and the `restic cat config`
+  probe now print the masked resolved repository URL instead of the
+  image-baked `/mnt/restic` default when `RESTIC_REPOSITORY_FILE` is
+  configured.
+
+#### Documentation
+
+- Added a full `RESTIC_REPOSITORY_FILE` row to
+  [`docs/configuration/environment-variables.md`](https://marc0janssen.github.io/restic-backup-helper/configuration/environment-variables.html)
+  covering parsing rules, precedence vs. `RESTIC_REPOSITORY`,
+  the post-promotion `unset` behaviour and how `config-check` /
+  `/bin/doctor` diagnose misconfiguration.
+- `examples/compose/cloud-reference.yml` now shows
+  `RESTIC_REPOSITORY_FILE` as a commented-out alternative next to
+  `RESTIC_PASSWORD_FILE`, so operators have a copy-paste-ready pattern
+  for hiding `rest:https://user:pass@host` URLs from `docker inspect`.
+
+#### Notes
+
+- No new environment variables beyond `RESTIC_REPOSITORY_FILE`
+  itself (which was already supported by upstream restic and read by
+  the workers indirectly; the helper now makes the precedence explicit
+  and observable in logs).
+- `app/lib.sh` now has a single intentional side effect on source:
+  `resolve_restic_repository_file` is invoked at the bottom of the
+  file. Documented prominently in the lib.sh header so future
+  maintainers do not consider it surprising.
+- Internal SemVer policy: MINOR rather than PATCH because the
+  entrypoint behaviour changes for any compose file that sets
+  `RESTIC_REPOSITORY_FILE` (banner output, probe target, post-startup
+  env layout). No breaking change for existing `RESTIC_REPOSITORY`-only
+  deployments.
+
 ### 2.10.1-0.18.1 (2026-05-13)
 
 This patch tightens observability and documentation around the shared
