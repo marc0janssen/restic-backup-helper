@@ -20,7 +20,7 @@ provide it at runtime*.
 | `RESTIC_TAG` | `automated` | **Required.** Tag passed to `restic backup` as `--tag=…`. Explicitly empty value is a hard failure (exit 2). Pick something meaningful, e.g. `daily`, `${HOSTNAME}-data`. |
 | `RESTIC_CACHE_DIR` | `/.cache/restic` | Restic cache directory. Mount a volume to persist across restarts. |
 | `RESTIC_CACERT` | *(empty)* | Path inside the container to a readable PEM bundle. Automatically passed as `--cacert "$RESTIC_CACERT"` to every restic invocation. Unreadable path logs a warning and omits the flag; `config-check` treats the same condition as a hard error. |
-| `RESTIC_CHECK_REPOSITORY_STATUS` | `ON` | When `ON`, the entrypoint probes the repo with `restic cat config`; auto-`restic init` runs only on exit `10`. Other non-zero exits abort startup. Set to anything else to skip both the probe and the auto-init. |
+| `RESTIC_CHECK_REPOSITORY_STATUS` | `ON` | When `ON`, the entrypoint probes the repo with `restic cat config`; auto-`restic init` runs only on exit `10`. Other non-zero exits abort startup. Set to anything else to skip both the probe and the auto-init — pair that with [`/bin/init-repo`](../operations/init-repo.md) for an audited operator-driven bootstrap. |
 | `RESTIC_AUTO_UNLOCK` | `OFF` | When `ON`, `/bin/backup` and `/bin/check` run `restic unlock` after a non-zero restic exit. Default leaves the lock alone — safer for repositories shared across multiple hosts. Use the audited [`/bin/unlock`](../operations/unlock.md) helper for explicit, logged manual unlocks instead. |
 
 ## Backup job
@@ -46,6 +46,7 @@ provide it at runtime*.
 | `FORGET_CRON` | *(empty)* | If non-empty, schedules a standalone `/bin/forget` on its own `flock` (`/var/run/forget.lock`). When set, `/bin/backup` **skips** its inline post-backup forget so the repository's exclusive forget-lock is only ever taken in this dedicated maintenance window — the recommended pattern for repositories shared by multiple hosts (eliminates the exit-11 race entirely). `RESTIC_FORGET_ARGS` is reused verbatim. Typical value `30 1 * * *`. See [Forget worker](../workers/forget.md). |
 | `PRUNE_CRON` | *(empty)* | If non-empty, schedules a standalone `/bin/prune` on its own `flock`. Run the heavy `restic prune` on its own cadence (typically weekly) while `RESTIC_FORGET_ARGS` keeps post-backup forget cheap. |
 | `RESTIC_PRUNE_ARGS` | *(empty)* | Extra words passed to `restic prune`, e.g. `--max-unused 10%`, `--max-repack-size 5G`. |
+| `RESTIC_INIT_ARGS` | *(empty)* | Extra words passed to `restic init` by [`/bin/init-repo`](../operations/init-repo.md). Shell-word split, analogous to `RESTIC_FORGET_ARGS` / `RESTIC_PRUNE_ARGS`. Examples: `--repository-version=2`, `--copy-chunker-params=/run/secrets/other_repo` (deduplication-friendly when cloning a sibling repository). Only consulted by `/bin/init-repo`; the cron-driven workers ignore it. |
 
 ## NFS
 
@@ -140,7 +141,7 @@ RESTIC_BACKUP_HELPER_RELEASE=…`. Read it from inside the container:
 
 ```shell
 docker exec restic-backup-helper printenv RESTIC_BACKUP_HELPER_RELEASE
-# → 2.8.0-0.18.1
+# → 2.9.0-0.18.1
 ```
 
 `/bin/doctor` includes the release in its `Runtime` section and every

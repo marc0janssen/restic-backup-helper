@@ -2,6 +2,79 @@
 
 ## Restic Backup Helper
 
+### 2.9.0-0.18.1 (2026-05-13)
+
+This release adds an **audited operator counterpart** to the entrypoint
+auto-init probe (`RESTIC_CHECK_REPOSITORY_STATUS`). Operators who keep
+the probe disabled — the recommended posture on shared remotes where a
+transient TLS / DNS / auth hiccup must never look like "repo doesn't
+exist, let's call init" — now have a first-class bootstrap command that
+runs the same probe explicitly, prints the planned `restic init`
+command, requires a typed confirmation (or `--yes`) and writes the
+familiar log / JSON / metrics / mail / webhook / hook surface.
+
+#### Added
+
+- **`/bin/init-repo` operator-driven bootstrap wrapper.**
+  Explicit `restic init` with a pre-flight `restic cat config` probe
+  (the same exit-10 contract the entrypoint uses) so an existing
+  repository is never accidentally re-initialised. `--dry-run` prints
+  the masked repository URL, the resolved init flags, and a one-line
+  verdict (`would CREATE` / `would REFUSE — already exists` / probe
+  error) without mutating anything; the JSON / Prometheus / mail /
+  webhook / hook artefacts are still emitted so monitoring stays
+  consistent. Without `--dry-run` the helper requires either an
+  interactive TTY plus a typed-word confirmation (`init`) or an
+  explicit `--yes` / `-y` flag — without one of those, a non-TTY run
+  aborts with exit `2` to prevent surprise init runs from a container
+  restart or CI replay. Extra restic-init flags come from the new
+  `RESTIC_INIT_ARGS` env var (shell-word split, analogous to
+  `RESTIC_FORGET_ARGS` / `RESTIC_PRUNE_ARGS`) and from any positional
+  arguments after `--`. Emits the standard worker surface:
+  `/var/log/init-repo-last.log`, `/var/log/last-init-repo.json` (with
+  `dry_run`, `assume_yes`, `confirmed`, `repo_existed`,
+  `probe_exit_code`, `init_args`), `restic_init_repo.prom` when
+  `METRICS_DIR` is set, mail subject (`[OK|FAIL N] Init-repo …`) and
+  webhook payload, plus `pre-init-repo` / `post-init-repo "$rc"`
+  hooks. Reachable via `docker exec … /bin/init-repo` and the
+  entrypoint shortcut `docker run … init-repo`. Registered in
+  `/bin/doctor` alongside the other hook families and JSON
+  summaries; `RESTIC_INIT_ARGS` joins the masked-env table dumped by
+  doctor.
+- **`RESTIC_INIT_ARGS` env-var.** Stable knob for repository version
+  pinning (`--repository-version=2`) or chunker matching
+  (`--copy-chunker-params=<path>`) at create time. Only consulted by
+  `/bin/init-repo`; the cron-driven workers ignore it.
+- **Documentation: `/bin/init-repo` operations page**
+  ([`docs/operations/init-repo.md`](https://marc0janssen.github.io/restic-backup-helper/operations/init-repo.html))
+  with mermaid flowchart, probe-verdict matrix, the
+  type-to-confirm prompt rendering, dry-run output anatomy, JSON
+  schema and cross-links from
+  [Manual runs](https://marc0janssen.github.io/restic-backup-helper/operations/manual-runs.html),
+  [Diagnostics](https://marc0janssen.github.io/restic-backup-helper/operations/diagnostics.html),
+  [Environment variables](https://marc0janssen.github.io/restic-backup-helper/configuration/environment-variables.html),
+  [Hooks](https://marc0janssen.github.io/restic-backup-helper/configuration/hooks.html)
+  and the JSON / Prometheus reference pages.
+
+#### Notes
+
+- No behaviour change for the entrypoint auto-init probe. The new
+  helper is purely additive; `RESTIC_CHECK_REPOSITORY_STATUS=ON`
+  keeps its existing semantics. The recommended deployment pattern
+  on shared remotes is now `RESTIC_CHECK_REPOSITORY_STATUS=OFF` plus
+  a one-shot `/bin/init-repo --yes` (or interactive `/bin/init-repo`)
+  for the first bootstrap.
+- Exit codes:
+  `0` (init succeeded, dry-run completed, or operator cancelled at
+  the prompt), `1` (real `restic init` failure), `2` (configuration
+  error: missing env, no TTY without `--yes`, wrong password / other
+  probe error), `3` (repository already exists — idempotent, no
+  mutation attempted).
+- Internal SemVer policy: MINOR rather than PATCH because
+  `/bin/init-repo` is a new in-container helper with its own JSON
+  schema, Prometheus textfile, hook family and a new public env-var
+  (`RESTIC_INIT_ARGS`).
+
 ### 2.8.0-0.18.1 (2026-05-13)
 
 This release adds a **pre-flight source inventory** so operators can

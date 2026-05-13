@@ -5,7 +5,7 @@
 [![Security Scan](https://github.com/marc0janssen/restic-backup-helper/actions/workflows/security-scan.yml/badge.svg)](https://github.com/marc0janssen/restic-backup-helper/actions/workflows/security-scan.yml)
 [![Docs](https://github.com/marc0janssen/restic-backup-helper/actions/workflows/docs.yml/badge.svg)](https://github.com/marc0janssen/restic-backup-helper/actions/workflows/docs.yml)
 
-Scheduled [Restic](https://restic.net) backups, optional `restic check`, optional [Rclone](https://rclone.org) **replicate** jobs (`bisync` / `sync` / `copy`), cron automation, logs under `/var/log`, optional mail via **msmtp** + **mailx**. Includes read-only operator helpers such as `/bin/doctor`, `/bin/cron-list` and `/bin/sources-report`. Based on **`restic/restic`** Alpine.
+Scheduled [Restic](https://restic.net) backups, optional `restic check`, optional [Rclone](https://rclone.org) **replicate** jobs (`bisync` / `sync` / `copy`), cron automation, logs under `/var/log`, optional mail via **msmtp** + **mailx**. Includes read-only operator helpers such as `/bin/doctor`, `/bin/cron-list`, `/bin/sources-report` and an audited `/bin/init-repo` bootstrap wrapper. Based on **`restic/restic`** Alpine.
 
 **Documentation:** [marc0janssen.github.io/restic-backup-helper](https://marc0janssen.github.io/restic-backup-helper/) · **GitHub (full manual, Compose, hooks, env matrix):** [github.com/marc0janssen/restic-backup-helper](https://github.com/marc0janssen/restic-backup-helper)
 
@@ -13,24 +13,25 @@ Scheduled [Restic](https://restic.net) backups, optional `restic check`, optiona
 
 ## Release
 
-release: 2.8.0-0.18.1
+release: 2.9.0-0.18.1
 
 **Stable**
 
 ```shell
 docker pull marc0janssen/restic-backup-helper:latest
-docker pull marc0janssen/restic-backup-helper:2.8.0-0.18.1
+docker pull marc0janssen/restic-backup-helper:2.9.0-0.18.1
 ```
 
 **Development (experimental)**
 
 ```shell
 docker pull marc0janssen/restic-backup-helper:develop
-docker pull marc0janssen/restic-backup-helper:2.8.0-0.18.1-dev
+docker pull marc0janssen/restic-backup-helper:2.9.0-0.18.1-dev
 ```
 
 > **Upgrading?**
 >
+> - **2.8.0 → 2.9.0:** purely additive. New audited operator helper `/bin/init-repo` is the operator-driven counterpart to the entrypoint auto-init probe. The recommended deployment pattern on shared remotes is now `RESTIC_CHECK_REPOSITORY_STATUS=OFF` (no auto-init on a transient TLS / DNS / auth hiccup) plus a one-shot `/bin/init-repo --yes` (CI) or interactive `/bin/init-repo` (operator) for the first bootstrap. `--dry-run` runs the same `restic cat config` probe and prints the planned `restic init` command + verdict (`would CREATE` / `would REFUSE — already exists` / probe error) without mutation. Without `--dry-run` a typed `init` confirmation (interactive TTY) or explicit `--yes` is required. Adds the `RESTIC_INIT_ARGS` env-var (e.g. `--repository-version=2`, `--copy-chunker-params=…`); CLI passthrough after `--` works too. Writes `/var/log/last-init-repo.json` (with `dry_run`, `assume_yes`, `confirmed`, `repo_existed`, `probe_exit_code`, `init_args`), `restic_init_repo.prom`, and runs `pre-init-repo` / `post-init-repo` hooks, mail and webhook the same way as the other workers. Reachable via `docker exec … /bin/init-repo` or `docker run … init-repo`. Idempotent: exits `3` when the repo already exists. No behaviour change for the entrypoint auto-init probe; `RESTIC_CHECK_REPOSITORY_STATUS=ON` keeps its existing semantics.
 > - **2.7.0 → 2.8.0:** purely additive. New read-only operator helper `/bin/sources-report` is a pre-flight inventory of the paths your next backup will actually read: re-uses the same `BACKUP_ROOT_DIR` + `RESTIC_JOB_ARGS` parsing as `/bin/backup`, reports readability, type, file count and (optional) size per source, plus pattern counts and missing-entry counts for every `--files-from` / `--exclude-file` reference. `--no-size` skips `du -sk` on slow / remote sources; `--depth N` caps `find` depth; repeatable `--source PATH` / `--files-from FILE` add ad-hoc entries. Writes `/var/log/last-sources-report.json` (flat aggregates plus nested `sources`, `files_from`, `exclude_files` arrays), `restic_sources_report.prom`, and runs `pre-sources-report` / `post-sources-report` hooks, mail and webhook the same way as the other workers. Reachable via `docker exec … /bin/sources-report` or `docker run … sources-report`. The size figure is unfiltered (exclude rules are not applied); the exclude-file inventory is reported separately. No env-var changes.
 > - **2.6.0 → 2.7.0:** purely additive. New audited operator helper `/bin/unlock` complements the safer `RESTIC_AUTO_UNLOCK=OFF` default (workers still never auto-clear locks on failure). Removes stale exclusive locks by default; `--remove-all` widens to non-exclusive locks; `--dry-run` only lists current locks. Writes `/var/log/last-unlock.json` (with `remove_all`, `dry_run`, `locks_before`, `locks_after`), `restic_unlock.prom`, and runs `pre-unlock` / `post-unlock` hooks, mail and webhook the same way as the other workers. Reachable via `docker exec … /bin/unlock` or `docker run … unlock`. No env-var changes; `RESTIC_AUTO_UNLOCK` keeps its existing semantics.
 > - **2.5.0 → 2.6.0:** purely additive. New read-only `/bin/cron-list` inspector prints `TZ`, the rendered crontab and a per-job summary (run via `docker exec … /bin/cron-list` or `docker run … cron-list`). Build scripts gain a `--base <restic-tag>` CLI flag with `newest`/`latest` and `prerelease`/`rc`/`beta` sentinels resolved against Docker Hub before the tag is computed; the resolved tag is verified to exist on Docker Hub before any files are mutated, so a non-existent `--base 0.19.0` aborts cleanly instead of producing an image whose tag suffix does not match the base actually used. `./build-testing-local.sh` now also patches `Dockerfile FROM` to match `--base`, and pushes `:develop` instead of `:testing` (versioned `:<release>` tag unchanged) — update any `image: …:testing` references in your private-registry manifests to `…:develop` or pin to `…:2.6.0-0.18.1-dev`. No runtime change inside the container beyond the new cron-list helper.
@@ -56,7 +57,7 @@ docker pull marc0janssen/restic-backup-helper:2.8.0-0.18.1-dev
 | Tag | Meaning |
 | --- | --- |
 | `latest` | Current stable |
-| `<semver>-<restic>` | Pinned stable (helper version + Restic base), e.g. `2.8.0-0.18.1` |
+| `<semver>-<restic>` | Pinned stable (helper version + Restic base), e.g. `2.9.0-0.18.1` |
 | `develop` | Latest testing build |
 | `<semver>-<restic>-dev` | Pinned testing image |
 

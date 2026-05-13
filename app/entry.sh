@@ -91,6 +91,10 @@ if [ "${1:-}" = "sources-report" ] || [ "${1:-}" = "/bin/sources-report" ]; then
 	shift
 	exec /bin/sources-report "$@"
 fi
+if [ "${1:-}" = "init-repo" ] || [ "${1:-}" = "/bin/init-repo" ]; then
+	shift
+	exec /bin/init-repo "$@"
+fi
 
 # shellcheck source=app/lib.sh
 . /bin/lib.sh

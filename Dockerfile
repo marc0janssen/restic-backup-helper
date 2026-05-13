@@ -138,6 +138,13 @@ COPY /app/unlock.sh /bin/unlock
 # --exclude-file reference inside RESTIC_JOB_ARGS. Read-only; estimates
 # only — exclude rules are NOT subtracted from the size figure.
 COPY /app/sources_report.sh /bin/sources-report
+# Operator-driven bootstrap helper: explicit `restic init` wrapper with a
+# type-to-confirm prompt and a --dry-run mode that prints the planned
+# command without mutating anything. Complements
+# RESTIC_CHECK_REPOSITORY_STATUS=OFF (auto-init probe disabled) — same
+# audit surface (log, JSON, metrics, mail, webhook, hooks) as the other
+# wrappers.
+COPY /app/init_repo.sh /bin/init-repo
 # Operator-friendly restore wrapper: flag-driven for scripts/CI, interactive
 # when invoked from `docker exec -ti`. Not cron-driven by design (restores are
 # always operator-initiated); shares mail/webhook/metrics plumbing with the
@@ -153,7 +160,7 @@ ARG RESTIC_BACKUP_HELPER_RELEASE=unknown
 LABEL org.opencontainers.image.title="restic-backup-helper" \
 	org.opencontainers.image.version="${RESTIC_BACKUP_HELPER_RELEASE}"
 ENV RESTIC_BACKUP_HELPER_RELEASE=${RESTIC_BACKUP_HELPER_RELEASE}
-RUN chmod 755 /entry.sh /bin/backup /bin/check /bin/replicate /bin/rotate_log /bin/prune /bin/forget /bin/doctor /bin/cron-list /bin/snapshot-export /bin/forget-preview /bin/mount-snapshot /bin/unlock /bin/sources-report /bin/restore /bin/locked_run \
+RUN chmod 755 /entry.sh /bin/backup /bin/check /bin/replicate /bin/rotate_log /bin/prune /bin/forget /bin/doctor /bin/cron-list /bin/snapshot-export /bin/forget-preview /bin/mount-snapshot /bin/unlock /bin/sources-report /bin/init-repo /bin/restore /bin/locked_run \
 	&& ln -s replicate /bin/bisync
 
 # set sendmail-path

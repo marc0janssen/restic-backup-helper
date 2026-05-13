@@ -40,7 +40,7 @@ the common subset every worker always emits is:
 {
   "job": "backup",
   "hostname": "backup-node",
-  "release": "2.8.0-0.18.1",
+  "release": "2.9.0-0.18.1",
   "started_at": "2026-05-11T02:00:00+0200",
   "finished_at": "2026-05-11T02:05:12+0200",
   "started_epoch": 1762828800,

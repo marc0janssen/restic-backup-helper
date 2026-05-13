@@ -228,6 +228,7 @@ report_hooks() {
 		pre-mount-snapshot post-mount-snapshot
 		pre-unlock post-unlock
 		pre-sources-report post-sources-report
+		pre-init-repo post-init-repo
 	)
 	local phase hook found
 	found=0
@@ -268,6 +269,7 @@ report_last_json() {
 		/var/log/last-mount-snapshot.json
 		/var/log/last-unlock.json
 		/var/log/last-sources-report.json
+		/var/log/last-init-repo.json
 	)
 
 	for file in "${files[@]}"; do
@@ -306,7 +308,7 @@ map_legacy_replicate_env_for_report
 for name in \
 	RESTIC_REPOSITORY RESTIC_PASSWORD_FILE RESTIC_PASSWORD RESTIC_TAG RESTIC_CACHE_DIR TMPDIR \
 	RESTIC_CHECK_REPOSITORY_STATUS RESTIC_AUTO_UNLOCK RESTIC_CACERT NFS_TARGET \
-	BACKUP_CRON BACKUP_ROOT_DIR RESTIC_JOB_ARGS RESTIC_FORGET_ARGS \
+	BACKUP_CRON BACKUP_ROOT_DIR RESTIC_JOB_ARGS RESTIC_FORGET_ARGS RESTIC_INIT_ARGS \
 	CHECK_CRON RESTIC_CHECK_ARGS FORGET_CRON PRUNE_CRON RESTIC_PRUNE_ARGS \
 	RCLONE_CONFIG REPLICATE_JOB_FILE REPLICATE_JOB_ARGS REPLICATE_CRON REPLICATE_VERBOSE REPLICATE_BISYNC_CHECK_ACCESS \
 	HOOK_TIMEOUT MAILX_RCPT MAILX_ON_ERROR WEBHOOK_URL WEBHOOK_HEADER_AUTH WEBHOOK_TIMEOUT WEBHOOK_ON_ERROR \

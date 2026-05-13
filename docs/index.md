@@ -114,6 +114,19 @@ webhook notifications**, **Prometheus textfile metrics** and
 
     [:octicons-arrow-right-24: Sources report](operations/sources-report.md)
 
+- :material-database-plus-outline: __Init repo__
+
+    ---
+
+    `/bin/init-repo` is the audited operator counterpart to the
+    entrypoint auto-init probe: `--dry-run` reports the planned
+    `restic init` command without mutation; without it a typed
+    confirmation (`init`) or explicit `--yes` is required, so a
+    container restart can never re-initialise a repository
+    unattended.
+
+    [:octicons-arrow-right-24: Init repo](operations/init-repo.md)
+
 - :material-stethoscope: __Doctor diagnostics__
 
     ---
@@ -203,7 +216,7 @@ The shortest "it backs up every night and yells when it breaks" setup:
 !!! tip "Pin your tags"
 
     Tagged images use the schema `<helper-semver>-<restic-version>`, e.g.
-    `2.8.0-0.18.1`. Pinning both protects you from surprise upstream
+    `2.9.0-0.18.1`. Pinning both protects you from surprise upstream
     behaviour changes. See [Image tags](reference/image-tags.md).
 
 ---

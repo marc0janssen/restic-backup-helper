@@ -24,6 +24,7 @@ docker exec -ti restic-backup-helper /bin/forget-preview
 docker exec -ti restic-backup-helper /bin/mount-snapshot
 docker exec -ti restic-backup-helper /bin/unlock --dry-run
 docker exec -ti restic-backup-helper /bin/sources-report --no-size
+docker exec -ti restic-backup-helper /bin/init-repo --dry-run
 docker exec -ti restic-backup-helper /bin/doctor
 docker exec -ti restic-backup-helper /bin/cron-list
 
@@ -117,6 +118,13 @@ docker run --rm \
   -v ./config:/config:ro \
   marc0janssen/restic-backup-helper:latest \
   sources-report --no-size
+
+# Audited bootstrap init (with --yes when stdin is not a TTY, e.g. CI).
+docker run --rm \
+  --env-file restic.env \
+  -v ./restic.password:/run/secrets/restic_password:ro \
+  marc0janssen/restic-backup-helper:latest \
+  init-repo --dry-run
 ```
 
 Recognised entrypoint subcommands:
@@ -131,6 +139,7 @@ Recognised entrypoint subcommands:
 | `mount-snapshot` or `/bin/mount-snapshot` | Pass remaining args to `/bin/mount-snapshot`; blocks until you unmount (Ctrl+C / SIGTERM). |
 | `unlock` or `/bin/unlock` | Pass remaining args to `/bin/unlock`. Audited manual `restic unlock` wrapper; supports `--dry-run` and `--remove-all`. |
 | `sources-report` or `/bin/sources-report` | Pass remaining args to `/bin/sources-report`. Pre-flight inventory of `BACKUP_ROOT_DIR` + `--files-from` / `--exclude-file`; supports `--no-size`, `--depth N`, `--source`, `--files-from`. |
+| `init-repo` or `/bin/init-repo` | Pass remaining args to `/bin/init-repo`. Audited `restic init` wrapper; supports `--dry-run`, `--yes`, and `-- restic-init-flags...` passthrough (e.g. `--repository-version=2`). |
 
 Anything else falls through to the normal cron startup.
 
@@ -211,4 +220,7 @@ between-snapshot diff, in-place tar streams).
 - [Sources report](sources-report.md) — pre-flight inventory of
   `BACKUP_ROOT_DIR` + `--files-from` / `--exclude-file` references,
   with optional size estimation.
+- [Init repo](init-repo.md) — audited `restic init` wrapper with
+  `--dry-run`, confirmation prompt and `--yes` for non-interactive
+  bootstraps.
 - [Troubleshooting](troubleshooting.md) — common manual-run hiccups.

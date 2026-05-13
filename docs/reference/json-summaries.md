@@ -14,7 +14,7 @@ scrape never sees a partial document.
 | --- | --- | --- |
 | `job` | string | One of `backup`, `check`, `prune`, `replicate`, `restore`, `snapshot-export`, `forget-preview`, `mount-snapshot`. |
 | `hostname` | string | Container hostname. Set explicitly in Compose / Kubernetes for stable labels. |
-| `release` | string | `${VERSION}-${restic_base}` baked at build time, e.g. `2.8.0-0.18.1`. |
+| `release` | string | `${VERSION}-${restic_base}` baked at build time, e.g. `2.9.0-0.18.1`. |
 | `started_at` | string | ISO 8601 in container `TZ`. |
 | `finished_at` | string | ISO 8601 in container `TZ`. |
 | `started_epoch` | integer | Unix epoch seconds at start. |
@@ -50,7 +50,7 @@ common fields and `exit_code`.
 {
   "job": "backup",
   "hostname": "backup-node",
-  "release": "2.8.0-0.18.1",
+  "release": "2.9.0-0.18.1",
   "started_at": "2026-05-11T02:00:00+0200",
   "finished_at": "2026-05-11T02:05:12+0200",
   "started_epoch": 1762828800,
@@ -126,7 +126,7 @@ snapshots.
 {
   "job": "replicate",
   "hostname": "backup-node",
-  "release": "2.8.0-0.18.1",
+  "release": "2.9.0-0.18.1",
   "started_at": "2026-05-11T09:00:00+0200",
   "finished_at": "2026-05-11T09:11:23+0200",
   "duration_seconds": 683,
@@ -171,7 +171,7 @@ Exit codes:
 {
   "job": "snapshot-export",
   "hostname": "backup-node",
-  "release": "2.8.0-0.18.1",
+  "release": "2.9.0-0.18.1",
   "started_at": "2026-05-11T15:30:00+0200",
   "finished_at": "2026-05-11T15:31:12+0200",
   "duration_seconds": 72,
@@ -211,7 +211,7 @@ browsing this can be minutes-to-hours.
 {
   "job": "mount-snapshot",
   "hostname": "backup-node",
-  "release": "2.8.0-0.18.1",
+  "release": "2.9.0-0.18.1",
   "started_at": "2026-05-12T17:00:00+0200",
   "finished_at": "2026-05-12T17:12:31+0200",
   "duration_seconds": 751,
@@ -242,7 +242,7 @@ emits the common fields plus:
 {
   "job": "unlock",
   "hostname": "backup-node",
-  "release": "2.8.0-0.18.1",
+  "release": "2.9.0-0.18.1",
   "started_at": "2026-05-13T13:25:00+0200",
   "finished_at": "2026-05-13T13:25:01+0200",
   "duration_seconds": 1,
@@ -283,7 +283,7 @@ with per-source / per-files-from / per-exclude-file detail:
 {
   "job": "sources-report",
   "hostname": "backup-node",
-  "release": "2.8.0-0.18.1",
+  "release": "2.9.0-0.18.1",
   "started_at": "2026-05-13T15:30:00+0200",
   "finished_at": "2026-05-13T15:30:08+0200",
   "duration_seconds": 8,
@@ -312,6 +312,44 @@ with per-source / per-files-from / per-exclude-file detail:
 See [Sources report](../operations/sources-report.md) for the full
 flag reference and estimate semantics (size is unfiltered;
 exclude-file inventory is reported separately).
+
+### `last-init-repo.json`
+
+`/bin/init-repo` (the audited `restic init` wrapper) emits the
+common fields plus:
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `repository` | string | Masked repository URL. |
+| `dry_run` | string | `ON` when `--dry-run` was used, otherwise `OFF`. |
+| `assume_yes` | string | `ON` when `--yes` / `-y` was used, otherwise `OFF`. |
+| `confirmed` | string | `ON` when the operator typed `init` at the prompt OR when `--yes` was used; `OFF` when the prompt was declined / not reached. |
+| `repo_existed` | string | `"true"` / `"false"` / `"unknown"` from the pre-init probe. |
+| `probe_exit_code` | string | Raw exit code of `restic cat config`. `-1` when env validation failed before the probe ran. |
+| `init_args` | string | The combined `RESTIC_INIT_ARGS` + CLI passthrough flag list (space-joined). |
+
+```json
+{
+  "job": "init-repo",
+  "hostname": "backup-node",
+  "release": "2.9.0-0.18.1",
+  "started_at": "2026-05-13T16:30:00+0200",
+  "finished_at": "2026-05-13T16:30:02+0200",
+  "duration_seconds": 2,
+  "exit_code": 0,
+  "repository": "rclone:jottacloud:backups",
+  "dry_run": "ON",
+  "assume_yes": "OFF",
+  "confirmed": "OFF",
+  "repo_existed": "false",
+  "probe_exit_code": "10",
+  "init_args": "--repository-version=2"
+}
+```
+
+See [Init repo](../operations/init-repo.md) for the full flag
+reference, the type-to-confirm prompt and the dry-run verdict
+matrix.
 
 ## Reading the files
 
