@@ -18,11 +18,48 @@ set -Eeuo pipefail
 # shellcheck source=app/lib.sh
 . /bin/lib.sh
 
+# Machine-readable diagnostics: when run_config_check is called with mode="json",
+# every check is captured into an accumulator and a single JSON document is
+# emitted on stdout at the end (schema "restic-backup-helper.config-check/1").
+# In text mode behaviour is unchanged: stdout gets the banner + final OK line,
+# stderr gets the individual ERROR/WARN lines. The CONFIG_CHECK_* arrays are
+# populated identically in both modes so the text path and JSON path stay in
+# sync forever — the only difference is which sink renders them at the end.
 run_config_check() {
+	local mode="${1:-text}"
 	local err=0
+	local fails=0
+	local warns=0
 	local replicate_cron sjf rc_file
+	# Parallel arrays: same index = same finding.
+	CONFIG_CHECK_KEYS=()
+	CONFIG_CHECK_STATUS=()
+	CONFIG_CHECK_MSGS=()
 
-	echo "[config-check] Validating configuration..."
+	cc_add() {
+		local key="$1" status="$2" msg="$3"
+		CONFIG_CHECK_KEYS+=("${key}")
+		CONFIG_CHECK_STATUS+=("${status}")
+		CONFIG_CHECK_MSGS+=("${msg}")
+		case "${status}" in
+		fail)
+			err=1
+			fails=$((fails + 1))
+			;;
+		warn) warns=$((warns + 1)) ;;
+		esac
+		if [ "${mode}" != "json" ]; then
+			case "${status}" in
+			fail) echo "[config-check] ERROR: ${msg}" >&2 ;;
+			warn) echo "[config-check] WARN: ${msg}" >&2 ;;
+			esac
+		fi
+	}
+
+	if [ "${mode}" != "json" ]; then
+		echo "[config-check] Validating configuration..."
+	fi
+
 	if [ -n "${RESTIC_REPOSITORY_FILE:-}" ]; then
 		# resolve_restic_repository_file kept RESTIC_REPOSITORY_FILE set, which
 		# means the file is unreadable or empty/comments-only. Either way,
@@ -30,37 +67,42 @@ run_config_check() {
 		# broken. Diagnose the specific failure so operators do not have to
 		# guess.
 		if [ ! -r "${RESTIC_REPOSITORY_FILE}" ]; then
-			echo "[config-check] ERROR: RESTIC_REPOSITORY_FILE is not readable: ${RESTIC_REPOSITORY_FILE}" >&2
+			cc_add "RESTIC_REPOSITORY_FILE" "fail" "RESTIC_REPOSITORY_FILE is not readable: ${RESTIC_REPOSITORY_FILE}"
 		else
-			echo "[config-check] ERROR: RESTIC_REPOSITORY_FILE '${RESTIC_REPOSITORY_FILE}' is empty or contains only comments." >&2
+			cc_add "RESTIC_REPOSITORY_FILE" "fail" "RESTIC_REPOSITORY_FILE '${RESTIC_REPOSITORY_FILE}' is empty or contains only comments."
 		fi
-		err=1
 	elif [ -z "${RESTIC_REPOSITORY:-}" ]; then
-		echo "[config-check] ERROR: RESTIC_REPOSITORY is empty (set RESTIC_REPOSITORY or RESTIC_REPOSITORY_FILE)." >&2
-		err=1
+		cc_add "RESTIC_REPOSITORY" "fail" "RESTIC_REPOSITORY is empty (set RESTIC_REPOSITORY or RESTIC_REPOSITORY_FILE)."
+	else
+		cc_add "RESTIC_REPOSITORY" "ok" "RESTIC_REPOSITORY is set to $(mask_repository "${RESTIC_REPOSITORY}")."
 	fi
 	if [ -n "${RESTIC_PASSWORD_FILE:-}" ]; then
 		if [ ! -r "${RESTIC_PASSWORD_FILE}" ]; then
-			echo "[config-check] ERROR: RESTIC_PASSWORD_FILE is not readable: ${RESTIC_PASSWORD_FILE}" >&2
-			err=1
+			cc_add "RESTIC_PASSWORD_FILE" "fail" "RESTIC_PASSWORD_FILE is not readable: ${RESTIC_PASSWORD_FILE}"
+		else
+			cc_add "RESTIC_PASSWORD_FILE" "ok" "RESTIC_PASSWORD_FILE is readable."
 		fi
 	elif [ -z "${RESTIC_PASSWORD:-}" ]; then
-		echo "[config-check] ERROR: Set RESTIC_PASSWORD or RESTIC_PASSWORD_FILE." >&2
-		err=1
+		cc_add "RESTIC_PASSWORD" "fail" "Set RESTIC_PASSWORD or RESTIC_PASSWORD_FILE."
+	else
+		cc_add "RESTIC_PASSWORD" "ok" "RESTIC_PASSWORD is set (hidden)."
 	fi
 	if [ -z "${RESTIC_TAG:-}" ]; then
-		echo "[config-check] ERROR: RESTIC_TAG is empty." >&2
-		err=1
+		cc_add "RESTIC_TAG" "fail" "RESTIC_TAG is empty."
+	else
+		cc_add "RESTIC_TAG" "ok" "RESTIC_TAG is set (${RESTIC_TAG})."
 	fi
 	if [ -z "${BACKUP_ROOT_DIR:-}" ] && [ -z "${RESTIC_JOB_ARGS:-}" ]; then
-		echo "[config-check] ERROR: BACKUP_ROOT_DIR and RESTIC_JOB_ARGS are both empty (no backup paths)." >&2
-		err=1
+		cc_add "BACKUP_PATHS" "fail" "BACKUP_ROOT_DIR and RESTIC_JOB_ARGS are both empty (no backup paths)."
+	else
+		cc_add "BACKUP_PATHS" "ok" "Backup paths are configured."
 	fi
 	if [[ "${RESTIC_REPOSITORY:-}" == rclone:* ]]; then
 		rc_file="${RCLONE_CONFIG:-/config/rclone.conf}"
 		if [ ! -r "${rc_file}" ]; then
-			echo "[config-check] ERROR: Rclone repository configured but ${rc_file} is not readable." >&2
-			err=1
+			cc_add "RCLONE_CONFIG" "fail" "Rclone repository configured but ${rc_file} is not readable."
+		else
+			cc_add "RCLONE_CONFIG" "ok" "Rclone config is readable (${rc_file})."
 		fi
 	fi
 	replicate_cron="${REPLICATE_CRON:-${SYNC_CRON:-}}"
@@ -70,21 +112,69 @@ run_config_check() {
 			sjf="${SYNC_JOB_FILE}"
 		fi
 		if [ ! -s "${sjf}" ]; then
-			echo "[config-check] WARN: REPLICATE_CRON is set but ${sjf} is missing or empty." >&2
+			cc_add "REPLICATE_JOB_FILE" "warn" "REPLICATE_CRON is set but ${sjf} is missing or empty."
+		else
+			cc_add "REPLICATE_JOB_FILE" "ok" "REPLICATE_CRON is set and ${sjf} exists."
 		fi
 	fi
 	if [ -n "${RESTIC_CACERT:-}" ] && [ ! -r "${RESTIC_CACERT}" ]; then
-		echo "[config-check] ERROR: RESTIC_CACERT is set but file is not readable: ${RESTIC_CACERT}" >&2
-		err=1
+		cc_add "RESTIC_CACERT" "fail" "RESTIC_CACERT is set but file is not readable: ${RESTIC_CACERT}"
 	fi
-	if [ "${err}" -eq 0 ]; then
+
+	if [ "${mode}" = "json" ]; then
+		emit_config_check_json "${err}" "${fails}" "${warns}"
+	elif [ "${err}" -eq 0 ]; then
 		echo "[config-check] OK."
 	fi
 	return "${err}"
 }
 
+# Emit the config-check JSON document on stdout.
+# Schema "restic-backup-helper.config-check/1" is part of the public API:
+# adding fields is MINOR, renaming/removing fields is MAJOR.
+emit_config_check_json() {
+	local err="$1" fails="$2" warns="$3"
+	local exit_code="${err}"
+	local hostname release now_epoch now_iso
+	hostname="${HOSTNAME:-$(hostname 2>/dev/null || echo unknown)}"
+	release="${RESTIC_BACKUP_HELPER_RELEASE:-unknown}"
+	now_epoch="$(date +%s)"
+	now_iso="$(iso8601_local "${now_epoch}")"
+
+	printf '{\n'
+	printf '  "schema": "restic-backup-helper.config-check/1",\n'
+	printf '  "command": "config-check",\n'
+	printf '  "release": "%s",\n' "$(json_escape "${release}")"
+	printf '  "hostname": "%s",\n' "$(json_escape "${hostname}")"
+	printf '  "generated_at": "%s",\n' "$(json_escape "${now_iso}")"
+	printf '  "generated_epoch": %d,\n' "${now_epoch}"
+	printf '  "warnings": %d,\n' "${warns}"
+	printf '  "errors": %d,\n' "${fails}"
+	printf '  "exit_code": %d,\n' "${exit_code}"
+	printf '  "checks": ['
+	local i sep=""
+	# Size-guard keeps `set -u` happy when the accumulator is empty and works
+	# on every bash (3.2/4.x/5.x) — `${!arr[@]+...}` is buggy on Bash 3.2.
+	if [ ${#CONFIG_CHECK_KEYS[@]} -gt 0 ]; then
+		for i in "${!CONFIG_CHECK_KEYS[@]}"; do
+			printf '%s\n    {"key": "%s", "status": "%s", "message": "%s"}' \
+				"${sep}" \
+				"$(json_escape "${CONFIG_CHECK_KEYS[$i]}")" \
+				"${CONFIG_CHECK_STATUS[$i]}" \
+				"$(json_escape "${CONFIG_CHECK_MSGS[$i]}")"
+			sep=","
+		done
+		printf '\n  '
+	fi
+	printf ']\n}\n'
+}
+
 if [ "${1:-}" = "config-check" ]; then
-	run_config_check
+	if [ "${2:-}" = "--json" ] || [ "${2:-}" = "-j" ]; then
+		run_config_check "json"
+	else
+		run_config_check "text"
+	fi
 	exit $?
 fi
 if [ "${1:-}" = "doctor" ] || [ "${1:-}" = "/bin/doctor" ]; then

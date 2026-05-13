@@ -2,6 +2,81 @@
 
 ## Restic Backup Helper
 
+### 2.12.0-0.18.1 (2026-05-13)
+
+This release adds **machine-readable diagnostics**: both `/bin/doctor` and
+`config-check` now accept `--json` (alias `-j`) and emit a single JSON
+document on stdout in addition to the usual text mode. CI pipelines,
+Kubernetes init-container readiness probes and external monitoring no
+longer have to regex-parse `[OK] / [WARN] / [FAIL]` lines — they can
+gate on `.exit_code == 0` or drill into `.checks[] | select(.status=="fail")`
+just like they already do for the per-worker `last-*.json` files. The
+text-mode behaviour is unchanged; the JSON path is fed by the same
+internal accumulators so the two surfaces always report the same set of
+findings.
+
+#### Added
+
+- **`doctor --json` (schema `restic-backup-helper.doctor/1`).** Emits a
+  single JSON envelope (`schema`, `command`, `release`, `hostname`,
+  `generated_at`, `generated_epoch`, `warnings`, `errors`, `exit_code`)
+  plus six typed sections so dashboards can pin individual fields:
+  - `runtime{}` — `restic_version`, `rclone_version`, `bash_version`,
+    `release`, `hostname`, `date`, `timezone`.
+  - `environment{}` — masked key/value map of every variable shown in
+    the text-mode `== Effective environment ==` section. Passwords are
+    rendered as `"<set, hidden>"` / `"<empty>"`; repository URLs go
+    through `mask_repository`; webhook URLs through `mask_webhook_url`.
+  - `repository_probe{}` — `{status: "ok"|"fail"|"skipped",
+    repository: "<masked URL>", restic_exit_code: <int|null>}`. Mirrors
+    the non-mutating `restic cat config` probe, never runs
+    `restic init`.
+  - `replicate{effective, jobs_count, malformed_count}` — effective
+    `REPLICATE_*` values (legacy `SYNC_*` mapping already applied) and
+    a count of valid vs. malformed rows in `REPLICATE_JOB_FILE`.
+  - `hooks{hook_timeout, directory_mounted, present[{phase, executable}]}`
+    — every hook that actually exists on disk, with its executable bit.
+  - `recent_json[]` — one `{path, present, size_bytes}` per known
+    `last-*.json` (`backup`, `check`, `prune`, `forget`, `replicate`,
+    `restore`, `snapshot-export`, `forget-preview`, `mount-snapshot`,
+    `unlock`, `sources-report`, `init-repo`, `notify-test`). The file
+    body is intentionally not inlined — consumers fetch it directly
+    when interested.
+  - `checks[]` — flat array of every `[INFO] / [OK] / [WARN] / [FAIL]`
+    finding emitted in text mode, tagged with the section it came from
+    (`Runtime`, `Effective environment`, `Configuration checks`,
+    `Repository probe`, `Replicate`, `Hooks`, `Recent JSON summaries`,
+    `Summary`). `status` ∈ `info`, `ok`, `warn`, `fail`.
+- **`config-check --json` (schema
+  `restic-backup-helper.config-check/1`).** Lean envelope designed for
+  Kubernetes init-container readiness probes and CI gates — no
+  repository probe, no environment dump, just the validation findings:
+  `checks[] = [{key, status, message}, …]` plus the common envelope
+  fields. `key` is a stable identifier (`RESTIC_REPOSITORY`,
+  `RESTIC_PASSWORD`, `RESTIC_TAG`, `BACKUP_PATHS`, `RCLONE_CONFIG`,
+  `REPLICATE_JOB_FILE`, `RESTIC_CACERT`, `RESTIC_REPOSITORY_FILE`) so
+  alerts can be wired without parsing message text.
+- **Same exit-code contract as text mode.** Both `--json` modes return
+  `0` when no errors were recorded and `1` otherwise, matching the
+  pre-existing text-mode behaviour. Existing shell wrappers that check
+  the exit code of `doctor` / `config-check` continue to work; only
+  consumers that scrape the output need to switch.
+
+#### Documentation
+
+- **Operations → Diagnostics** now documents the `--json` flag, both
+  schemas, the full field reference, the stability promise (MINOR
+  bumps add fields, MAJOR bumps rename/remove), an example output and
+  three `jq` one-liners (`exit_code == 0`, masked repository URL,
+  Kubernetes readiness probe).
+
+#### Notes
+
+- Strictly additive change. The text output of `doctor` and
+  `config-check` is byte-for-byte unchanged (the JSON path is fed from
+  the same accumulators); existing dashboards / Loki queries / support
+  bundles continue to work.
+
 ### 2.11.0-0.18.1 (2026-05-13)
 
 This release promotes `RESTIC_REPOSITORY_FILE` to a first-class alternative
