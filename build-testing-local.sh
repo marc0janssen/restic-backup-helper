@@ -50,7 +50,7 @@ Environment:
 
 Docker tags pushed:
   <LOCAL_REPO>:develop
-  <LOCAL_REPO>:<release>            e.g. 2.12.0-0.18.1-dev
+  <LOCAL_REPO>:<release>            e.g. 2.12.1-0.18.1-dev
 
 Examples:
   ./build-testing-local.sh

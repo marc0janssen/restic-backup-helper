@@ -2,6 +2,99 @@
 
 ## Restic Backup Helper
 
+### 2.12.1-0.18.1 (2026-05-13)
+
+This patch release expands the **runtime smoke test** so it now exercises
+every recently-added operator helper in CI, not just the original
+`backup` / `check` / `replicate` / `rotate_log` quartet. The image
+binary contents are unchanged; this is a test-coverage release that
+catches regressions in the helper-script surface earlier.
+
+#### Changed
+
+- **`scripts/ci-smoke-test.sh` now covers the operator helper surface.**
+  Each new step is run end-to-end against the live smoke stack (so it
+  drives the actual `/bin/*` entrypoint dispatch, hooks, JSON summary
+  writers and exit-code contracts), and every helper's `last-*.json`
+  is parsed on the host with `python3` to assert the documented schema.
+  Added steps, in execution order:
+  - `cron-list` — invoked twice. Once via `docker compose run --rm`
+    (env-preview / no-tty path: only `BACKUP_CRON`-shaped rows expected)
+    and once via `docker compose exec` on the long-running container
+    (rendered-crontab path: full `/var/spool/cron/crontabs/root`).
+  - `config-check --json` — schema = `restic-backup-helper.config-check/1`,
+    `exit_code == 0`, `errors == 0`, and the required check keys
+    (`RESTIC_REPOSITORY`, `RESTIC_PASSWORD`, `RESTIC_TAG`, `BACKUP_PATHS`)
+    must be present in the flat `checks[]` array.
+  - `doctor --json` — schema = `restic-backup-helper.doctor/1`,
+    `exit_code == 0`, all six typed sections (`runtime`, `environment`,
+    `repository_probe`, `replicate`, `hooks`, `recent_json`) plus the
+    flat `checks[]` array must be present, `repository_probe.status`
+    must be `ok` (so we know the probe ran against the seeded repo)
+    and `recent_json[]` must enumerate exactly 13 known `last-*.json`
+    paths.
+  - `sources-report` — runs `/bin/sources-report` once and then asserts
+    `last-sources-report.json` has `sources_count >= 1` and
+    `total_files >= 1` for the seeded `/data/backup_src` source.
+  - `forget-preview` — runs the host/tag-scoped dry-run with the
+    smoke-test container hostname + `RESTIC_TAG=ci-smoke` and asserts
+    `last-forget-preview.json` reports `exit_code == 0`.
+  - `init-repo --dry-run --yes` — exercises the already-exists branch
+    (the smoke stack auto-inits at startup), asserts `exit_code == 0`,
+    `dry_run == "ON"` and `repo_existed == "true"` in
+    `last-init-repo.json`. Confirms the helper does NOT mutate an
+    existing repo in dry-run.
+  - `notify-test --all --dry-run` — invoked with ephemeral
+    `MAILX_RCPT=ops@smoke.invalid` and
+    `WEBHOOK_URL=https://webhook.smoke.invalid/test` passed via
+    `docker compose exec -e` so the helper has both targets configured
+    without leaking those values into the long-running compose
+    environment. `last-notify-test.json` must report
+    `mail_result == "dry-run"` and `webhook_result == "dry-run"` so
+    we know neither `mailx` nor `curl` was actually invoked.
+  - `restore --dry-run --yes --target /tmp/restore-smoke` — runs the
+    latest snapshot through `restic restore --dry-run`, asserts
+    `last-restore.json` reports `exit_code == 0` and `dry_run == "ON"`.
+    The smoke test creates the target dir inline so the
+    `non-empty-target` refusal path stays untouched.
+  - `snapshot-export --dry-run` — invokes the latest-snapshot export
+    in dry-run mode, asserts `last-snapshot-export.json` reports
+    `exit_code == 0` and `dry_run == "ON"`. Confirms no `.tar.gz` is
+    written even though the planned archive path is still recorded.
+- **`RESTIC_REPOSITORY_FILE` precedence is now smoke-tested explicitly.**
+  After the operator-helper sweep the smoke test seeds a temporary
+  `/data/repo.url` file (header comment + actual URL on the second
+  line so the parser's "first non-blank, non-comment" rule is also
+  exercised) and runs `config-check --json` via
+  `docker compose run --rm --no-deps -e RESTIC_REPOSITORY= -e
+  RESTIC_REPOSITORY_FILE=/data/repo.url`. The assertions confirm that
+  the resolver inside `lib.sh::resolve_restic_repository_file`
+  promotes the file's content into `RESTIC_REPOSITORY` (the
+  `RESTIC_REPOSITORY` check status is `ok` and its message contains
+  `/data/repo`) AND unsets `RESTIC_REPOSITORY_FILE` before validation
+  runs (no `RESTIC_REPOSITORY_FILE` check appears in `checks[]`). This
+  is the regression test for the `Options --repo and
+  --repository-file are mutually exclusive` symptom fixed in 2.11.0.
+- **JSON assertions run on the host, not in the container.** The
+  Alpine-based `restic/restic` base does not ship Python, so the new
+  steps `cat /var/log/last-<job>.json` out via `docker compose exec`
+  and pipe the body into a host-side `python3 -c '…'` block (Python
+  3.8+ compatible, no f-string-with-backslash gotchas). This keeps
+  the image footprint unchanged while still letting CI assert on
+  structured fields.
+
+#### Notes
+
+- The smoke test still tears the stack down on exit (or keeps it up
+  when `KEEP_SMOKE_STACK=yes` is set, unchanged) and the failure-path
+  artifact upload (`smoke-failure-logs.txt` / `smoke-failure-ps.txt`)
+  also captures the new steps' stdout/stderr automatically.
+- No `app/` script, Dockerfile layer, README user-facing instruction
+  or environment-variable contract changed in this release — only
+  `scripts/ci-smoke-test.sh`, `VERSION`, `CHANGELOG.md`,
+  `README.md` and `README-containers.md`, plus the bulk current-release
+  string update across docs and examples.
+
 ### 2.12.0-0.18.1 (2026-05-13)
 
 This release adds **machine-readable diagnostics**: both `/bin/doctor` and
