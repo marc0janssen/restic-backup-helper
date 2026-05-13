@@ -2,6 +2,235 @@
 
 ## Restic Backup Helper
 
+### 2.10.1-0.18.1 (2026-05-13)
+
+This patch tightens observability and documentation around the shared
+notification / metrics helpers.
+
+#### Fixed
+
+- Prometheus textfile metrics now escape the `hostname` label before
+  writing `restic_<job>.prom`, so unusual container hostnames containing
+  quotes, backslashes or newlines cannot produce invalid textfile output.
+- Prometheus textfile metrics now also emit the documented
+  `restic_<job>_last_started_timestamp` gauge alongside the existing
+  finished timestamp.
+- The `notify_webhook` helper comment now matches the actual helper
+  contract: it returns curl's status for callers that need it, while
+  cron-driven workers explicitly keep webhook delivery failures from
+  changing the worker exit code.
+
+#### Documentation
+
+- Clarified that `RESTIC_JOB_ARGS`, `RESTIC_CHECK_ARGS`,
+  `RESTIC_FORGET_ARGS`, `RESTIC_PRUNE_ARGS`, `RESTIC_INIT_ARGS`,
+  `REPLICATE_JOB_ARGS` and replicate per-job `EXTRA_ARGS` are
+  whitespace-split argument strings, not a shell parser. Keep paths/values
+  free of spaces, or use file-based inputs such as `--files-from`,
+  `--exclude-file` or rclone config files.
+
+### 2.10.0-0.18.1 (2026-05-13)
+
+This release adds a first-class notification plumbing test so operators
+can validate SMTP and webhook configuration before waiting for a real
+backup failure. `/bin/notify-test` sends clearly-labelled mail and/or
+webhook notifications through the same `notify_mail` / `notify_webhook`
+helpers used by real jobs, but unlike real jobs, delivery failures
+affect the helper exit code so CI and manual smoke tests can catch bad
+`msmtprc`, `MAILX_RCPT`, `WEBHOOK_URL`, auth headers and timeout
+settings.
+
+#### Added
+
+- **`/bin/notify-test` operator-driven mail/webhook test.** Default
+  mode sends to every configured target (`MAILX_RCPT` and/or
+  `WEBHOOK_URL`); `--mail`, `--webhook` and `--all` select a narrower
+  or stricter target set. `--dry-run` prints what would be sent without
+  invoking `mail` or `curl`, while still writing JSON / metrics /
+  hooks. `--subject TEXT` and `--message TEXT` let operators label the
+  test. The helper intentionally forces the test delivery to send even
+  when `MAILX_ON_ERROR=ON` / `WEBHOOK_ON_ERROR=ON`, while preserving
+  those original policy values in logs and JSON. Emits the standard
+  worker surface: `/var/log/notify-test-last.log`,
+  `/var/log/notify-test-mail-last.log`,
+  `/var/log/last-notify-test.json` (target mode, requested/configured
+  targets, delivery results, raw mail/webhook return codes, masked
+  webhook URL, auth-header-present flag, timeout, subject/message),
+  `restic_notify_test.prom` when `METRICS_DIR` is set, plus
+  `pre-notify-test` / `post-notify-test "$rc"` hooks. Reachable via
+  `docker exec … /bin/notify-test` and the entrypoint shortcut
+  `docker run … notify-test`.
+- **Documentation: `/bin/notify-test` operations page**
+  ([`docs/operations/notify-test.md`](https://marc0janssen.github.io/restic-backup-helper/operations/notify-test.html))
+  with quick-start examples, target-selection rules, dry-run behaviour,
+  JSON schema, exit-code table and cross-links from mail/webhook
+  configuration, manual runs, hooks and reference pages.
+
+#### Notes
+
+- No new environment variables; `/bin/notify-test` reuses
+  `MAILX_RCPT`, `MAILX_ON_ERROR`, `WEBHOOK_URL`,
+  `WEBHOOK_HEADER_AUTH`, `WEBHOOK_TIMEOUT`, `WEBHOOK_ON_ERROR`,
+  `METRICS_DIR` and `HOOK_TIMEOUT`.
+- Exit codes: `0` (requested test notification(s) delivered, or
+  dry-run completed), `1` (at least one requested delivery failed),
+  `2` (configuration / argument error such as no targets or missing
+  requested target).
+- Internal SemVer policy: MINOR rather than PATCH because
+  `/bin/notify-test` is a new in-container helper with its own JSON
+  schema, Prometheus textfile and hook family.
+
+### 2.9.0-0.18.1 (2026-05-13)
+
+This release adds an **audited operator counterpart** to the entrypoint
+auto-init probe (`RESTIC_CHECK_REPOSITORY_STATUS`). Operators who keep
+the probe disabled — the recommended posture on shared remotes where a
+transient TLS / DNS / auth hiccup must never look like "repo doesn't
+exist, let's call init" — now have a first-class bootstrap command that
+runs the same probe explicitly, prints the planned `restic init`
+command, requires a typed confirmation (or `--yes`) and writes the
+familiar log / JSON / metrics / mail / webhook / hook surface.
+
+#### Added
+
+- **`/bin/init-repo` operator-driven bootstrap wrapper.**
+  Explicit `restic init` with a pre-flight `restic cat config` probe
+  (the same exit-10 contract the entrypoint uses) so an existing
+  repository is never accidentally re-initialised. `--dry-run` prints
+  the masked repository URL, the resolved init flags, and a one-line
+  verdict (`would CREATE` / `would REFUSE — already exists` / probe
+  error) without mutating anything; the JSON / Prometheus / mail /
+  webhook / hook artefacts are still emitted so monitoring stays
+  consistent. Without `--dry-run` the helper requires either an
+  interactive TTY plus a typed-word confirmation (`init`) or an
+  explicit `--yes` / `-y` flag — without one of those, a non-TTY run
+  aborts with exit `2` to prevent surprise init runs from a container
+  restart or CI replay. Extra restic-init flags come from the new
+  `RESTIC_INIT_ARGS` env var (shell-word split, analogous to
+  `RESTIC_FORGET_ARGS` / `RESTIC_PRUNE_ARGS`) and from any positional
+  arguments after `--`. Emits the standard worker surface:
+  `/var/log/init-repo-last.log`, `/var/log/last-init-repo.json` (with
+  `dry_run`, `assume_yes`, `confirmed`, `repo_existed`,
+  `probe_exit_code`, `init_args`), `restic_init_repo.prom` when
+  `METRICS_DIR` is set, mail subject (`[OK|FAIL N] Init-repo …`) and
+  webhook payload, plus `pre-init-repo` / `post-init-repo "$rc"`
+  hooks. Reachable via `docker exec … /bin/init-repo` and the
+  entrypoint shortcut `docker run … init-repo`. Registered in
+  `/bin/doctor` alongside the other hook families and JSON
+  summaries; `RESTIC_INIT_ARGS` joins the masked-env table dumped by
+  doctor.
+- **`RESTIC_INIT_ARGS` env-var.** Stable knob for repository version
+  pinning (`--repository-version=2`) or chunker matching
+  (`--copy-chunker-params=<path>`) at create time. Only consulted by
+  `/bin/init-repo`; the cron-driven workers ignore it.
+- **Documentation: `/bin/init-repo` operations page**
+  ([`docs/operations/init-repo.md`](https://marc0janssen.github.io/restic-backup-helper/operations/init-repo.html))
+  with mermaid flowchart, probe-verdict matrix, the
+  type-to-confirm prompt rendering, dry-run output anatomy, JSON
+  schema and cross-links from
+  [Manual runs](https://marc0janssen.github.io/restic-backup-helper/operations/manual-runs.html),
+  [Diagnostics](https://marc0janssen.github.io/restic-backup-helper/operations/diagnostics.html),
+  [Environment variables](https://marc0janssen.github.io/restic-backup-helper/configuration/environment-variables.html),
+  [Hooks](https://marc0janssen.github.io/restic-backup-helper/configuration/hooks.html)
+  and the JSON / Prometheus reference pages.
+
+#### Notes
+
+- No behaviour change for the entrypoint auto-init probe. The new
+  helper is purely additive; `RESTIC_CHECK_REPOSITORY_STATUS=ON`
+  keeps its existing semantics. The recommended deployment pattern
+  on shared remotes is now `RESTIC_CHECK_REPOSITORY_STATUS=OFF` plus
+  a one-shot `/bin/init-repo --yes` (or interactive `/bin/init-repo`)
+  for the first bootstrap.
+- Exit codes:
+  `0` (init succeeded, dry-run completed, or operator cancelled at
+  the prompt), `1` (real `restic init` failure), `2` (configuration
+  error: missing env, no TTY without `--yes`, wrong password / other
+  probe error), `3` (repository already exists — idempotent, no
+  mutation attempted).
+- Internal SemVer policy: MINOR rather than PATCH because
+  `/bin/init-repo` is a new in-container helper with its own JSON
+  schema, Prometheus textfile, hook family and a new public env-var
+  (`RESTIC_INIT_ARGS`).
+
+### 2.8.0-0.18.1 (2026-05-13)
+
+This release adds a **pre-flight source inventory** so operators can
+answer "what will actually get backed up next tick?" without taking a
+repository lock or running a probe backup. `/bin/sources-report` reads
+`BACKUP_ROOT_DIR` and parses every `--files-from` / `--exclude-file`
+reference out of `RESTIC_JOB_ARGS`, then reports readability, type,
+file count and (optional) size per source plus pattern counts and
+missing-entry counts per files-from / exclude-file. Catches the four
+silent-drift failure modes that doctor's boolean readability check
+cannot: missing mounts that look "fine, just smaller", stale entries
+inside `--files-from` files, mistyped exclude-file paths that restic
+silently treats as "no excludes", and host-migration mismatches where
+the path list inherited from another host doesn't resolve yet.
+
+#### Added
+
+- **`/bin/sources-report` operator-driven pre-flight inventory.**
+  Read-only. Default scope is the exact same contract `/bin/backup`
+  feeds restic: `BACKUP_ROOT_DIR` (positional path) plus every
+  `--files-from`, `--files-from-verbatim`, `--files-from-raw`,
+  `--exclude-file` and `--iexclude-file` discovered inside
+  `RESTIC_JOB_ARGS`. The CLI adds `--source PATH` and `--files-from
+  FILE` for ad-hoc inspection (repeatable); `--no-size` skips the
+  `du -sk` / `find -type f` probes for slow / remote sources;
+  `--depth N` caps directory traversal depth. Emits the standard
+  worker surface: human-readable `/var/log/sources-report-last.log`
+  with per-source / per-files-from / per-exclude-file tables;
+  `/var/log/last-sources-report.json` with flat aggregates plus
+  nested `sources`, `files_from` and `exclude_files` arrays (each
+  source carries `{path, readable, type, files, bytes}`; each
+  files-from carries `{path, readable, lines, missing_entries}`);
+  `restic_sources_report.prom` when `METRICS_DIR` is set; mail
+  subject (`[OK|FAIL N] Sources report …`) and webhook payload; the
+  `pre-sources-report` / `post-sources-report "$rc"` hook pair.
+  Reachable via `docker exec … /bin/sources-report` and the
+  entrypoint shortcut `docker run … sources-report`. Registered in
+  `/bin/doctor` alongside the other hook families and JSON
+  summaries. The size figure is intentionally **unfiltered**
+  (`du -sk` without applying restic excludes); exclude files are
+  inventoried separately so operators can reason about expected
+  exclusions without this helper having to re-implement restic's
+  matcher.
+- **`collect_arg_paths` helper promoted to `app/lib.sh`.**
+  Internal: the RESTIC_JOB_ARGS parser previously private to
+  `/bin/doctor` is now a library function shared with
+  `/bin/sources-report`, so both helpers tokenise `--files-from`
+  and `--exclude-file` identically. Pure refactor; no behaviour
+  change for `/bin/doctor`.
+- **Documentation: `/bin/sources-report` operations page**
+  ([`docs/operations/sources-report.md`](https://marc0janssen.github.io/restic-backup-helper/operations/sources-report.html))
+  with mermaid flowchart, scope discovery semantics, estimate
+  caveats (size is unfiltered; exclude-file inventory is separate),
+  JSON schema, exit-code table and cross-links from
+  [Backup worker](https://marc0janssen.github.io/restic-backup-helper/workers/backup.html),
+  [Manual runs](https://marc0janssen.github.io/restic-backup-helper/operations/manual-runs.html),
+  [Diagnostics](https://marc0janssen.github.io/restic-backup-helper/operations/diagnostics.html),
+  [Environment variables](https://marc0janssen.github.io/restic-backup-helper/configuration/environment-variables.html),
+  [Hooks](https://marc0janssen.github.io/restic-backup-helper/configuration/hooks.html)
+  and the JSON / Prometheus reference pages.
+
+#### Notes
+
+- No new environment variables; `/bin/sources-report` reuses
+  `BACKUP_ROOT_DIR`, `RESTIC_JOB_ARGS`, `MAILX_*`, `WEBHOOK_*`,
+  `METRICS_DIR` and `HOOK_TIMEOUT` exactly like the other operator
+  wrappers.
+- Exit code is `0` even when individual sources are unreadable; the
+  `errors_count` aggregate (and the per-row `readable` flags in the
+  JSON) carry that signal. Wire alerts on
+  `restic_sources_report_last_errors_count > 0` for loud CI
+  behaviour. The non-zero exit `2` is reserved for configuration
+  errors (no sources to inspect, invalid `--depth`).
+- Internal SemVer policy: MINOR rather than PATCH because
+  `/bin/sources-report` is a new in-container helper with its own
+  JSON schema (including nested `sources` / `files_from` /
+  `exclude_files` arrays), Prometheus textfile and hook family.
+
 ### 2.7.0-0.18.1 (2026-05-13)
 
 This release adds an audited operator counterpart to the safer

@@ -163,11 +163,21 @@ mask_webhook_url() {
 	fi
 }
 
+# Escape a value for use inside a Prometheus label string.
+prom_label_escape() {
+	local s="$1"
+	s="${s//\\/\\\\}"
+	s="${s//\"/\\\"}"
+	s="${s//$'\n'/\\n}"
+	printf '%s' "$s"
+}
+
 # POST the same JSON document as write_last_run_json to WEBHOOK_URL. No-op
 # when WEBHOOK_URL is unset. Honours WEBHOOK_ON_ERROR (only fire on non-zero
 # exit when set to ON), WEBHOOK_TIMEOUT (curl --max-time, default 10s) and
 # the optional WEBHOOK_HEADER_AUTH (added as Authorization header). Curl
-# failures are logged as errors but never propagate to the worker exit code.
+# failures are logged as errors. Callers that should not let webhook delivery
+# affect the worker exit code must call this helper with `|| true`.
 notify_webhook() {
 	local job="$1"
 	local exit_code="$2"
@@ -449,6 +459,36 @@ mask_endpoint() {
 	mask_repository "$1"
 }
 
+# Extract every value following `--flag` (or `--flag=VALUE`) in a tokenised
+# restic-style argument string. One value per line on stdout; empty stdout
+# when neither the args nor the flag appear. Both spaced and `=`-glued
+# forms are recognised, matching how restic itself parses flags. Used by
+# /bin/doctor and /bin/sources-report to discover --files-from /
+# --exclude-file references inside RESTIC_JOB_ARGS without re-implementing
+# the same loop in two places.
+collect_arg_paths() {
+	local args="$1"
+	local flag="$2"
+	local -a parts
+	local i token next
+
+	[ -n "${args}" ] || return 0
+	read -r -a parts <<<"${args}"
+
+	for ((i = 0; i < ${#parts[@]}; i++)); do
+		token="${parts[$i]}"
+		case "${token}" in
+		"${flag}")
+			next="${parts[$((i + 1))]:-}"
+			[ -n "${next}" ] && printf '%s\n' "${next}"
+			;;
+		"${flag}"=*)
+			printf '%s\n' "${token#*=}"
+			;;
+		esac
+	done
+}
+
 # Render an epoch duration as a short, human-friendly string used in subject
 # lines and log footers. 0 → "0s"; 65 → "1m5s"; 3725 → "1h2m"; >24h → "Xh".
 human_duration() {
@@ -536,28 +576,33 @@ write_metrics_for_job() {
 
 	local target="${dir}/restic_${job}.prom"
 	local tmp="${target}.tmp"
-	local duration success hostname
+	local duration success hostname hostname_label
 	duration=$((end_epoch - start_epoch))
 	success=0
 	[ "${exit_code}" -eq 0 ] && success=1
 	hostname="${HOSTNAME:-$(hostname 2>/dev/null || echo unknown)}"
+	hostname_label="$(prom_label_escape "${hostname}")"
 
 	{
 		printf '# HELP restic_%s_last_exit_code Exit code of last %s run.\n' "${job}" "${job}"
 		printf '# TYPE restic_%s_last_exit_code gauge\n' "${job}"
-		printf 'restic_%s_last_exit_code{hostname="%s"} %d\n' "${job}" "${hostname}" "${exit_code}"
+		printf 'restic_%s_last_exit_code{hostname="%s"} %d\n' "${job}" "${hostname_label}" "${exit_code}"
 
 		printf '# HELP restic_%s_last_success 1 when last run exited 0, else 0.\n' "${job}"
 		printf '# TYPE restic_%s_last_success gauge\n' "${job}"
-		printf 'restic_%s_last_success{hostname="%s"} %d\n' "${job}" "${hostname}" "${success}"
+		printf 'restic_%s_last_success{hostname="%s"} %d\n' "${job}" "${hostname_label}" "${success}"
 
 		printf '# HELP restic_%s_last_duration_seconds Duration of the last %s run in seconds.\n' "${job}" "${job}"
 		printf '# TYPE restic_%s_last_duration_seconds gauge\n' "${job}"
-		printf 'restic_%s_last_duration_seconds{hostname="%s"} %d\n' "${job}" "${hostname}" "${duration}"
+		printf 'restic_%s_last_duration_seconds{hostname="%s"} %d\n' "${job}" "${hostname_label}" "${duration}"
+
+		printf '# HELP restic_%s_last_started_timestamp Epoch seconds at which the last %s run started.\n' "${job}" "${job}"
+		printf '# TYPE restic_%s_last_started_timestamp gauge\n' "${job}"
+		printf 'restic_%s_last_started_timestamp{hostname="%s"} %d\n' "${job}" "${hostname_label}" "${start_epoch}"
 
 		printf '# HELP restic_%s_last_finished_timestamp Epoch seconds at which the last %s run finished.\n' "${job}" "${job}"
 		printf '# TYPE restic_%s_last_finished_timestamp gauge\n' "${job}"
-		printf 'restic_%s_last_finished_timestamp{hostname="%s"} %d\n' "${job}" "${hostname}" "${end_epoch}"
+		printf 'restic_%s_last_finished_timestamp{hostname="%s"} %d\n' "${job}" "${hostname_label}" "${end_epoch}"
 
 		while [ "$#" -ge 2 ]; do
 			local k="$1" v="$2"
@@ -565,7 +610,7 @@ write_metrics_for_job() {
 			if [[ "${v}" =~ ^-?[0-9]+(\.[0-9]+)?$ ]]; then
 				printf '# HELP restic_%s_last_%s %s for the last %s run (numeric extra).\n' "${job}" "${k}" "${k}" "${job}"
 				printf '# TYPE restic_%s_last_%s gauge\n' "${job}" "${k}"
-				printf 'restic_%s_last_%s{hostname="%s"} %s\n' "${job}" "${k}" "${hostname}" "${v}"
+				printf 'restic_%s_last_%s{hostname="%s"} %s\n' "${job}" "${k}" "${hostname_label}" "${v}"
 			fi
 		done
 	} >"${tmp}" && mv -f "${tmp}" "${target}"

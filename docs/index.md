@@ -102,6 +102,42 @@ webhook notifications**, **Prometheus textfile metrics** and
 
     [:octicons-arrow-right-24: Unlock](operations/unlock.md)
 
+- :material-clipboard-text-search-outline: __Sources report__
+
+    ---
+
+    `/bin/sources-report` is the pre-flight inventory: readability,
+    type, file count and (optional) size for `BACKUP_ROOT_DIR` plus
+    every `--files-from` / `--exclude-file` reference in
+    `RESTIC_JOB_ARGS`. Catches missing mounts, stale `--files-from`
+    entries and silently-empty exclude files before the next backup.
+
+    [:octicons-arrow-right-24: Sources report](operations/sources-report.md)
+
+- :material-database-plus-outline: __Init repo__
+
+    ---
+
+    `/bin/init-repo` is the audited operator counterpart to the
+    entrypoint auto-init probe: `--dry-run` reports the planned
+    `restic init` command without mutation; without it a typed
+    confirmation (`init`) or explicit `--yes` is required, so a
+    container restart can never re-initialise a repository
+    unattended.
+
+    [:octicons-arrow-right-24: Init repo](operations/init-repo.md)
+
+- :material-bell-check-outline: __Notify test__
+
+    ---
+
+    `/bin/notify-test` sends clearly-labelled test mail and/or webhook
+    payloads through the same helpers used by real workers, so you can
+    validate `msmtprc`, `MAILX_RCPT`, `WEBHOOK_URL`, auth headers and
+    timeout handling before waiting for a real failure.
+
+    [:octicons-arrow-right-24: Notify test](operations/notify-test.md)
+
 - :material-stethoscope: __Doctor diagnostics__
 
     ---
@@ -191,7 +227,7 @@ The shortest "it backs up every night and yells when it breaks" setup:
 !!! tip "Pin your tags"
 
     Tagged images use the schema `<helper-semver>-<restic-version>`, e.g.
-    `2.7.0-0.18.1`. Pinning both protects you from surprise upstream
+    `2.10.1-0.18.1`. Pinning both protects you from surprise upstream
     behaviour changes. See [Image tags](reference/image-tags.md).
 
 ---

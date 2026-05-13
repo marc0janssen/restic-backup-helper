@@ -23,6 +23,9 @@ docker exec -ti restic-backup-helper /bin/snapshot-export --id latest
 docker exec -ti restic-backup-helper /bin/forget-preview
 docker exec -ti restic-backup-helper /bin/mount-snapshot
 docker exec -ti restic-backup-helper /bin/unlock --dry-run
+docker exec -ti restic-backup-helper /bin/sources-report --no-size
+docker exec -ti restic-backup-helper /bin/init-repo --dry-run
+docker exec -ti restic-backup-helper /bin/notify-test --dry-run
 docker exec -ti restic-backup-helper /bin/doctor
 docker exec -ti restic-backup-helper /bin/cron-list
 
@@ -108,6 +111,28 @@ docker run --rm \
   -v ./restic.password:/run/secrets/restic_password:ro \
   marc0janssen/restic-backup-helper:latest \
   unlock --dry-run
+
+# Pre-flight source inventory (readability, type, file count, optional size).
+docker run --rm \
+  --env-file restic.env \
+  -v /srv/documents:/data:ro \
+  -v ./config:/config:ro \
+  marc0janssen/restic-backup-helper:latest \
+  sources-report --no-size
+
+# Audited bootstrap init (with --yes when stdin is not a TTY, e.g. CI).
+docker run --rm \
+  --env-file restic.env \
+  -v ./restic.password:/run/secrets/restic_password:ro \
+  marc0janssen/restic-backup-helper:latest \
+  init-repo --dry-run
+
+# Notification plumbing test (mail and/or webhook, depending on env).
+docker run --rm \
+  --env-file restic.env \
+  -v ./config/msmtprc:/etc/msmtprc:ro \
+  marc0janssen/restic-backup-helper:latest \
+  notify-test --dry-run
 ```
 
 Recognised entrypoint subcommands:
@@ -121,6 +146,9 @@ Recognised entrypoint subcommands:
 | `forget-preview` or `/bin/forget-preview` | Pass remaining args to `/bin/forget-preview`; always uses `restic forget --dry-run`. |
 | `mount-snapshot` or `/bin/mount-snapshot` | Pass remaining args to `/bin/mount-snapshot`; blocks until you unmount (Ctrl+C / SIGTERM). |
 | `unlock` or `/bin/unlock` | Pass remaining args to `/bin/unlock`. Audited manual `restic unlock` wrapper; supports `--dry-run` and `--remove-all`. |
+| `sources-report` or `/bin/sources-report` | Pass remaining args to `/bin/sources-report`. Pre-flight inventory of `BACKUP_ROOT_DIR` + `--files-from` / `--exclude-file`; supports `--no-size`, `--depth N`, `--source`, `--files-from`. |
+| `init-repo` or `/bin/init-repo` | Pass remaining args to `/bin/init-repo`. Audited `restic init` wrapper; supports `--dry-run`, `--yes`, and `-- restic-init-flags...` passthrough (e.g. `--repository-version=2`). |
+| `notify-test` or `/bin/notify-test` | Pass remaining args to `/bin/notify-test`. Sends labelled mail/webhook tests through the same helpers used by real workers; supports `--mail`, `--webhook`, `--all`, `--dry-run`, `--subject`, `--message`. |
 
 Anything else falls through to the normal cron startup.
 
@@ -198,4 +226,12 @@ between-snapshot diff, in-place tar streams).
   FUSE with safe target validation and clean unmount.
 - [Unlock](unlock.md) — audited manual `restic unlock` wrapper that
   complements the safer `RESTIC_AUTO_UNLOCK=OFF` default.
+- [Sources report](sources-report.md) — pre-flight inventory of
+  `BACKUP_ROOT_DIR` + `--files-from` / `--exclude-file` references,
+  with optional size estimation.
+- [Init repo](init-repo.md) — audited `restic init` wrapper with
+  `--dry-run`, confirmation prompt and `--yes` for non-interactive
+  bootstraps.
+- [Notify test](notify-test.md) — validate mail/webhook delivery
+  plumbing through the same helper functions used by real jobs.
 - [Troubleshooting](troubleshooting.md) — common manual-run hiccups.

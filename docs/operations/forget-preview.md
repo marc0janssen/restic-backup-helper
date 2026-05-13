@@ -51,7 +51,7 @@ docker run --rm \
 | `--repo-wide` | off | Do not add host/tag filters. Required for repository-wide retention previews. |
 | `--host HOST` | container `$HOSTNAME` | Override the default host filter. Ignored with `--repo-wide`. |
 | `--tag TAG` | `$RESTIC_TAG` | Override the default tag filter. Ignored with `--repo-wide`. |
-| `--policy ARGS` | `$RESTIC_FORGET_ARGS` | Use these retention args instead of the configured policy. Quote as one shell argument. |
+| `--policy ARGS` | `$RESTIC_FORGET_ARGS` | Use these retention args instead of the configured policy. Quote as one shell argument; the value is then whitespace-split like `RESTIC_FORGET_ARGS`, not parsed as full shell syntax. |
 | `--extra ARGS` | *(empty)* | Append extra `restic forget` args after the policy and filters. Quote as one shell argument. |
 | `--help` | – | Print usage and exit. |
 

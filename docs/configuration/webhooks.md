@@ -30,6 +30,14 @@ environment:
     webhook endpoint cannot turn an otherwise-successful backup into a
     failed one.
 
+!!! tip "Validate the webhook path explicitly"
+
+    Run [`/bin/notify-test --webhook`](../operations/notify-test.md) to
+    send a labelled test payload through the same `notify_webhook`
+    helper. Unlike real workers, delivery failures affect the test
+    helper's exit code so bad URLs, auth headers and timeouts are visible
+    before the next backup.
+
 ## What is in the body
 
 The POST body is the same JSON written to `/var/log/last-<job>.json`. Per
@@ -40,7 +48,7 @@ the common subset every worker always emits is:
 {
   "job": "backup",
   "hostname": "backup-node",
-  "release": "2.7.0-0.18.1",
+  "release": "2.10.1-0.18.1",
   "started_at": "2026-05-11T02:00:00+0200",
   "finished_at": "2026-05-11T02:05:12+0200",
   "started_epoch": 1762828800,

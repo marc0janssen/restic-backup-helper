@@ -87,6 +87,18 @@ if [ "${1:-}" = "unlock" ] || [ "${1:-}" = "/bin/unlock" ]; then
 	shift
 	exec /bin/unlock "$@"
 fi
+if [ "${1:-}" = "sources-report" ] || [ "${1:-}" = "/bin/sources-report" ]; then
+	shift
+	exec /bin/sources-report "$@"
+fi
+if [ "${1:-}" = "init-repo" ] || [ "${1:-}" = "/bin/init-repo" ]; then
+	shift
+	exec /bin/init-repo "$@"
+fi
+if [ "${1:-}" = "notify-test" ] || [ "${1:-}" = "/bin/notify-test" ]; then
+	shift
+	exec /bin/notify-test "$@"
+fi
 
 # shellcheck source=app/lib.sh
 . /bin/lib.sh

@@ -61,7 +61,7 @@ What is **not** masked:
 
 | Surface | Reasoning |
 | --- | --- |
-| `RESTIC_JOB_ARGS` / `RESTIC_FORGET_ARGS` / `RESTIC_PRUNE_ARGS` / `REPLICATE_JOB_ARGS` | Caller-controlled, printed verbatim. Avoid stuffing secrets into these (use `RESTIC_PASSWORD_FILE` and `--password-command` files instead). |
+| `RESTIC_JOB_ARGS` / `RESTIC_CHECK_ARGS` / `RESTIC_FORGET_ARGS` / `RESTIC_PRUNE_ARGS` / `RESTIC_INIT_ARGS` / `REPLICATE_JOB_ARGS` | Caller-controlled, printed verbatim. Avoid stuffing secrets into these (use `RESTIC_PASSWORD_FILE` and `--password-command` files instead). |
 | Hook script stdout/stderr | Logged as the hook emits them. Make sure your hook does not echo secrets to stdout. |
 | Backup paths and exclude patterns | Filenames may be sensitive in some industries (medical, legal). Use `:ro` mounts and consider scrubbing logs before mailing them. |
 

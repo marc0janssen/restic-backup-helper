@@ -206,7 +206,7 @@ Restic versions** in production by setting the image tag to the full
 ```yaml
 services:
   restic-backup:
-    image: marc0janssen/restic-backup-helper:2.7.0-0.18.1
+    image: marc0janssen/restic-backup-helper:2.10.1-0.18.1
 ```
 
 See [Image tags](../reference/image-tags.md).

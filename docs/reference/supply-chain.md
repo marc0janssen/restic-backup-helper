@@ -16,7 +16,7 @@ CI workflows:
 To run Trivy locally against a pulled image:
 
 ```shell
-trivy image --severity HIGH,CRITICAL marc0janssen/restic-backup-helper:2.7.0-0.18.1
+trivy image --severity HIGH,CRITICAL marc0janssen/restic-backup-helper:2.10.1-0.18.1
 ```
 
 `.trivyignore` in the repo root lists explicit suppressions with
@@ -44,8 +44,8 @@ curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sudo
 
 # Build with SBOM:
 SBOM=ON ./build.sh
-# → sbom/restic-backup-helper-2.7.0-0.18.1.spdx.json
-# → sbom/restic-backup-helper-2.7.0-0.18.1.cyclonedx.json
+# → sbom/restic-backup-helper-2.10.1-0.18.1.spdx.json
+# → sbom/restic-backup-helper-2.10.1-0.18.1.cyclonedx.json
 ```
 
 The `sbom/` directory is gitignored. If `SBOM=ON` is set but `syft` is
@@ -66,14 +66,14 @@ never breaks an existing publish flow.
 
 ```shell
 # Pull the pinned tag.
-docker pull marc0janssen/restic-backup-helper:2.7.0-0.18.1
+docker pull marc0janssen/restic-backup-helper:2.10.1-0.18.1
 
 # Generate an SBOM locally.
-syft marc0janssen/restic-backup-helper:2.7.0-0.18.1 -o spdx-json > local.spdx.json
-syft marc0janssen/restic-backup-helper:2.7.0-0.18.1 -o cyclonedx-json > local.cdx.json
+syft marc0janssen/restic-backup-helper:2.10.1-0.18.1 -o spdx-json > local.spdx.json
+syft marc0janssen/restic-backup-helper:2.10.1-0.18.1 -o cyclonedx-json > local.cdx.json
 
 # Diff against the one shipped in this repo's sbom/ (after ./build.sh):
-diff <(jq -S . local.spdx.json) <(jq -S . sbom/restic-backup-helper-2.7.0-0.18.1.spdx.json)
+diff <(jq -S . local.spdx.json) <(jq -S . sbom/restic-backup-helper-2.10.1-0.18.1.spdx.json)
 ```
 
 Differences mean the publisher's image differs from what you would
@@ -85,8 +85,8 @@ The image is not currently signed with Sigstore/Cosign. If your
 deployment workflow requires signed images, pin to a digest:
 
 ```shell
-docker pull marc0janssen/restic-backup-helper:2.7.0-0.18.1
-docker inspect --format '{{ index .RepoDigests 0 }}' marc0janssen/restic-backup-helper:2.7.0-0.18.1
+docker pull marc0janssen/restic-backup-helper:2.10.1-0.18.1
+docker inspect --format '{{ index .RepoDigests 0 }}' marc0janssen/restic-backup-helper:2.10.1-0.18.1
 # → marc0janssen/restic-backup-helper@sha256:….
 ```
 

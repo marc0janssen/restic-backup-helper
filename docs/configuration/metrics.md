@@ -55,7 +55,9 @@ Per worker `<job>` ∈ `backup`, `check`, `prune`, `replicate`, `restore`,
 
 The `hostname` label comes from the container hostname (set explicitly in
 Compose / Kubernetes with `hostname:`). Set one container per host so the
-label is unique.
+label is unique. The label value is escaped before writing, so unusual
+hostnames containing quotes, backslashes or newlines do not break the
+Prometheus textfile format.
 
 ## Worker-specific extras
 

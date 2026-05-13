@@ -27,13 +27,13 @@ before pushing.
 ## Build the image locally
 
 ```shell
-./build-testing.sh             # builds and pushes the testing tag
+./build-testing.sh             # builds and pushes the :develop tag (testing train)
 ./build-testing-local.sh       # builds and pushes to a private registry (build-testing-local.env)
 ```
 
 Hand-built images **must** pass
 `--build-arg RESTIC_BACKUP_HELPER_RELEASE=…` (same string as the
-versioned image tag, e.g. `2.7.0-0.18.1-dev`) so the `release` field
+versioned image tag, e.g. `2.10.1-0.18.1-dev`) so the `release` field
 in `last-<job>.json` is accurate. The `build-testing.sh` scripts
 handle this automatically.
 
