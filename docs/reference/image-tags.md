@@ -15,8 +15,8 @@ Two moving aliases also exist:
 
 | Alias | Points at | Use for |
 | --- | --- | --- |
-| `latest` | Most recent stable tag. | Production when you accept rolling updates. |
-| `develop` | Most recent testing tag. | Pre-release / CI; expect occasional rough edges. |
+| `latest` | Most recent stable-train release. | Production when you accept rolling updates. |
+| `develop` | Most recent testing-train release. | Pre-release / CI; expect occasional rough edges. |
 
 !!! warning "Don't use floating tags in production"
 
@@ -61,7 +61,7 @@ Concrete example: `2.10.1-0.18.1-dev` is "helper 2.10.1 on top of Restic
 | Manual `./build.sh` | Whatever you have locally | `latest`, `<semver>-<restic>` |
 | Manual `./build-testing.sh` | `develop` | `develop`, `<semver>-<restic>-dev` |
 | Manual `./build-testing-local.sh` | Whatever you have locally | Private registry `:develop` and `:<release>` |
-| CI release on `v*` tag push | The tag's commit | `latest` and pinned stable |
+| CI release on `v*` tag push | The tag's commit | `latest`, `<semver>-<restic>` |
 
 The `build*.sh` scripts read `VERSION` and the `VERSION_RESTIC` env var
 to compute the published tag. For one-off base-image testing, pass

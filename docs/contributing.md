@@ -27,7 +27,7 @@ before pushing.
 ## Build the image locally
 
 ```shell
-./build-testing.sh             # builds and pushes the testing tag
+./build-testing.sh             # builds and pushes the :develop tag (testing train)
 ./build-testing-local.sh       # builds and pushes to a private registry (build-testing-local.env)
 ```
 
