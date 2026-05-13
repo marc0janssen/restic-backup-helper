@@ -14,7 +14,8 @@ provide it at runtime*.
 
 | Variable | Default | Description |
 | --- | --- | --- |
-| `RESTIC_REPOSITORY` | `/mnt/restic` | Restic repository location (local path, `s3:…`, `sftp:…`, `rclone:…`, `swift:…`, `b2:…`, etc.). |
+| `RESTIC_REPOSITORY` | `/mnt/restic` | Restic repository location (local path, `s3:…`, `sftp:…`, `rclone:…`, `swift:…`, `b2:…`, etc.). The image bakes the `/mnt/restic` default into the env; `RESTIC_REPOSITORY_FILE` (below) is resolved before this value is used so a non-empty file always wins. |
+| `RESTIC_REPOSITORY_FILE` | *(empty)* | File path inside the container containing the repository URL (Restic standard, mirrors `RESTIC_PASSWORD_FILE`). The entrypoint reads the first non-blank, non-comment line — leading/trailing whitespace and trailing CR are stripped — and promotes it into `RESTIC_REPOSITORY` before any banner, repository probe or worker runs. The original `RESTIC_REPOSITORY_FILE` env var is unset after a successful promotion so restic never fails with `Options --repo and --repository-file are mutually exclusive`. Use this to keep `rest:https://user:pass@host/`, `s3:…` access strings or any other credential-bearing URL out of `docker inspect`; point it at a Docker secret mount, e.g. `/run/secrets/restic_repository`. If the file is unreadable or contains no usable URL the entrypoint leaves both env vars in place and `config-check` / `/bin/doctor` surface the specific failure. |
 | `RESTIC_PASSWORD` | *(empty)* | Repository password. Appears in `docker inspect`; prefer `RESTIC_PASSWORD_FILE`. |
 | `RESTIC_PASSWORD_FILE` | *(empty)* | File path inside the container containing the password (Restic standard). Point at a Docker secret mount, e.g. `/run/secrets/restic_password`. |
 | `RESTIC_TAG` | `automated` | **Required.** Tag passed to `restic backup` as `--tag=…`. Explicitly empty value is a hard failure (exit 2). Pick something meaningful, e.g. `daily`, `${HOSTNAME}-data`. |
@@ -141,7 +142,7 @@ RESTIC_BACKUP_HELPER_RELEASE=…`. Read it from inside the container:
 
 ```shell
 docker exec restic-backup-helper printenv RESTIC_BACKUP_HELPER_RELEASE
-# → 2.10.1-0.18.1
+# → 2.11.0-0.18.1
 ```
 
 `/bin/doctor` includes the release in its `Runtime` section and every

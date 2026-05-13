@@ -8,13 +8,35 @@
 
 set -Eeuo pipefail
 
+# Source shared helpers before the dispatch case below so every entrypoint
+# path (config-check, doctor, cron-list, sources-report, init-repo,
+# notify-test and the normal cron flow) observes the same masked-repository /
+# RESTIC_REPOSITORY_FILE-resolution semantics. lib.sh runs
+# resolve_restic_repository_file at the bottom of the file, so by the time
+# any subcommand runs, RESTIC_REPOSITORY already reflects the value from
+# RESTIC_REPOSITORY_FILE (when configured).
+# shellcheck source=app/lib.sh
+. /bin/lib.sh
+
 run_config_check() {
 	local err=0
 	local replicate_cron sjf rc_file
 
 	echo "[config-check] Validating configuration..."
-	if [ -z "${RESTIC_REPOSITORY:-}" ]; then
-		echo "[config-check] ERROR: RESTIC_REPOSITORY is empty." >&2
+	if [ -n "${RESTIC_REPOSITORY_FILE:-}" ]; then
+		# resolve_restic_repository_file kept RESTIC_REPOSITORY_FILE set, which
+		# means the file is unreadable or empty/comments-only. Either way,
+		# RESTIC_REPOSITORY did not get promoted and the configuration is
+		# broken. Diagnose the specific failure so operators do not have to
+		# guess.
+		if [ ! -r "${RESTIC_REPOSITORY_FILE}" ]; then
+			echo "[config-check] ERROR: RESTIC_REPOSITORY_FILE is not readable: ${RESTIC_REPOSITORY_FILE}" >&2
+		else
+			echo "[config-check] ERROR: RESTIC_REPOSITORY_FILE '${RESTIC_REPOSITORY_FILE}' is empty or contains only comments." >&2
+		fi
+		err=1
+	elif [ -z "${RESTIC_REPOSITORY:-}" ]; then
+		echo "[config-check] ERROR: RESTIC_REPOSITORY is empty (set RESTIC_REPOSITORY or RESTIC_REPOSITORY_FILE)." >&2
 		err=1
 	fi
 	if [ -n "${RESTIC_PASSWORD_FILE:-}" ]; then
@@ -99,9 +121,6 @@ if [ "${1:-}" = "notify-test" ] || [ "${1:-}" = "/bin/notify-test" ]; then
 	shift
 	exec /bin/notify-test "$@"
 fi
-
-# shellcheck source=app/lib.sh
-. /bin/lib.sh
 
 if [ -n "${RESTIC_REPOSITORY:-}" ]; then
 	MASKED_REPO="$(mask_repository "${RESTIC_REPOSITORY}")"
