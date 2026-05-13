@@ -18,7 +18,9 @@ snapshot list trimmed) but **`prune` only weekly or monthly** (so the
 bandwidth cost only hits one cron tick per week). That is exactly the
 shape the helper exposes:
 
-- `RESTIC_FORGET_ARGS` runs *after* `/bin/backup` succeeds.
+- `RESTIC_FORGET_ARGS` runs *after* `/bin/backup` succeeds — or, when
+  `FORGET_CRON` is set (since 2.5.0), inside the dedicated
+  [Forget worker](forget.md) on its own schedule.
 - `PRUNE_CRON` + `RESTIC_PRUNE_ARGS` runs a separate `/bin/prune` on its
   own schedule.
 
@@ -79,7 +81,7 @@ flowchart TD
 
     ```yaml
     environment:
-      RESTIC_FORGET_ARGS: "--keep-daily 7 --keep-weekly 5 --keep-monthly 12 --prune"
+      RESTIC_FORGET_ARGS: "--retry-lock=5m --keep-daily 7 --keep-weekly 5 --keep-monthly 12 --prune"
       PRUNE_CRON: ""
     ```
 
@@ -135,7 +137,10 @@ path as the cron job, including hooks, mail and webhook.
 ## See also
 
 - [Backup worker](backup.md) — `RESTIC_FORGET_ARGS` is the cheap
-  per-run counterpart.
+  per-run counterpart when `FORGET_CRON` is empty.
+- [Forget worker](forget.md) — the dedicated retention worker for
+  multi-host repositories (`FORGET_CRON`); pairs naturally with
+  `PRUNE_CRON` on the same maintenance owner.
 - [Check worker](check.md) — run weekly *before* prune.
 - [Multiple backup jobs](../deployment/multiple-jobs.md) — `PRUNE_CRON`
   must run on only one of N containers sharing a repository.

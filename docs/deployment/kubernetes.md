@@ -73,7 +73,7 @@ spec:
       hostname: backup-node
       containers:
         - name: restic-backup-helper
-          image: marc0janssen/restic-backup-helper:2.4.0-0.18.1
+          image: marc0janssen/restic-backup-helper:2.7.0-0.18.1
           imagePullPolicy: IfNotPresent
           env:
             - name: RESTIC_REPOSITORY
@@ -89,9 +89,14 @@ spec:
             - name: RESTIC_JOB_ARGS
               value: "--exclude-file /config/exclude_files.txt --one-file-system"
             - name: RESTIC_FORGET_ARGS
-              value: "--keep-daily 7 --keep-weekly 5 --keep-monthly 12"
+              value: "--retry-lock=5m --keep-daily 7 --keep-weekly 5 --keep-monthly 12"
             - name: CHECK_CRON
               value: "37 3 * * 0"
+            # Optional: opt into the dedicated /bin/forget worker
+            # (since 2.5.0). When set, /bin/backup skips its inline
+            # forget and this worker owns the exclusive lock window.
+            # - name: FORGET_CRON
+            #   value: "30 1 * * *"
             - name: PRUNE_CRON
               value: "0 4 * * 0"
             - name: METRICS_DIR

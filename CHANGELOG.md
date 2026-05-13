@@ -2,6 +2,244 @@
 
 ## Restic Backup Helper
 
+### 2.7.0-0.18.1 (2026-05-13)
+
+This release adds an audited operator counterpart to the safer
+`RESTIC_AUTO_UNLOCK=OFF` default: `/bin/unlock`. The workers still
+never auto-clear repository locks on failure (so a multi-host
+deployment can't silently wipe another host's legitimate exclusive
+lock), and operators now have a first-class wrapper to clear a stale
+lock once they have independently confirmed it.
+
+#### Added
+
+- **`/bin/unlock` operator-driven manual `restic unlock` wrapper.**
+  Pairs with the safer `RESTIC_AUTO_UNLOCK=OFF` default (which has
+  not auto-cleared locks on worker failure since 1.12.0): when a job
+  fails because the repository is locked, the helper logs a hint and
+  lets the operator decide whether the lock is stale or legitimate.
+  `/bin/unlock` removes stale **exclusive** locks by default
+  (matching `restic unlock` 0.13+ semantics); `--remove-all` widens
+  to non-exclusive locks too (use only when no concurrent reader is
+  in flight); `--dry-run` lists current locks via `restic list
+  locks` without invoking `restic unlock`. Emits the standard
+  worker surface: masked `/var/log/unlock-last.log`,
+  `/var/log/last-unlock.json` (with `remove_all`, `dry_run`,
+  `locks_before`, `locks_after`), `restic_unlock.prom` when
+  `METRICS_DIR` is set, mail subject (`[OK|FAIL N] Unlock …`) and
+  webhook payload, plus `pre-unlock` / `post-unlock "$rc"` hook
+  pair. Reachable via `docker exec … /bin/unlock` and the
+  entrypoint shortcut `docker run … unlock`. Registered in
+  `/bin/doctor` alongside the other hook families and JSON
+  summaries.
+- **Documentation: `/bin/unlock` operations page**
+  ([`docs/operations/unlock.md`](https://marc0janssen.github.io/restic-backup-helper/operations/unlock.html))
+  with mermaid state machine, when-to-use / when-not-to-use
+  guidance, dry-run / remove-all recipes, and cross-links from
+  [Backup → multi-host repositories and exit 11](https://marc0janssen.github.io/restic-backup-helper/workers/backup.html#restic-auto-unlock),
+  [Forget worker](https://marc0janssen.github.io/restic-backup-helper/workers/forget.html),
+  [Troubleshooting](https://marc0janssen.github.io/restic-backup-helper/operations/troubleshooting.html)
+  and the JSON / Prometheus reference pages.
+
+#### Notes
+
+- No new environment variables; `/bin/unlock` reuses
+  `RESTIC_REPOSITORY`, `RESTIC_PASSWORD[_FILE]`, `RESTIC_CACERT`,
+  `MAILX_*`, `WEBHOOK_*`, `METRICS_DIR` and `HOOK_TIMEOUT` exactly
+  like the other operator wrappers.
+- `RESTIC_AUTO_UNLOCK=OFF` remains the default and is **not**
+  changed by this release. `/bin/unlock` is the audited operator
+  path, not an automatic one.
+- Internal SemVer policy: MINOR rather than PATCH because
+  `/bin/unlock` is a new in-container helper with its own JSON
+  schema, Prometheus textfile and hook family.
+
+### 2.6.0-0.18.1 (2026-05-13)
+
+This release focuses on operator ergonomics and build-time tooling on
+top of the 2.5.0 retention work: a read-only `/bin/cron-list`
+schedule inspector inside the container, and a fully reworked `--base
+<restic-tag>` CLI flow for the build scripts (Docker Hub-aware
+resolution of `newest` / `prerelease`, existence verification before
+any file is mutated, and a drift-fix in the private-registry build
+script). No behavioural changes to the backup, forget, prune, check
+or replicate workers — those keep 2.5.0 semantics byte-for-byte.
+
+#### Added
+
+- **`/bin/cron-list` read-only schedule inspector.** Prints `TZ`, the
+  current container time, the rendered root crontab from
+  `/var/spool/cron/crontabs/root` when present (or an environment
+  preview before cron starts), and a readable per-job summary for
+  `backup`, `check`, `replicate`, `forget`, `prune` and
+  `rotate_log`. Available via `docker exec … /bin/cron-list` and the
+  entrypoint shortcut `docker run … cron-list`.
+
+#### Changed
+
+- **Build scripts accept `--base <restic-tag>`.** `./build.sh`,
+  `./build-testing.sh` and `./build-testing-local.sh` now support a
+  CLI override for `VERSION_RESTIC` (also accepted as
+  `--base=<restic-tag>`), matching the build-script ergonomics used in
+  `nzbgetvpn`. Precedence remains CLI > non-empty exported variables >
+  env file > defaults. This is a per-build override only: the scripts
+  still do not bump `VERSION` or rewrite README release metadata; use
+  `scripts/update-restic-base.sh` for the full Restic-base release bump.
+  `--base` (and `VERSION_RESTIC` from env) is validated as a concrete
+  Restic version like `0.18.1` (optional pre-release suffix allowed).
+  The sentinel value **`newest`** (alias **`latest`**) is resolved to
+  the concrete version inside `restic/restic:latest` via
+  `docker run --rm restic/restic:latest version` **before** the image
+  tag, Dockerfile FROM rewrite or build-arg is computed, so a
+  published tag can never contain the literal `newest` or `latest`.
+  For beta/rc bases, **`--base prerelease`** (aliases **`rc`** /
+  **`beta`**) resolves via the Docker Hub `restic/restic` tags API to
+  the newest published image tag that looks like a Restic rc/beta
+  version, then uses that concrete version everywhere. Any other
+  non-version input hard-fails up front with a clear error.
+- **`--base <tag>` is verified against Docker Hub before any files
+  are mutated.** After resolving `newest` / `latest` /
+  `prerelease` / `rc` / `beta` (and after the format check),
+  `finalize_restic_base_tag` calls
+  `docker buildx imagetools inspect restic/restic:<tag>`; if the
+  tag does not exist (typo, future version, removed tag), the build
+  aborts with a clear error **before** the Dockerfile is rewritten
+  or the image tag is computed. Closes the failure mode where a
+  non-existent `--base 0.19.0` would still produce a published
+  image tagged `…-0.19.0-dev` while the base layer was silently the
+  previously-pulled `restic/restic:0.18.1`.
+- **`./build-testing-local.sh` now patches `Dockerfile FROM` to
+  match `--base` / `VERSION_RESTIC`** (already the behaviour of
+  `./build.sh` and `./build-testing.sh`). Previously the
+  private-registry script left `Dockerfile FROM` untouched, so
+  `--base 0.18.2` would build against whatever the Dockerfile
+  already pointed at while still tagging the pushed image
+  `…-0.18.2-dev` — a silent drift between tag suffix and actual
+  base. Combined with the existence check above, the suffix in the
+  image tag is now guaranteed to reflect the Restic version in the
+  base layer.
+- **`./build-testing-local.sh` now pushes `:develop` instead of
+  `:testing`.** The moving alias tag is renamed to match the
+  convention used by `./build-testing.sh` (which has always pushed
+  `:develop`) so private-registry deployments can reuse the same
+  Compose / Kubernetes manifests as the public testing image without
+  per-tag renames. The versioned `:<release>` tag (for example
+  `:2.6.0-0.18.1-dev`) is unchanged. **Action for users of the
+  private-registry script:** update any `image:` references in your
+  manifests from `…:testing` to `…:develop`, or pin to the versioned
+  `:<release>` tag (recommended).
+
+#### Notes
+
+- No behavioural changes to backup, forget, prune, check or replicate
+  workers. Cron-list is read-only; the build-script changes only
+  affect how images are produced and tagged, not what the image
+  contains at runtime.
+- Internal SemVer policy: MINOR rather than PATCH because
+  `/bin/cron-list` is a new in-container helper script and `--base`
+  is a new CLI surface for the build flow.
+
+### 2.5.0-0.18.1 (2026-05-13)
+
+This release hardens retention handling for repositories shared by
+multiple hosts. Three changes that compose: a new standalone forget
+worker (`FORGET_CRON`), a soft-skip semantic for restic exit code 11
+in the existing inline path, and a separate `forget_exit_code` field
+in `last-backup.json` so retention problems stay visible in
+monitoring even when the backup itself is fine.
+
+#### Added
+
+- **`/bin/forget` standalone retention worker, scheduled via the new
+  `FORGET_CRON` env var.** Mirrors the existing `/bin/prune` shape:
+  own `flock` on `/var/run/forget.lock`, own per-run log
+  (`/var/log/forget-last.log`), own JSON summary
+  (`/var/log/last-forget.json`), own Prometheus textfile
+  (`restic_forget.prom` when `METRICS_DIR` is set), own mail subject
+  (`[OK|FAIL N] Forget …`) and webhook payload, own `pre-forget` /
+  `post-forget "$rc"` hook pair. Reuses `RESTIC_FORGET_ARGS`
+  verbatim (no duplicate retention env var), inherits the same
+  exit-11 soft-skip semantics as the inline path. The recommended
+  pattern for repositories shared by multiple hosts: when
+  `FORGET_CRON` is set, `/bin/backup` automatically **skips** its
+  inline post-backup forget (cron log records `⏭ Skipping inline
+  forget: FORGET_CRON is set …`) so the repository's exclusive
+  forget-lock is only ever taken inside this dedicated maintenance
+  window — eliminates the exit-11 race entirely. Empty
+  `RESTIC_FORGET_ARGS` is loud (`❌ No retention policy
+  configured`, exit `2`) so the misconfiguration cannot silently
+  succeed.
+- **`forget_exit_code` field in `last-backup.json`.** When
+  `RESTIC_FORGET_ARGS` triggers a post-backup forget (inline path),
+  the helper now records the forget result separately as
+  `forget_exit_code: <0|11|other>` alongside the existing
+  `exit_code` for the backup itself. Monitoring can alert on
+  persistent `forget_exit_code: 11` (= retention is permanently
+  losing the lock race) without false-flagging the backup as a
+  whole. The value is automatically promoted to a
+  `restic_backup_last_forget_exit_code` gauge in
+  `restic_backup.prom` because `write_metrics_for_job` numerically
+  promotes JSON extras. The standalone worker exposes the same
+  number as its own top-level `exit_code` plus a
+  `restic_forget_last_exit_code` gauge.
+- **`pre-forget.sh` / `post-forget.sh` hook pair**, registered in
+  `/bin/doctor` alongside the existing hook families and
+  documented in [Hooks](https://marc0janssen.github.io/restic-backup-helper/configuration/hooks.html).
+- **Documentation: `/bin/forget` worker page**
+  ([`docs/workers/forget.md`](https://marc0janssen.github.io/restic-backup-helper/workers/forget.html))
+  with mermaid state machine, sample configurations (multi-host
+  dedicated window, single-host no-change, centralised retention
+  owner) and exit-code reference. Cross-linked from
+  [Backup worker → Multi-host repositories and exit 11](https://marc0janssen.github.io/restic-backup-helper/workers/backup.html#multi-host-repositories-and-exit-11),
+  [Prune worker](https://marc0janssen.github.io/restic-backup-helper/workers/prune.html),
+  [Troubleshooting](https://marc0janssen.github.io/restic-backup-helper/operations/troubleshooting.html)
+  and the JSON / Prometheus reference pages.
+- **`--retry-lock=DURATION` recipe baked into all example configs.**
+  Every YAML example that ships `RESTIC_FORGET_ARGS`
+  (`README.md`, `README-containers.md`, `scripts/docker-compose.yml`,
+  `examples/compose/cloud-reference.yml`,
+  `examples/compose/multi-job.yml`,
+  `examples/kubernetes/restic-backup-helper.yaml`,
+  `docs/deployment/docker-compose.md`,
+  `docs/deployment/kubernetes.md`,
+  `docs/deployment/multiple-jobs.md`, `docs/workers/backup.md`,
+  `docs/workers/prune.md`) now leads with
+  `--retry-lock=5m --keep-daily 7 …`, so operators copy-pasting from
+  the docs pick up the multi-host-safe pattern by default.
+
+#### Changed
+
+- **`backup`: treat post-backup `restic forget` exit code 11 as an
+  informational skip instead of a hard failure.** Exit 11 means
+  "failed to lock repository" — on a repository shared by multiple
+  hosts this is the benign outcome when two backups finish at the
+  same time and both try to acquire the exclusive lock that
+  `restic forget` needs. Only one wins; the other previously logged
+  `❌ Forget Failed with Status 11` and (if `RESTIC_AUTO_UNLOCK=ON`)
+  proceeded to `restic unlock`, which on a multi-host repository
+  would have cleared the other host's legitimate lock and allowed
+  two concurrent mutations. The worker now logs `⏭ Forget skipped:
+  repository was locked by another host (exit 11). Retention will
+  catch up on the next backup tick.`, leaves the backup's exit code
+  at `0`, and **never** runs `restic unlock` on exit 11 regardless
+  of `RESTIC_AUTO_UNLOCK`. All other non-zero forget exits keep
+  their existing fail-loud handling (log, optional auto-unlock,
+  copy error log). Same semantic applies inside the new standalone
+  `/bin/forget` worker.
+- **`backup` skips its inline forget when `FORGET_CRON` is set.**
+  Compat path is opt-in: keeping `FORGET_CRON` empty preserves the
+  legacy inline-forget behaviour byte-for-byte.
+
+#### Notes
+
+- `FORGET_CRON` empty (= default) keeps single-host and existing
+  setups byte-for-byte unchanged. The new worker only runs when an
+  operator explicitly schedules it.
+- Internal SemVer policy: this release adds a new env variable, a
+  new worker, a new hook pair, a new JSON summary, a new metric
+  family and a behaviour change (inline forget is skipped when
+  `FORGET_CRON` is set) — MINOR rather than PATCH.
+
 ### 2.4.0-0.18.1 (2026-05-12)
 
 #### Added

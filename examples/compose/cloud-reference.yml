@@ -26,9 +26,9 @@
 services:
   restic-cloud:
     container_name: restic-cloud
-    image: registry.example.invalid/restic-backup-helper:2.4.0-0.18.1-dev
+    image: registry.example.invalid/restic-backup-helper:2.7.0-0.18.1-dev
     # Alternative for Docker Hub stable images:
-    # image: marc0janssen/restic-backup-helper:2.4.0-0.18.1
+    # image: marc0janssen/restic-backup-helper:2.7.0-0.18.1
     hostname: backup-host
     restart: always
     labels:
@@ -83,13 +83,24 @@ services:
       BACKUP_CRON: "5 */4 * * *"                             # default: 0 */6 * * *
       BACKUP_ROOT_DIR: ""                                    # default: ""; paths come from --files-from below
       RESTIC_JOB_ARGS: "--exclude-file /config/exclude_files.txt --files-from /config/include_files.txt --skip-if-unchanged --verbose=2"
-      RESTIC_FORGET_ARGS: "--keep-daily 7 --keep-weekly 8 --keep-monthly 12"
+      RESTIC_FORGET_ARGS: "--retry-lock=5m --keep-daily 7 --keep-weekly 8 --keep-monthly 12"
 
       # ============================================================
       # Optional scheduled integrity check
       # ============================================================
       CHECK_CRON: ""                                         # default: ""; example: "37 3 * * 0"
       # RESTIC_CHECK_ARGS: "--read-data-subset 5%"            # default: ""
+
+      # ============================================================
+      # Optional standalone forget worker (since 2.5.0)
+      # ============================================================
+      # When set, /bin/backup skips its inline post-backup `restic forget`
+      # and the dedicated /bin/forget worker owns the exclusive lock
+      # window. Recommended on repositories shared by multiple hosts —
+      # eliminates the exit-11 race that otherwise happens when two
+      # parallel backups try to take the forget-lock at the same time.
+      # RESTIC_FORGET_ARGS above is reused verbatim by the worker.
+      FORGET_CRON: ""                                        # default: ""; example: "30 1 * * *"
 
       # ============================================================
       # Optional standalone prune

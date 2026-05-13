@@ -91,13 +91,24 @@ webhook notifications**, **Prometheus textfile metrics** and
 
     [:octicons-arrow-right-24: Mount snapshot](operations/mount-snapshot.md)
 
+- :material-lock-open-outline: __Manual unlock__
+
+    ---
+
+    `/bin/unlock` is the audited counterpart to `RESTIC_AUTO_UNLOCK=OFF`:
+    explicit `restic unlock` with masked logging, `last-unlock.json`,
+    `pre-unlock` / `post-unlock` hooks and the same mail / webhook
+    plumbing as the cron-driven workers.
+
+    [:octicons-arrow-right-24: Unlock](operations/unlock.md)
+
 - :material-stethoscope: __Doctor diagnostics__
 
     ---
 
-    `/bin/doctor` prints a read-only support bundle: effective env,
-    repository probe, replicate job-file validation, hook status and
-    recent JSON summaries.
+    `/bin/doctor` prints a read-only support bundle; `/bin/cron-list`
+    answers "what will run and when?" with timezone, rendered crontab
+    and schedule summary.
 
     [:octicons-arrow-right-24: Diagnostics](operations/diagnostics.md)
 
@@ -180,7 +191,7 @@ The shortest "it backs up every night and yells when it breaks" setup:
 !!! tip "Pin your tags"
 
     Tagged images use the schema `<helper-semver>-<restic-version>`, e.g.
-    `2.4.0-0.18.1`. Pinning both protects you from surprise upstream
+    `2.7.0-0.18.1`. Pinning both protects you from surprise upstream
     behaviour changes. See [Image tags](reference/image-tags.md).
 
 ---

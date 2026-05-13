@@ -15,6 +15,93 @@ omitted; see the full [Changelog](../changelog.md) for every release.
 See [Versioning policy](../concepts/versioning.md) for the full semver
 contract.
 
+## 2.4.0 → 2.5.0
+
+Multi-host retention hardening. Three composing changes, all backwards
+compatible — single-host setups and operators who never touched
+`RESTIC_FORGET_ARGS` see no behaviour change.
+
+### 1. New standalone forget worker (`FORGET_CRON`)
+
+`/bin/forget` is a new worker that mirrors the existing `/bin/prune`
+shape: own `flock` on `/var/run/forget.lock`, own log
+(`/var/log/forget-last.log`), own JSON summary
+(`/var/log/last-forget.json`), own Prometheus textfile
+(`restic_forget.prom`), own mail subject (`[OK|FAIL N] Forget …`),
+own webhook payload, own `pre-forget` / `post-forget "$rc"` hooks. It
+reuses `RESTIC_FORGET_ARGS` verbatim — no duplicate retention env
+var.
+
+Activate by setting `FORGET_CRON` (default: empty). When set,
+`/bin/backup` **automatically skips** its inline post-backup forget
+(cron log records `⏭ Skipping inline forget: FORGET_CRON is set …`)
+so the repository's exclusive forget-lock is only ever taken inside
+this dedicated maintenance window. Recommended for repositories
+shared by multiple hosts: eliminates the exit-11 race entirely.
+
+```yaml
+environment:
+  FORGET_CRON: "30 1 * * *"
+  RESTIC_FORGET_ARGS: "--retry-lock=5m --keep-daily 7 --keep-weekly 8 --keep-monthly 12"
+```
+
+See [Forget worker](../workers/forget.md) for the full state machine,
+sample configurations and exit-code reference.
+
+### 2. Soft-skip semantic for `restic forget` exit 11
+
+On a repository shared by multiple hosts, two simultaneous backups
+can race for the exclusive lock that `restic forget` needs. Only one
+acquires it; the other returns restic exit `11` ("failed to lock
+repository"). Until 2.4.0 the worker treated that as a hard failure
+(`❌ Forget Failed with Status 11`) and, with `RESTIC_AUTO_UNLOCK=ON`,
+would unlock the **other** host's legitimate lock — a foot-gun on
+multi-host setups.
+
+2.5.0 downgrades the exit-11 case to an informational skip in both
+the inline path (`/bin/backup`) and the new standalone worker
+(`/bin/forget`):
+
+- Cron log records `⏭ Forget skipped: repository was locked by
+  another host (exit 11). Retention will catch up on the next backup
+  tick.`
+- The backup itself still exits `0`; `last-backup.json` keeps
+  `exit_code: 0`.
+- `restic unlock` is **intentionally never** run on exit 11
+  regardless of `RESTIC_AUTO_UNLOCK` (the lock we lost is another
+  host's legitimate lock).
+- All other non-zero forget exits keep their existing fail-loud
+  handling.
+
+### 3. `forget_exit_code` field in `last-backup.json`
+
+The inline forget result is now recorded separately as
+`forget_exit_code: <0|11|other>` alongside `exit_code` in
+`last-backup.json`. The value is auto-promoted to a
+`restic_backup_last_forget_exit_code` Prometheus gauge so monitoring
+can alert on persistent skipping without false-flagging the backup
+itself. (The standalone worker exposes the same number as its own
+top-level `exit_code` plus a `restic_forget_last_exit_code` gauge.)
+
+### Upgrade actions
+
+- **Single host, no `RESTIC_FORGET_ARGS` set:** drop-in, nothing to
+  change.
+- **Single host, `RESTIC_FORGET_ARGS` set:** drop-in. Consider
+  adding `--retry-lock=DURATION` if you ever expect to add a second
+  host.
+- **Multi-host, hitting `❌ Forget Failed with Status 11`:** the
+  failures are now `⏭` skips automatically. For a permanent fix,
+  pick one of:
+    - **Best:** set `FORGET_CRON` on a single maintenance-owner
+      container (or on each container with staggered times) and let
+      the dedicated worker own the lock window.
+    - Add `--retry-lock=5m` to `RESTIC_FORGET_ARGS`.
+    - Stagger `BACKUP_CRON` between hosts.
+
+See [Backup worker → Multi-host repositories and exit 11](../workers/backup.md#multi-host-repositories-and-exit-11)
+for the full story.
+
 ## 2.3.x → 2.4.0
 
 Purely additive. New `/bin/mount-snapshot` helper wraps `restic mount`

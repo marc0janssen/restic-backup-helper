@@ -243,11 +243,13 @@ report_hooks() {
 		pre-backup post-backup
 		pre-check post-check
 		pre-prune post-prune
+		pre-forget post-forget
 		pre-replicate post-replicate
 		pre-restore post-restore
 		pre-snapshot-export post-snapshot-export
 		pre-forget-preview post-forget-preview
 		pre-mount-snapshot post-mount-snapshot
+		pre-unlock post-unlock
 	)
 	local phase hook found
 	found=0
@@ -280,11 +282,13 @@ report_last_json() {
 		/var/log/last-backup.json
 		/var/log/last-check.json
 		/var/log/last-prune.json
+		/var/log/last-forget.json
 		/var/log/last-replicate.json
 		/var/log/last-restore.json
 		/var/log/last-snapshot-export.json
 		/var/log/last-forget-preview.json
 		/var/log/last-mount-snapshot.json
+		/var/log/last-unlock.json
 	)
 
 	for file in "${files[@]}"; do
@@ -324,7 +328,7 @@ for name in \
 	RESTIC_REPOSITORY RESTIC_PASSWORD_FILE RESTIC_PASSWORD RESTIC_TAG RESTIC_CACHE_DIR TMPDIR \
 	RESTIC_CHECK_REPOSITORY_STATUS RESTIC_AUTO_UNLOCK RESTIC_CACERT NFS_TARGET \
 	BACKUP_CRON BACKUP_ROOT_DIR RESTIC_JOB_ARGS RESTIC_FORGET_ARGS \
-	CHECK_CRON RESTIC_CHECK_ARGS PRUNE_CRON RESTIC_PRUNE_ARGS \
+	CHECK_CRON RESTIC_CHECK_ARGS FORGET_CRON PRUNE_CRON RESTIC_PRUNE_ARGS \
 	RCLONE_CONFIG REPLICATE_JOB_FILE REPLICATE_JOB_ARGS REPLICATE_CRON REPLICATE_VERBOSE REPLICATE_BISYNC_CHECK_ACCESS \
 	HOOK_TIMEOUT MAILX_RCPT MAILX_ON_ERROR WEBHOOK_URL WEBHOOK_HEADER_AUTH WEBHOOK_TIMEOUT WEBHOOK_ON_ERROR \
 	METRICS_DIR ROTATE_LOG_CRON CRON_LOG_MAX_SIZE MAX_CRON_LOG_ARCHIVES; do

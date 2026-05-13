@@ -21,7 +21,7 @@ provide it at runtime*.
 | `RESTIC_CACHE_DIR` | `/.cache/restic` | Restic cache directory. Mount a volume to persist across restarts. |
 | `RESTIC_CACERT` | *(empty)* | Path inside the container to a readable PEM bundle. Automatically passed as `--cacert "$RESTIC_CACERT"` to every restic invocation. Unreadable path logs a warning and omits the flag; `config-check` treats the same condition as a hard error. |
 | `RESTIC_CHECK_REPOSITORY_STATUS` | `ON` | When `ON`, the entrypoint probes the repo with `restic cat config`; auto-`restic init` runs only on exit `10`. Other non-zero exits abort startup. Set to anything else to skip both the probe and the auto-init. |
-| `RESTIC_AUTO_UNLOCK` | `OFF` | When `ON`, `/bin/backup` and `/bin/check` run `restic unlock` after a non-zero restic exit. Default leaves the lock alone — safer for repositories shared across multiple hosts. |
+| `RESTIC_AUTO_UNLOCK` | `OFF` | When `ON`, `/bin/backup` and `/bin/check` run `restic unlock` after a non-zero restic exit. Default leaves the lock alone — safer for repositories shared across multiple hosts. Use the audited [`/bin/unlock`](../operations/unlock.md) helper for explicit, logged manual unlocks instead. |
 
 ## Backup job
 
@@ -30,7 +30,7 @@ provide it at runtime*.
 | `BACKUP_CRON` | `0 */6 * * *` | Cron schedule for `/bin/backup`. |
 | `BACKUP_ROOT_DIR` | *(empty)* | If set, appended as backup path(s). If empty and `RESTIC_JOB_ARGS` does not contain paths, `restic backup` runs with no explicit path. |
 | `RESTIC_JOB_ARGS` | *(empty)* | Extra words passed to `restic backup` (shell-word split). Examples: `--exclude-file /config/exclude_files.txt --one-file-system`, `--files-from /config/include_files.txt`. |
-| `RESTIC_FORGET_ARGS` | *(empty)* | If set **and** backup exits `0`, runs `restic forget` with these words (shell-word split). Example: `--prune --keep-daily 7 --keep-weekly 5 --keep-monthly 12`. |
+| `RESTIC_FORGET_ARGS` | *(empty)* | If set **and** backup exits `0`, runs `restic forget` with these words (shell-word split). Example: `--retry-lock=5m --keep-daily 7 --keep-weekly 5 --keep-monthly 12`. Add `--prune` only if you do not run `PRUNE_CRON` separately. |
 
 ## Check job
 
@@ -43,6 +43,7 @@ provide it at runtime*.
 
 | Variable | Default | Description |
 | --- | --- | --- |
+| `FORGET_CRON` | *(empty)* | If non-empty, schedules a standalone `/bin/forget` on its own `flock` (`/var/run/forget.lock`). When set, `/bin/backup` **skips** its inline post-backup forget so the repository's exclusive forget-lock is only ever taken in this dedicated maintenance window — the recommended pattern for repositories shared by multiple hosts (eliminates the exit-11 race entirely). `RESTIC_FORGET_ARGS` is reused verbatim. Typical value `30 1 * * *`. See [Forget worker](../workers/forget.md). |
 | `PRUNE_CRON` | *(empty)* | If non-empty, schedules a standalone `/bin/prune` on its own `flock`. Run the heavy `restic prune` on its own cadence (typically weekly) while `RESTIC_FORGET_ARGS` keeps post-backup forget cheap. |
 | `RESTIC_PRUNE_ARGS` | *(empty)* | Extra words passed to `restic prune`, e.g. `--max-unused 10%`, `--max-repack-size 5G`. |
 
@@ -139,7 +140,7 @@ RESTIC_BACKUP_HELPER_RELEASE=…`. Read it from inside the container:
 
 ```shell
 docker exec restic-backup-helper printenv RESTIC_BACKUP_HELPER_RELEASE
-# → 2.4.0-0.18.1
+# → 2.7.0-0.18.1
 ```
 
 `/bin/doctor` includes the release in its `Runtime` section and every

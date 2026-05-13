@@ -1,4 +1,4 @@
-# Diagnostics (doctor)
+# Diagnostics (doctor and cron-list)
 
 `/bin/doctor` is a read-only support command for "what is wrong with
 this container?" moments. It does not run `restic init`, `restic
@@ -6,6 +6,10 @@ unlock`, backups, restores, replicate jobs, hooks, mail or webhooks. It
 only inspects the current environment and mounted files, then exits
 non-zero when it finds hard failures that would also break normal
 operation.
+
+`/bin/cron-list` is the smaller companion for "what will run and when?"
+moments. It prints the container timezone, current time, the rendered
+crontab and a readable schedule summary without touching the repository.
 
 ## What it reports
 
@@ -46,6 +50,7 @@ flowchart LR
         J6[last-snapshot-export.json]
         J7[last-forget-preview.json]
         J8[last-mount-snapshot.json]
+        J9[last-unlock.json]
     end
     subgraph Tail
         T1[Last 40 lines /var/log/cron.log]
@@ -60,7 +65,7 @@ flowchart LR
 | **Repository probe** | Non-mutating `restic cat config`. Exit 10 is reported as "repository missing/not initialized"; doctor never initializes it. The probe output is masked before printing. |
 | **Replicate** | Effective `REPLICATE_*` values and validation of `REPLICATE_JOB_FILE` rows (`SOURCE;DESTINATION[;MODE[;EXTRA_ARGS]]`) with endpoints masked. |
 | **Hooks** | Each known hook path is listed with executable status (`executable`, `not executable`, `not found`). |
-| **Recent JSON summaries** | The latest `last-{backup,check,prune,replicate,restore,snapshot-export,forget-preview,mount-snapshot}.json` content if present. |
+| **Recent JSON summaries** | The latest `last-{backup,check,prune,replicate,restore,snapshot-export,forget-preview,mount-snapshot,unlock}.json` content if present. |
 | **Recent cron log** | Last 40 lines of `/var/log/cron.log`. |
 | **Summary** | `warnings: N`, `errors: N`. Exit non-zero only on errors. |
 
@@ -83,6 +88,20 @@ docker run --rm \
 
 The `doctor` entrypoint subcommand short-circuits cron startup and
 exec's `/bin/doctor` directly.
+
+For cron schedules:
+
+```shell
+docker exec -ti restic-backup-helper /bin/cron-list
+docker run --rm --env-file restic.env marc0janssen/restic-backup-helper:latest cron-list
+```
+
+When the container is already running, `/bin/cron-list` prints the
+actual crontab from `/var/spool/cron/crontabs/root`. In one-shot
+`docker run … cron-list` mode, cron has not been rendered yet, so it
+prints an environment-derived preview using the same schedule variables
+as the entrypoint (`BACKUP_CRON`, `CHECK_CRON`, `REPLICATE_CRON`,
+`FORGET_CRON`, `PRUNE_CRON`, `ROTATE_LOG_CRON` and legacy `SYNC_CRON`).
 
 ## Exit codes
 
@@ -126,7 +145,7 @@ caller-controlled. Avoid stuffing secrets into them — use a
 
 ```text
 == Runtime ==
-release:            2.4.0-0.18.1
+release:            2.7.0-0.18.1
 hostname:           backup-node
 date:               2026-05-11 Mon 21:13:42 +0200
 timezone:           Europe/Amsterdam
@@ -184,10 +203,12 @@ hooks/pre-forget-preview.sh: not found
 hooks/post-forget-preview.sh: not found
 hooks/pre-mount-snapshot.sh: not found
 hooks/post-mount-snapshot.sh: not found
+hooks/pre-unlock.sh: not found
+hooks/post-unlock.sh: not found
 
 == Recent JSON summaries ==
 last-backup.json:
-{"job":"backup","hostname":"backup-node","release":"2.4.0-0.18.1","started_at":"2026-05-11T02:00:00+0200","finished_at":"2026-05-11T02:05:12+0200","duration_seconds":312,"exit_code":0,"repository":"rclone:jottacloud:backups","backup_root_dir":"","restic_tag":"backup-node-data","snapshot_id":"a1b2c3d4","files_new":12,"files_changed":4,"files_unmodified":21034,"bytes_added":"1.234 MiB"}
+{"job":"backup","hostname":"backup-node","release":"2.7.0-0.18.1","started_at":"2026-05-11T02:00:00+0200","finished_at":"2026-05-11T02:05:12+0200","duration_seconds":312,"exit_code":0,"repository":"rclone:jottacloud:backups","backup_root_dir":"","restic_tag":"backup-node-data","snapshot_id":"a1b2c3d4","files_new":12,"files_changed":4,"files_unmodified":21034,"bytes_added":"1.234 MiB"}
 ...
 
 == Recent cron log ==

@@ -113,10 +113,17 @@ spec:
             - name: BACKUP_ROOT_DIR
               value: /data
             - name: RESTIC_FORGET_ARGS
-              value: "--keep-daily 7 --keep-weekly 5 --keep-monthly 12 --keep-yearly 10"
+              value: "--retry-lock=5m --keep-daily 7 --keep-weekly 5 --keep-monthly 12 --keep-yearly 10"
             # Optional schedules (leave blank to disable)
             - name: CHECK_CRON
               value: "37 3 * * 0"
+            # Optional standalone forget worker (since 2.5.0). When set,
+            # /bin/backup skips its inline post-backup `restic forget`
+            # and the dedicated /bin/forget worker owns the exclusive
+            # lock window. Recommended for repositories shared by
+            # multiple Pods; eliminates the multi-host exit-11 race.
+            - name: FORGET_CRON
+              value: ""        # default: ""; example: "30 1 * * *"
             - name: PRUNE_CRON
               value: "0 4 * * 0"
             - name: RESTIC_PRUNE_ARGS

@@ -68,6 +68,9 @@ fi
 if [ "${1:-}" = "doctor" ] || [ "${1:-}" = "/bin/doctor" ]; then
 	exec /bin/doctor
 fi
+if [ "${1:-}" = "cron-list" ] || [ "${1:-}" = "/bin/cron-list" ]; then
+	exec /bin/cron-list
+fi
 if [ "${1:-}" = "snapshot-export" ] || [ "${1:-}" = "/bin/snapshot-export" ]; then
 	shift
 	exec /bin/snapshot-export "$@"
@@ -79,6 +82,10 @@ fi
 if [ "${1:-}" = "mount-snapshot" ] || [ "${1:-}" = "/bin/mount-snapshot" ]; then
 	shift
 	exec /bin/mount-snapshot "$@"
+fi
+if [ "${1:-}" = "unlock" ] || [ "${1:-}" = "/bin/unlock" ]; then
+	shift
+	exec /bin/unlock "$@"
 fi
 
 # shellcheck source=app/lib.sh
@@ -216,8 +223,21 @@ else
 	echo "ℹ️ Replicate cron disabled (REPLICATE_CRON empty)"
 fi
 
-# Setup standalone prune cron job if specified (decouples retention from
-# the post-backup `restic forget` invocation in /bin/backup).
+# Setup standalone forget cron job if specified. When set, /bin/backup
+# detects FORGET_CRON and skips its inline post-backup `restic forget`
+# so the repository's exclusive forget-lock is only ever taken by this
+# dedicated maintenance window (key win on multi-host repositories,
+# where two parallel backups otherwise race for the same lock and one
+# returns exit 11). RESTIC_FORGET_ARGS is reused verbatim.
+if [ -n "${FORGET_CRON:-}" ]; then
+	echo "⏰ Setting up forget cron job with expression: ${FORGET_CRON}"
+	echo "${FORGET_CRON} /bin/locked_run forget /var/run/forget.lock /bin/forget >> /var/log/cron.log 2>&1" >>/var/spool/cron/crontabs/root
+else
+	echo "ℹ️ Forget cron disabled (FORGET_CRON empty); post-backup forget still runs inline in /bin/backup when RESTIC_FORGET_ARGS is set."
+fi
+
+# Setup standalone prune cron job if specified (decouples pack reclaim
+# from the cheaper retention metadata work).
 if [ -n "${PRUNE_CRON:-}" ]; then
 	echo "⏰ Setting up prune cron job with expression: ${PRUNE_CRON}"
 	echo "${PRUNE_CRON} /bin/locked_run prune /var/run/prune.lock /bin/prune >> /var/log/cron.log 2>&1" >>/var/spool/cron/crontabs/root

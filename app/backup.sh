@@ -104,22 +104,44 @@ else
 	copyErrorLog
 fi
 
-# Execute forget if backup was successful and RESTIC_FORGET_ARGS is set
-if [ "$backupRC" -eq 0 ] && [ -n "${RESTIC_FORGET_ARGS:-}" ]; then
+# Execute forget if backup was successful, RESTIC_FORGET_ARGS is set,
+# AND no standalone /bin/forget worker is scheduled. When FORGET_CRON
+# is set, retention is owned by the dedicated worker so the repository's
+# exclusive forget-lock is only ever taken by that maintenance window
+# (key win on multi-host repos; see /bin/forget for the full rationale).
+forgetRC=""
+if [ "$backupRC" -eq 0 ] && [ -n "${RESTIC_FORGET_ARGS:-}" ] && [ -z "${FORGET_CRON:-}" ]; then
 	log "🧹 Forgetting old snapshots based on: ${RESTIC_FORGET_ARGS}"
 	read -r -a forget_args <<<"${RESTIC_FORGET_ARGS}"
 	if restic "${RESTIC_CACERT_ARGS[@]}" forget "${forget_args[@]}" >>"${LAST_LOGFILE}" 2>&1; then
-		rc=0
+		forgetRC=0
 	else
-		rc=$?
+		forgetRC=$?
 	fi
 	logLast "Finished forget at $(date +"%Y-%m-%d %a %H:%M:%S")"
 
 	# Error handling for forget
-	if [ "$rc" -eq 0 ]; then
+	case "${forgetRC}" in
+	0)
 		log "✅ Forget Successful"
-	else
-		log "❌ Forget Failed with Status ${rc}"
+		;;
+	11)
+		# Restic exit 11 = "failed to lock repository". On multi-host
+		# repositories this is a benign race: two hosts finish backup
+		# at the same time, only one can hold the exclusive lock that
+		# `forget` requires, the other one returns 11 immediately.
+		# Forget is cumulative (retention catches up on the next
+		# tick), so downgrade this to an actionable skip instead of
+		# treating it as a hard failure. Crucially, DO NOT auto-unlock
+		# here: the lock that blocked us is another host's legitimate
+		# lock, and clearing it would let two hosts mutate the
+		# repository concurrently. Recommend `--retry-lock=DURATION`
+		# in RESTIC_FORGET_ARGS for operators who want to wait instead
+		# of skipping.
+		log "⏭ Forget skipped: repository was locked by another host (exit 11). Retention will catch up on the next backup tick. Add '--retry-lock=5m' (or similar) to RESTIC_FORGET_ARGS to wait for the lock instead of skipping."
+		;;
+	*)
+		log "❌ Forget Failed with Status ${forgetRC}"
 		if should_auto_unlock; then
 			log "🔓 Unlocking repository (RESTIC_AUTO_UNLOCK=ON)..."
 			restic "${RESTIC_CACERT_ARGS[@]}" unlock || true
@@ -127,7 +149,10 @@ if [ "$backupRC" -eq 0 ] && [ -n "${RESTIC_FORGET_ARGS:-}" ]; then
 			log "ℹ️ Skipping automatic 'restic unlock' (RESTIC_AUTO_UNLOCK!=ON); see backup-failure log entry above for guidance."
 		fi
 		copyErrorLog
-	fi
+		;;
+	esac
+elif [ "$backupRC" -eq 0 ] && [ -n "${RESTIC_FORGET_ARGS:-}" ] && [ -n "${FORGET_CRON:-}" ]; then
+	log "⏭ Skipping inline forget: FORGET_CRON is set ('${FORGET_CRON}'), retention is owned by the standalone /bin/forget worker. RESTIC_FORGET_ARGS reused verbatim there."
 fi
 
 # Record end time
@@ -145,6 +170,13 @@ last_run_extras=(
 	"backup_root_dir" "${BACKUP_ROOT_DIR:-}"
 	"restic_tag" "${RESTIC_TAG:-}"
 )
+if [ -n "${forgetRC}" ]; then
+	# Expose the forget result separately so a skipped forget (exit 11
+	# on multi-host repos) or a hard forget failure stays visible in
+	# monitoring even when backupRC is 0. Reserved values: 0 = success,
+	# 11 = skipped (locked by another host), other = restic error.
+	last_run_extras+=("forget_exit_code" "${forgetRC}")
+fi
 if [ -n "${BACKUP_STATS_SNAPSHOT_ID}" ]; then
 	last_run_extras+=("snapshot_id" "${BACKUP_STATS_SNAPSHOT_ID}")
 fi

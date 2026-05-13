@@ -48,7 +48,7 @@ services:
       BACKUP_CRON: "0 2 * * *"
       BACKUP_ROOT_DIR: /data
       RESTIC_JOB_ARGS: "--exclude-file /config/exclude_files.txt --one-file-system"
-      RESTIC_FORGET_ARGS: "--keep-daily 7 --keep-weekly 5 --keep-monthly 12 --keep-yearly 10"
+      RESTIC_FORGET_ARGS: "--retry-lock=5m --keep-daily 7 --keep-weekly 5 --keep-monthly 12 --keep-yearly 10"
 
       # ─── Optional: scheduled integrity check ───────────────────────────────────
       CHECK_CRON: "37 3 * * 0"
@@ -206,7 +206,7 @@ Restic versions** in production by setting the image tag to the full
 ```yaml
 services:
   restic-backup:
-    image: marc0janssen/restic-backup-helper:2.4.0-0.18.1
+    image: marc0janssen/restic-backup-helper:2.7.0-0.18.1
 ```
 
 See [Image tags](../reference/image-tags.md).

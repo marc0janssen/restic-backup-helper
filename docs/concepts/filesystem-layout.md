@@ -48,6 +48,11 @@ a `restic_<job>.prom` Prometheus textfile.
 ├── prune-mail-last.log
 ├── last-prune.json
 │
+├── forget-last.log                       # /bin/forget, per-run log (only when FORGET_CRON set)
+├── forget-error-last.log
+├── forget-mail-last.log
+├── last-forget.json
+│
 ├── replicate-last.log
 ├── replicate-error-last.log
 ├── replicate-mail-last.log

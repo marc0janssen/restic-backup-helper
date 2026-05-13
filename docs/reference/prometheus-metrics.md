@@ -16,18 +16,21 @@ partial document.
 ${METRICS_DIR}/
 ├── restic_backup.prom
 ├── restic_check.prom
+├── restic_forget.prom            # only when FORGET_CRON is set
 ├── restic_prune.prom
 ├── restic_replicate.prom
 ├── restic_restore.prom
 ├── restic_snapshot_export.prom
 ├── restic_forget_preview.prom
-└── restic_mount_snapshot.prom
+├── restic_mount_snapshot.prom
+└── restic_unlock.prom              # only when /bin/unlock has been run
 ```
 
 ## Always-emitted gauges
 
-For each `<job>` ∈ `backup`, `check`, `prune`, `replicate`, `restore`,
-`snapshot_export`, `forget_preview`, `mount_snapshot`:
+For each `<job>` ∈ `backup`, `check`, `forget`, `prune`, `replicate`,
+`restore`, `snapshot_export`, `forget_preview`, `mount_snapshot`,
+`unlock`:
 
 | Metric | Type | Description |
 | --- | --- | --- |
@@ -58,6 +61,8 @@ skipped to keep the textfile strictly typed for Prometheus.
 | `backup` | `restic_backup_last_dirs_unmodified` | `dirs_unmodified` |
 | `backup` | `restic_backup_last_bytes_added` | `bytes_added` (when numeric) |
 | `backup` | `restic_backup_last_bytes_stored` | `bytes_stored` (when numeric) |
+| `backup` | `restic_backup_last_forget_exit_code` | `forget_exit_code` — inline forget result (`0` ok, `11` skipped because another host held the exclusive lock, other = restic failure). Only emitted when an inline forget actually ran (i.e. `RESTIC_FORGET_ARGS` set **and** `FORGET_CRON` empty). |
+| `forget` | `restic_forget_last_exit_code` | Top-level `exit_code` of the dedicated worker (`0`, `2` for empty policy, `11` for multi-host lock race, other = restic failure). Same alerting target as `restic_backup_last_forget_exit_code` for deployments that opted into `FORGET_CRON`. |
 | `replicate` | `restic_replicate_last_replicate_jobs_processed` | `replicate_jobs_processed` |
 | `replicate` | `restic_replicate_last_replicate_jobs_failed` | `replicate_jobs_failed` |
 | `restore`, `snapshot_export` | `restic_<job>_last_files_restored` | `files_restored` |

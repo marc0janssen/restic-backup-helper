@@ -66,7 +66,7 @@ services:
       RESTIC_TAG: documents
       BACKUP_CRON: "0 2 * * *"
       BACKUP_ROOT_DIR: /data
-      RESTIC_FORGET_ARGS: "--keep-daily 14 --keep-weekly 8 --keep-monthly 12"
+      RESTIC_FORGET_ARGS: "--retry-lock=5m --keep-daily 14 --keep-weekly 8 --keep-monthly 12"
       CHECK_CRON: "37 3 * * 0"       # only this container runs the check
       PRUNE_CRON: "0 4 * * 0"        # only this container runs the prune
     volumes:
@@ -85,7 +85,7 @@ services:
       RESTIC_TAG: media
       BACKUP_CRON: "0 3 * * *"
       BACKUP_ROOT_DIR: /data
-      RESTIC_FORGET_ARGS: "--keep-weekly 12 --keep-monthly 24"
+      RESTIC_FORGET_ARGS: "--retry-lock=5m --keep-weekly 12 --keep-monthly 24"
     volumes:
       - ./config:/config:ro
       - ./config/msmtprc:/etc/msmtprc:ro
@@ -102,7 +102,7 @@ services:
       RESTIC_TAG: vmstore
       BACKUP_CRON: "0 5 * * *"
       BACKUP_ROOT_DIR: /data
-      RESTIC_FORGET_ARGS: "--keep-daily 3 --keep-weekly 4"
+      RESTIC_FORGET_ARGS: "--retry-lock=5m --keep-daily 3 --keep-weekly 4"
       RESTIC_JOB_ARGS: "--one-file-system"
     volumes:
       - ./config:/config:ro
