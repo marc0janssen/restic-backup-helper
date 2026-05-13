@@ -8,13 +8,19 @@ the same document.
 Files are written via `*.tmp` + `mv` so a node-exporter / log forwarder
 scrape never sees a partial document.
 
+Read-only diagnostics commands may also emit one-shot JSON on stdout.
+Those documents are not written back to `/var/log`: `/bin/status --json`
+uses schema `restic-backup-helper.status/1`, `/bin/doctor --json` uses
+`restic-backup-helper.doctor/1`, and `config-check --json` uses
+`restic-backup-helper.config-check/1`.
+
 ## Common fields (every worker)
 
 | Field | Type | Description |
 | --- | --- | --- |
 | `job` | string | One of `backup`, `check`, `prune`, `forget`, `replicate`, `restore`, `snapshot-export`, `forget-preview`, `mount-snapshot`, `unlock`, `sources-report`, `init-repo`, `notify-test`, `restore-test`. |
 | `hostname` | string | Container hostname. Set explicitly in Compose / Kubernetes for stable labels. |
-| `release` | string | `${VERSION}-${restic_base}` baked at build time, e.g. `2.13.0-0.18.1`. |
+| `release` | string | `${VERSION}-${restic_base}` baked at build time, e.g. `2.14.0-0.18.1`. |
 | `started_at` | string | ISO 8601 in container `TZ`. |
 | `finished_at` | string | ISO 8601 in container `TZ`. |
 | `started_epoch` | integer | Unix epoch seconds at start. |
@@ -50,7 +56,7 @@ common fields and `exit_code`.
 {
   "job": "backup",
   "hostname": "backup-node",
-  "release": "2.13.0-0.18.1",
+  "release": "2.14.0-0.18.1",
   "started_at": "2026-05-11T02:00:00+0200",
   "finished_at": "2026-05-11T02:05:12+0200",
   "started_epoch": 1762828800,
@@ -126,7 +132,7 @@ snapshots.
 {
   "job": "replicate",
   "hostname": "backup-node",
-  "release": "2.13.0-0.18.1",
+  "release": "2.14.0-0.18.1",
   "started_at": "2026-05-11T09:00:00+0200",
   "finished_at": "2026-05-11T09:11:23+0200",
   "duration_seconds": 683,
@@ -171,7 +177,7 @@ Exit codes:
 {
   "job": "snapshot-export",
   "hostname": "backup-node",
-  "release": "2.13.0-0.18.1",
+  "release": "2.14.0-0.18.1",
   "started_at": "2026-05-11T15:30:00+0200",
   "finished_at": "2026-05-11T15:31:12+0200",
   "duration_seconds": 72,
@@ -211,7 +217,7 @@ browsing this can be minutes-to-hours.
 {
   "job": "mount-snapshot",
   "hostname": "backup-node",
-  "release": "2.13.0-0.18.1",
+  "release": "2.14.0-0.18.1",
   "started_at": "2026-05-12T17:00:00+0200",
   "finished_at": "2026-05-12T17:12:31+0200",
   "duration_seconds": 751,
@@ -242,7 +248,7 @@ emits the common fields plus:
 {
   "job": "unlock",
   "hostname": "backup-node",
-  "release": "2.13.0-0.18.1",
+  "release": "2.14.0-0.18.1",
   "started_at": "2026-05-13T13:25:00+0200",
   "finished_at": "2026-05-13T13:25:01+0200",
   "duration_seconds": 1,
@@ -283,7 +289,7 @@ with per-source / per-files-from / per-exclude-file detail:
 {
   "job": "sources-report",
   "hostname": "backup-node",
-  "release": "2.13.0-0.18.1",
+  "release": "2.14.0-0.18.1",
   "started_at": "2026-05-13T15:30:00+0200",
   "finished_at": "2026-05-13T15:30:08+0200",
   "duration_seconds": 8,
@@ -332,7 +338,7 @@ common fields plus:
 {
   "job": "init-repo",
   "hostname": "backup-node",
-  "release": "2.13.0-0.18.1",
+  "release": "2.14.0-0.18.1",
   "started_at": "2026-05-13T16:30:00+0200",
   "finished_at": "2026-05-13T16:30:02+0200",
   "duration_seconds": 2,
@@ -419,6 +425,28 @@ docker exec restic-backup-helper cat /var/log/last-backup.json | jq '.duration_s
 ```
 
 The file is also POSTed to `WEBHOOK_URL` when set — see [Webhooks](../configuration/webhooks.md).
+
+## Command JSON
+
+`/bin/status --json` is deliberately a **stdout-only** summary and does
+not create `/var/log/last-status.json`. It reads the files documented
+above, the rendered crontab (or env preview) and release metadata, then
+emits schema `restic-backup-helper.status/1`:
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `schema` | string | Constant `restic-backup-helper.status/1`. |
+| `command` | string | Constant `status`. |
+| `verdict` | string | `OK`, `WARN`, `FAIL`. |
+| `warnings` / `failures` / `exit_code` | integer | Compact health outcome. |
+| `runtime` | object | `tz` and masked `repository`. |
+| `crontab` | object | `source`, `path`, `line_count`. |
+| `schedules[]` | array | Enabled / disabled cron rows. |
+| `jobs[]` | array | Core job health (`backup`, `check`, `forget`, `prune`, `replicate`). |
+| `recent_json[]` | array | Known `last-*.json` files with presence, exit and age. |
+| `findings[]` | array | `{level, message}` warnings / failures. |
+
+See [Status / health summary](../operations/status.md) for full rules.
 
 ## Stability promise
 

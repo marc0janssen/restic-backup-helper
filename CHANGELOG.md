@@ -2,6 +2,75 @@
 
 ## Restic Backup Helper
 
+### 2.14.0-0.18.1 (2026-05-13)
+
+This release adds **`/bin/status`** (alias **`/bin/health-summary`**),
+a fast daily operator summary that answers "is this container broadly
+healthy?" without the depth or cost of `/bin/doctor`. It reads only
+local state: release metadata, the rendered crontab (or environment
+preview), known `/var/log/last-*.json` files and the ages / exit codes
+for scheduled core jobs.
+
+#### Added
+
+- **`/bin/status` / `/bin/health-summary`: local-state health summary.**
+  - Prints release, hostname, current time, masked repository,
+    warnings/failures, schedule state and the latest core-job ages.
+  - Reads `/var/log/last-*.json`, `/var/spool/cron/crontabs/root`
+    (falling back to an env-derived cron preview), `RESTIC_*` release
+    metadata and schedule env vars. It deliberately never runs
+    `restic`, `rclone`, hooks, mail, webhooks or a repository probe.
+  - Health rules are intentionally operator-friendly:
+    - `OK`: all enabled core jobs have a successful recent JSON summary.
+    - `WARN`: an enabled core job is missing a `last-*.json`, looks
+      stale for a simple cron expression, or a non-scheduled helper JSON
+      reports a non-zero exit.
+    - `FAIL`: an enabled core job (`backup`, `check`, `forget`, `prune`,
+      `replicate`) has a non-zero last exit code.
+  - Staleness is applied only to simple cron expressions
+    (`*/N * * * *`, `M */N * * *`, daily, weekly-ish and monthly-ish)
+    with a threshold of three expected intervals plus ten minutes.
+    Custom expressions still show age but do not trigger stale warnings.
+  - Supports `--json` / `-j` with schema
+    `restic-backup-helper.status/1`. The JSON includes `verdict`,
+    `warnings`, `failures`, `runtime`, `crontab`, `schedules[]`,
+    `jobs[]`, `recent_json[]` and compact `findings[]`. It is
+    stdout-only and does **not** create `/var/log/last-status.json`, so
+    asking for status does not mutate the local run history.
+  - Exit code is `0` for `OK` / `WARN`, `1` for `FAIL`, and `2` for bad
+    CLI usage.
+- **Smoke-test coverage for `/bin/status`.**
+  `scripts/ci-smoke-test.sh` now runs both text mode and the
+  `/bin/health-summary --json` alias, asserting schema
+  `restic-backup-helper.status/1`, `command == "status"`,
+  `exit_code == 0`, `verdict in ("OK", "WARN")`, required typed
+  sections, a present successful backup row, non-empty crontab and the
+  expected 14 `recent_json[]` entries.
+
+#### Changed
+
+- **Entrypoint and image wiring.** `Dockerfile` copies
+  `app/status.sh` to `/bin/status`, creates `/bin/health-summary` as a
+  symlink alias and marks the helper executable. `/entry.sh` accepts
+  `status`, `/bin/status`, `health-summary` and `/bin/health-summary`
+  as one-shot subcommands.
+- **Documentation.**
+  - New **Operations → Status / health summary** page with health rules,
+    examples, JSON schema and exit-code contract.
+  - **Operations → Diagnostics** now positions `status` as the fast daily
+    view, with `doctor` remaining the deeper support bundle and
+    `cron-list` the schedule explanation.
+  - **Reference → JSON summaries** documents `status --json` as a
+    stdout-only command schema (not a new `last-*.json` file).
+  - README / Docker Hub summary mention `/bin/status` and the
+    `/bin/health-summary` alias.
+
+#### Versioning
+
+- This is a **MINOR** bump (2.13.0 → 2.14.0) because it adds a new
+  operator-facing command, an entrypoint alias and a new machine-readable
+  JSON schema. No existing contract is renamed or removed.
+
 ### 2.13.0-0.18.1 (2026-05-13)
 
 This release adds **`/bin/restore-test`**, an explicit disaster-recovery

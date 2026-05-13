@@ -142,7 +142,7 @@ Example (canary success):
 {
   "job": "restore-test",
   "hostname": "backup-node",
-  "release": "2.13.0-0.18.1",
+  "release": "2.14.0-0.18.1",
   "started_at": "2026-05-13T22:55:00+0200",
   "finished_at": "2026-05-13T22:55:04+0200",
   "duration_seconds": 4,

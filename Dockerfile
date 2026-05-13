@@ -162,6 +162,11 @@ COPY /app/restore.sh /bin/restore
 # pre-/post-restore-test hooks). Complements `restic check` (repo health)
 # by proving the bytes can actually come back.
 COPY /app/restore_test.sh /bin/restore-test
+# Fast daily operator summary: reads only local state (last-*.json, rendered
+# crontab/env cron preview, release metadata) and prints a compact
+# OK/WARN/FAIL verdict. No restic/rclone calls; /bin/doctor remains the
+# deeper diagnostics command. /bin/health-summary is a symlink alias.
+COPY /app/status.sh /bin/status
 # Lock-aware cron wrapper used by /entry.sh to log "skipped: previous run
 # still active" instead of leaving cron with an opaque flock exit code.
 COPY /app/locked_run.sh /bin/locked_run
@@ -172,8 +177,9 @@ ARG RESTIC_BACKUP_HELPER_RELEASE=unknown
 LABEL org.opencontainers.image.title="restic-backup-helper" \
 	org.opencontainers.image.version="${RESTIC_BACKUP_HELPER_RELEASE}"
 ENV RESTIC_BACKUP_HELPER_RELEASE=${RESTIC_BACKUP_HELPER_RELEASE}
-RUN chmod 755 /entry.sh /bin/backup /bin/check /bin/replicate /bin/rotate_log /bin/prune /bin/forget /bin/doctor /bin/cron-list /bin/snapshot-export /bin/forget-preview /bin/mount-snapshot /bin/unlock /bin/sources-report /bin/init-repo /bin/notify-test /bin/restore /bin/restore-test /bin/locked_run \
-	&& ln -s replicate /bin/bisync
+RUN chmod 755 /entry.sh /bin/backup /bin/check /bin/replicate /bin/rotate_log /bin/prune /bin/forget /bin/doctor /bin/cron-list /bin/snapshot-export /bin/forget-preview /bin/mount-snapshot /bin/unlock /bin/sources-report /bin/init-repo /bin/notify-test /bin/restore /bin/restore-test /bin/status /bin/locked_run \
+	&& ln -s replicate /bin/bisync \
+	&& ln -s status /bin/health-summary
 
 # set sendmail-path
 RUN rm -rf /usr/sbin/sendmail && ln -s /usr/bin/msmtp /usr/sbin/sendmail

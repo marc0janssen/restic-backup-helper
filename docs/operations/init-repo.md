@@ -195,7 +195,7 @@ In addition to the common fields (`job`, `hostname`, `release`,
 {
   "job": "init-repo",
   "hostname": "backup-node",
-  "release": "2.13.0-0.18.1",
+  "release": "2.14.0-0.18.1",
   "started_at": "2026-05-13T16:30:00+0200",
   "finished_at": "2026-05-13T16:30:02+0200",
   "duration_seconds": 2,

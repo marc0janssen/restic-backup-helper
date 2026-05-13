@@ -128,6 +128,27 @@ print("[smoke] config-check --json ok: checks={} warnings={}".format(len(d["chec
 	log_info "Running cron-list (rendered crontab inside long-running container)"
 	docker compose -f ci/docker-compose.smoke.yml exec -T "${service}" /bin/cron-list
 
+	log_info "Running status / health-summary (local-state operator summary)"
+	docker compose -f ci/docker-compose.smoke.yml exec -T "${service}" /bin/status
+	docker compose -f ci/docker-compose.smoke.yml exec -T "${service}" /bin/health-summary --json |
+		python3 -c '
+import json, sys
+d = json.load(sys.stdin)
+assert d["schema"] == "restic-backup-helper.status/1", d
+assert d["command"] == "status", d
+assert d["exit_code"] == 0, d
+assert d["verdict"] in ("OK", "WARN"), d
+for section in ("runtime", "crontab", "schedules", "jobs", "recent_json", "findings"):
+    assert section in d, section
+jobs = {j["job"]: j for j in d["jobs"]}
+assert jobs["backup"]["status"] == "ok", jobs["backup"]
+assert jobs["backup"]["present"] is True, jobs["backup"]
+assert d["crontab"]["line_count"] >= 1, d["crontab"]
+assert len(d["recent_json"]) == 14, d["recent_json"]
+print("[smoke] status --json ok: verdict={} warnings={} failures={}".format(
+    d["verdict"], d["warnings"], d["failures"]))
+'
+
 	log_info "Running doctor --json (schema + sections + repository_probe ok)"
 	docker compose -f ci/docker-compose.smoke.yml exec -T "${service}" /bin/doctor --json |
 		python3 -c '
@@ -332,7 +353,7 @@ print("[smoke] RESTIC_REPOSITORY_FILE resolution ok: {}".format(repo_checks[0]["
 	docker compose -f ci/docker-compose.smoke.yml exec -T "${service}" \
 		sh -c 'ls /var/log/cron_log_*.tar.gz >/dev/null'
 
-	log_info "Smoke test passed (backup, check, replicate, rotate_log, hooks, forget policy, cron-list, sources-report, forget-preview, init-repo --dry-run, notify-test --dry-run, restore --dry-run, snapshot-export --dry-run, config-check --json, doctor --json, RESTIC_REPOSITORY_FILE precedence)"
+	log_info "Smoke test passed (backup, check, replicate, rotate_log, hooks, forget policy, cron-list, status --json, sources-report, forget-preview, init-repo --dry-run, notify-test --dry-run, restore --dry-run, snapshot-export --dry-run, config-check --json, doctor --json, RESTIC_REPOSITORY_FILE precedence)"
 }
 
 main "$@"

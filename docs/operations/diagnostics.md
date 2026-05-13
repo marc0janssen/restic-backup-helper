@@ -1,6 +1,12 @@
-# Diagnostics (doctor and cron-list)
+# Diagnostics (status, doctor and cron-list)
 
-`/bin/doctor` is a read-only support command for "what is wrong with
+`/bin/status` is the quick daily operator command for "is this container
+broadly healthy?" moments. It reads only local state (`last-*.json`,
+the rendered crontab or env preview, release metadata and cron settings)
+and returns a compact `OK` / `WARN` / `FAIL` summary without touching
+the repository.
+
+`/bin/doctor` is the deeper read-only support command for "what is wrong with
 this container?" moments. It does not run `restic init`, `restic
 unlock`, backups, restores, replicate jobs, hooks, mail or webhooks. It
 only inspects the current environment and mounted files, then exits
@@ -75,6 +81,18 @@ flowchart LR
 
 ## Quick start
 
+For the daily health summary:
+
+```shell
+docker exec -ti restic-backup-helper /bin/status
+docker exec restic-backup-helper /bin/status --json | jq '.verdict, .findings'
+docker exec -ti restic-backup-helper /bin/health-summary
+```
+
+`/bin/health-summary` is a symlink alias for `/bin/status`.
+
+For deeper diagnostics:
+
 ```shell
 docker exec -ti restic-backup-helper /bin/doctor
 ```
@@ -90,8 +108,8 @@ docker run --rm \
   doctor
 ```
 
-The `doctor` entrypoint subcommand short-circuits cron startup and
-exec's `/bin/doctor` directly.
+The `status`, `health-summary` and `doctor` entrypoint subcommands
+short-circuit cron startup and exec the matching helper directly.
 
 For cron schedules:
 
@@ -116,11 +134,13 @@ as the entrypoint (`BACKUP_CRON`, `CHECK_CRON`, `REPLICATE_CRON`,
 
 ## Machine-readable output (`--json`)
 
-Both `/bin/doctor` and `config-check` accept `--json` (alias `-j`) and
-emit a single JSON document on **stdout** in addition to the usual
-text mode. The exit code is identical: `0` when no errors were
-recorded, `1` otherwise. The text-mode banners/error lines are
-suppressed in JSON mode so consumers see only the JSON envelope.
+`/bin/status`, `/bin/doctor` and `config-check` accept `--json` (alias
+`-j`) and emit a single JSON document on **stdout** in addition to the
+usual text mode. The text-mode banners/error lines are suppressed in
+JSON mode so consumers see only the JSON envelope. `doctor` and
+`config-check` exit `1` when hard errors are recorded; `status` exits
+`1` only on `FAIL` (a scheduled core job's last run failed), while a
+`WARN` verdict remains exit `0` for daily operator use.
 
 This is the same JSON philosophy as the per-worker `last-*.json` files
 and the `restic_*.prom` textfile collector — CI / Kubernetes / external
@@ -128,6 +148,7 @@ monitoring should not have to regex-parse text lines.
 
 ```shell
 docker exec restic-backup-helper doctor --json | jq '.checks[] | select(.status=="fail")'
+docker exec restic-backup-helper status --json | jq '.verdict, .findings'
 docker exec restic-backup-helper config-check --json | jq -r '.errors, .warnings'
 
 # As a one-shot in CI / preflight init container:
@@ -137,6 +158,32 @@ docker run --rm --env-file restic.env \
   marc0janssen/restic-backup-helper:latest \
   config-check --json
 ```
+
+### `status --json`
+
+Schema `restic-backup-helper.status/1`. This is the lightweight daily
+health summary: local state only, no repository probe and no restic /
+rclone execution.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `schema` | string | Constant `restic-backup-helper.status/1`. |
+| `command` | string | Constant `status`. |
+| `release` | string | `${VERSION}-${restic_base}` baked at build time. |
+| `hostname` | string | Container hostname. |
+| `generated_at` / `generated_epoch` | string / integer | Generation time. |
+| `verdict` | string | `OK`, `WARN` or `FAIL`. |
+| `warnings` / `failures` | integer | Finding counts. |
+| `exit_code` | integer | `0` for `OK` / `WARN`, `1` for `FAIL`. |
+| `runtime` | object | `tz` and masked `repository`. |
+| `crontab` | object | `source`, `path`, `line_count`. |
+| `schedules` | array | Known schedule rows. |
+| `jobs` | array | Core job status rows for `backup`, `check`, `forget`, `prune`, `replicate`. |
+| `recent_json` | array | Known `/var/log/last-*.json` files with presence, exit code and age. |
+| `findings` | array | Compact `{level, message}` list. |
+
+See [Status / health summary](status.md) for the exact health rules and
+staleness heuristic.
 
 ### `config-check --json`
 
@@ -160,7 +207,7 @@ intended for init-container readiness probes and CI gates.
 {
   "schema": "restic-backup-helper.config-check/1",
   "command": "config-check",
-  "release": "2.13.0-0.18.1",
+  "release": "2.14.0-0.18.1",
   "hostname": "backup-node",
   "generated_at": "2026-05-13T22:07:08+0200",
   "generated_epoch": 1747166828,
@@ -203,7 +250,7 @@ findings.
 {
   "schema": "restic-backup-helper.doctor/1",
   "command": "doctor",
-  "release": "2.13.0-0.18.1",
+  "release": "2.14.0-0.18.1",
   "hostname": "backup-node",
   "generated_at": "2026-05-13T22:07:08+0200",
   "generated_epoch": 1747166828,
@@ -312,7 +359,7 @@ secrets into them — use a `RESTIC_PASSWORD_FILE` and
 
 ```text
 == Runtime ==
-release:            2.13.0-0.18.1
+release:            2.14.0-0.18.1
 hostname:           backup-node
 date:               2026-05-11 Mon 21:13:42 +0200
 timezone:           Europe/Amsterdam
@@ -385,7 +432,7 @@ hooks/post-restore-test.sh: not found
 
 == Recent JSON summaries ==
 last-backup.json:
-{"job":"backup","hostname":"backup-node","release":"2.13.0-0.18.1","started_at":"2026-05-11T02:00:00+0200","finished_at":"2026-05-11T02:05:12+0200","duration_seconds":312,"exit_code":0,"repository":"rclone:jottacloud:backups","backup_root_dir":"","restic_tag":"backup-node-data","snapshot_id":"a1b2c3d4","files_new":12,"files_changed":4,"files_unmodified":21034,"bytes_added":"1.234 MiB"}
+{"job":"backup","hostname":"backup-node","release":"2.14.0-0.18.1","started_at":"2026-05-11T02:00:00+0200","finished_at":"2026-05-11T02:05:12+0200","duration_seconds":312,"exit_code":0,"repository":"rclone:jottacloud:backups","backup_root_dir":"","restic_tag":"backup-node-data","snapshot_id":"a1b2c3d4","files_new":12,"files_changed":4,"files_unmodified":21034,"bytes_added":"1.234 MiB"}
 ...
 
 == Recent cron log ==

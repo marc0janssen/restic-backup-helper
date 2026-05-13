@@ -5,7 +5,7 @@
 [![Security Scan](https://github.com/marc0janssen/restic-backup-helper/actions/workflows/security-scan.yml/badge.svg)](https://github.com/marc0janssen/restic-backup-helper/actions/workflows/security-scan.yml)
 [![Docs](https://github.com/marc0janssen/restic-backup-helper/actions/workflows/docs.yml/badge.svg)](https://github.com/marc0janssen/restic-backup-helper/actions/workflows/docs.yml)
 
-Scheduled [Restic](https://restic.net) backups, optional `restic check`, optional [Rclone](https://rclone.org) **replicate** jobs (`bisync` / `sync` / `copy`), cron automation, logs under `/var/log`, optional mail via **msmtp** + **mailx**. Includes read-only operator helpers such as `/bin/doctor`, `/bin/cron-list`, `/bin/sources-report`, `/bin/notify-test` and an audited `/bin/init-repo` bootstrap wrapper. Based on **`restic/restic`** Alpine.
+Scheduled [Restic](https://restic.net) backups, optional `restic check`, optional [Rclone](https://rclone.org) **replicate** jobs (`bisync` / `sync` / `copy`), cron automation, logs under `/var/log`, optional mail via **msmtp** + **mailx**. Includes read-only operator helpers such as `/bin/status` (`/bin/health-summary`), `/bin/doctor`, `/bin/cron-list`, `/bin/sources-report`, `/bin/notify-test` and an audited `/bin/init-repo` bootstrap wrapper. Based on **`restic/restic`** Alpine.
 
 **Documentation:** [marc0janssen.github.io/restic-backup-helper](https://marc0janssen.github.io/restic-backup-helper/) · **GitHub (full manual, Compose, hooks, env matrix):** [github.com/marc0janssen/restic-backup-helper](https://github.com/marc0janssen/restic-backup-helper)
 
@@ -13,24 +13,25 @@ Scheduled [Restic](https://restic.net) backups, optional `restic check`, optiona
 
 ## Release
 
-release: 2.13.0-0.18.1
+release: 2.14.0-0.18.1
 
 **Stable**
 
 ```shell
 docker pull marc0janssen/restic-backup-helper:latest
-docker pull marc0janssen/restic-backup-helper:2.13.0-0.18.1
+docker pull marc0janssen/restic-backup-helper:2.14.0-0.18.1
 ```
 
 **Development (experimental)**
 
 ```shell
 docker pull marc0janssen/restic-backup-helper:develop
-docker pull marc0janssen/restic-backup-helper:2.13.0-0.18.1-dev
+docker pull marc0janssen/restic-backup-helper:2.14.0-0.18.1-dev
 ```
 
 > **Upgrading?**
 >
+> - **2.13.0 → 2.14.0:** purely additive. New `/bin/status` helper (alias `/bin/health-summary`) gives a fast local OK/WARN/FAIL summary from release metadata, rendered crontab (or env preview), recent `/var/log/last-*.json` files and backup/check/forget/prune/replicate ages + exit codes. It deliberately does not run `restic`, `rclone`, hooks, mail, webhooks or a repository probe; use `/bin/doctor` for deeper diagnostics. `--json` emits stdout-only schema `restic-backup-helper.status/1` and does not write `/var/log/last-status.json`. No new environment variables.
 > - **2.10.1 → 2.11.0:** purely additive. `RESTIC_REPOSITORY_FILE` is now first-class. The entrypoint reads the first non-blank, non-comment line of the file and promotes it into `RESTIC_REPOSITORY` before the banner, the repository probe, the cron-driven workers and restic itself see the env, then unsets `RESTIC_REPOSITORY_FILE` so restic never fails with `Options --repo and --repository-file are mutually exclusive` (the image bakes a `RESTIC_REPOSITORY=/mnt/restic` default in `Dockerfile`, so the two would otherwise both be set). The "Assuming repository '…' is online" banner now shows the masked resolved URL, and `config-check` / `/bin/doctor` surface clear errors when the file is unreadable or empty/comments-only. No behaviour change when `RESTIC_REPOSITORY_FILE` is unset.
 > - **2.10.0 → 2.10.1:** patch release. Prometheus textfile metrics now escape the `hostname` label and emit the documented `restic_<job>_last_started_timestamp` gauge, the webhook helper contract is documented accurately, and docs clarify that `RESTIC_*_ARGS` / `REPLICATE_*_ARGS` values are whitespace-split strings rather than full shell syntax. Keep paths/values free of spaces, or use file-based inputs such as `--files-from`, `--exclude-file` and rclone config files.
 > - **2.9.0 → 2.10.0:** purely additive. New `/bin/notify-test` helper sends clearly-labelled test mail and/or webhook notifications through the same `notify_mail` / `notify_webhook` helpers used by real jobs, so operators can validate `msmtprc`, `MAILX_RCPT`, `WEBHOOK_URL`, `WEBHOOK_HEADER_AUTH` and `WEBHOOK_TIMEOUT` before waiting for a real failure. Default mode sends to every configured target; `--mail`, `--webhook` and `--all` select target scope; `--dry-run` prints what would be sent without invoking `mail` or `curl`; `--subject` / `--message` label the test. Unlike real workers, delivery failures affect the helper exit code (`1`) so CI can catch notification drift. Writes `/var/log/last-notify-test.json`, `restic_notify_test.prom`, and runs `pre-notify-test` / `post-notify-test` hooks. No new environment variables.
@@ -60,7 +61,7 @@ docker pull marc0janssen/restic-backup-helper:2.13.0-0.18.1-dev
 | Tag | Meaning |
 | --- | --- |
 | `latest` | Current stable |
-| `<semver>-<restic>` | Pinned stable (helper version + Restic base), e.g. `2.13.0-0.18.1` |
+| `<semver>-<restic>` | Pinned stable (helper version + Restic base), e.g. `2.14.0-0.18.1` |
 | `develop` | Latest testing build |
 | `<semver>-<restic>-dev` | Pinned testing image |
 
@@ -78,6 +79,7 @@ Full documentation: <https://marc0janssen.github.io/restic-backup-helper/>
 | **Replicate** | `REPLICATE_CRON` (if set) → `/bin/replicate` reading `REPLICATE_JOB_FILE` |
 | **Log rotate** | `ROTATE_LOG_CRON` → `/bin/rotate_log` for `cron.log` |
 | **Config check** | One-shot `docker run … config-check` (same env as prod) validates settings without cron |
+| **Status** | `/bin/status` / `/bin/health-summary` gives a fast local OK/WARN/FAIL summary from `last-*.json`, crontab and release metadata |
 | **Doctor** | One-shot `/bin/doctor` or `docker run … doctor` read-only diagnostics for support/triage |
 | **Cron list** | `/bin/cron-list` or `docker run … cron-list` prints timezone, rendered crontab and schedule summary |
 | **Snapshot export** | One-shot `/bin/snapshot-export` or `docker run … snapshot-export` archives a selected snapshot/subtree as `.tar.gz` |

@@ -9,7 +9,7 @@
 set -Eeuo pipefail
 
 # Source shared helpers before the dispatch case below so every entrypoint
-# path (config-check, doctor, cron-list, sources-report, init-repo,
+# path (config-check, doctor, cron-list, status, sources-report, init-repo,
 # notify-test, restore-test and the normal cron flow) observes the same
 # masked-repository / RESTIC_REPOSITORY_FILE-resolution semantics. lib.sh runs
 # resolve_restic_repository_file at the bottom of the file, so by the time
@@ -182,6 +182,10 @@ if [ "${1:-}" = "doctor" ] || [ "${1:-}" = "/bin/doctor" ]; then
 fi
 if [ "${1:-}" = "cron-list" ] || [ "${1:-}" = "/bin/cron-list" ]; then
 	exec /bin/cron-list
+fi
+if [ "${1:-}" = "status" ] || [ "${1:-}" = "/bin/status" ] || [ "${1:-}" = "health-summary" ] || [ "${1:-}" = "/bin/health-summary" ]; then
+	shift
+	exec /bin/status "$@"
 fi
 if [ "${1:-}" = "snapshot-export" ] || [ "${1:-}" = "/bin/snapshot-export" ]; then
 	shift

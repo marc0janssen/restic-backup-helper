@@ -13,20 +13,20 @@ running pre-release builds in production.
 
 ## Pinning a specific version
 
-Tags follow the schema `<helper-semver>-<restic-version>`, e.g. `2.13.0-0.18.1`,
+Tags follow the schema `<helper-semver>-<restic-version>`, e.g. `2.14.0-0.18.1`,
 so you can pin **both** the helper logic and the Restic base image in lockstep.
-Testing builds add a `-dev` suffix, e.g. `2.13.0-0.18.1-dev`.
+Testing builds add a `-dev` suffix, e.g. `2.14.0-0.18.1-dev`.
 
 === "Stable"
 
     ```shell
-    docker pull marc0janssen/restic-backup-helper:2.13.0-0.18.1
+    docker pull marc0janssen/restic-backup-helper:2.14.0-0.18.1
     ```
 
 === "Testing"
 
     ```shell
-    docker pull marc0janssen/restic-backup-helper:2.13.0-0.18.1-dev
+    docker pull marc0janssen/restic-backup-helper:2.14.0-0.18.1-dev
     ```
 
 !!! tip "Why pin?"
