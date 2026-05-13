@@ -43,14 +43,15 @@ ${METRICS_DIR}/
 ├── restic_unlock.prom               # only when /bin/unlock has been run
 ├── restic_sources_report.prom       # only when /bin/sources-report has been run
 ├── restic_init_repo.prom            # only when /bin/init-repo has been run
-└── restic_notify_test.prom          # only when /bin/notify-test has been run
+├── restic_notify_test.prom          # only when /bin/notify-test has been run
+└── restic_restore_test.prom         # only when /bin/restore-test has been run
 ```
 
 ## Always-emitted gauges
 
 Per worker `<job>` ∈ `backup`, `check`, `forget`, `prune`, `replicate`,
 `restore`, `snapshot_export`, `forget_preview`, `mount_snapshot`,
-`unlock`, `sources_report`, `init_repo`, `notify_test`:
+`unlock`, `sources_report`, `init_repo`, `notify_test`, `restore_test`:
 
 | Metric | Meaning |
 | --- | --- |

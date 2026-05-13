@@ -332,6 +332,7 @@ report_hooks() {
 		pre-sources-report post-sources-report
 		pre-init-repo post-init-repo
 		pre-notify-test post-notify-test
+		pre-restore-test post-restore-test
 	)
 	local phase hook found
 	found=0
@@ -377,6 +378,7 @@ report_last_json() {
 		/var/log/last-sources-report.json
 		/var/log/last-init-repo.json
 		/var/log/last-notify-test.json
+		/var/log/last-restore-test.json
 	)
 
 	for file in "${files[@]}"; do

@@ -10,8 +10,8 @@ set -Eeuo pipefail
 
 # Source shared helpers before the dispatch case below so every entrypoint
 # path (config-check, doctor, cron-list, sources-report, init-repo,
-# notify-test and the normal cron flow) observes the same masked-repository /
-# RESTIC_REPOSITORY_FILE-resolution semantics. lib.sh runs
+# notify-test, restore-test and the normal cron flow) observes the same
+# masked-repository / RESTIC_REPOSITORY_FILE-resolution semantics. lib.sh runs
 # resolve_restic_repository_file at the bottom of the file, so by the time
 # any subcommand runs, RESTIC_REPOSITORY already reflects the value from
 # RESTIC_REPOSITORY_FILE (when configured).
@@ -210,6 +210,10 @@ fi
 if [ "${1:-}" = "notify-test" ] || [ "${1:-}" = "/bin/notify-test" ]; then
 	shift
 	exec /bin/notify-test "$@"
+fi
+if [ "${1:-}" = "restore-test" ] || [ "${1:-}" = "/bin/restore-test" ]; then
+	shift
+	exec /bin/restore-test "$@"
 fi
 
 if [ -n "${RESTIC_REPOSITORY:-}" ]; then

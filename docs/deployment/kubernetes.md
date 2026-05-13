@@ -73,7 +73,7 @@ spec:
       hostname: backup-node
       containers:
         - name: restic-backup-helper
-          image: marc0janssen/restic-backup-helper:2.12.1-0.18.1
+          image: marc0janssen/restic-backup-helper:2.13.0-0.18.1
           imagePullPolicy: IfNotPresent
           env:
             - name: RESTIC_REPOSITORY

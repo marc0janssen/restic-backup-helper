@@ -167,6 +167,7 @@ nav:
       - Sources report: operations/sources-report.md
       - Init repo: operations/init-repo.md
       - Notify test: operations/notify-test.md
+      - Restore test (DR rehearsal): operations/restore-test.md
       - Diagnostics (doctor): operations/diagnostics.md
       - Troubleshooting: operations/troubleshooting.md
   - Deployment:

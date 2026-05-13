@@ -12,9 +12,9 @@ scrape never sees a partial document.
 
 | Field | Type | Description |
 | --- | --- | --- |
-| `job` | string | One of `backup`, `check`, `prune`, `forget`, `replicate`, `restore`, `snapshot-export`, `forget-preview`, `mount-snapshot`, `unlock`, `sources-report`, `init-repo`, `notify-test`. |
+| `job` | string | One of `backup`, `check`, `prune`, `forget`, `replicate`, `restore`, `snapshot-export`, `forget-preview`, `mount-snapshot`, `unlock`, `sources-report`, `init-repo`, `notify-test`, `restore-test`. |
 | `hostname` | string | Container hostname. Set explicitly in Compose / Kubernetes for stable labels. |
-| `release` | string | `${VERSION}-${restic_base}` baked at build time, e.g. `2.12.1-0.18.1`. |
+| `release` | string | `${VERSION}-${restic_base}` baked at build time, e.g. `2.13.0-0.18.1`. |
 | `started_at` | string | ISO 8601 in container `TZ`. |
 | `finished_at` | string | ISO 8601 in container `TZ`. |
 | `started_epoch` | integer | Unix epoch seconds at start. |
@@ -50,7 +50,7 @@ common fields and `exit_code`.
 {
   "job": "backup",
   "hostname": "backup-node",
-  "release": "2.12.1-0.18.1",
+  "release": "2.13.0-0.18.1",
   "started_at": "2026-05-11T02:00:00+0200",
   "finished_at": "2026-05-11T02:05:12+0200",
   "started_epoch": 1762828800,
@@ -126,7 +126,7 @@ snapshots.
 {
   "job": "replicate",
   "hostname": "backup-node",
-  "release": "2.12.1-0.18.1",
+  "release": "2.13.0-0.18.1",
   "started_at": "2026-05-11T09:00:00+0200",
   "finished_at": "2026-05-11T09:11:23+0200",
   "duration_seconds": 683,
@@ -171,7 +171,7 @@ Exit codes:
 {
   "job": "snapshot-export",
   "hostname": "backup-node",
-  "release": "2.12.1-0.18.1",
+  "release": "2.13.0-0.18.1",
   "started_at": "2026-05-11T15:30:00+0200",
   "finished_at": "2026-05-11T15:31:12+0200",
   "duration_seconds": 72,
@@ -211,7 +211,7 @@ browsing this can be minutes-to-hours.
 {
   "job": "mount-snapshot",
   "hostname": "backup-node",
-  "release": "2.12.1-0.18.1",
+  "release": "2.13.0-0.18.1",
   "started_at": "2026-05-12T17:00:00+0200",
   "finished_at": "2026-05-12T17:12:31+0200",
   "duration_seconds": 751,
@@ -242,7 +242,7 @@ emits the common fields plus:
 {
   "job": "unlock",
   "hostname": "backup-node",
-  "release": "2.12.1-0.18.1",
+  "release": "2.13.0-0.18.1",
   "started_at": "2026-05-13T13:25:00+0200",
   "finished_at": "2026-05-13T13:25:01+0200",
   "duration_seconds": 1,
@@ -283,7 +283,7 @@ with per-source / per-files-from / per-exclude-file detail:
 {
   "job": "sources-report",
   "hostname": "backup-node",
-  "release": "2.12.1-0.18.1",
+  "release": "2.13.0-0.18.1",
   "started_at": "2026-05-13T15:30:00+0200",
   "finished_at": "2026-05-13T15:30:08+0200",
   "duration_seconds": 8,
@@ -332,7 +332,7 @@ common fields plus:
 {
   "job": "init-repo",
   "hostname": "backup-node",
-  "release": "2.12.1-0.18.1",
+  "release": "2.13.0-0.18.1",
   "started_at": "2026-05-13T16:30:00+0200",
   "finished_at": "2026-05-13T16:30:02+0200",
   "duration_seconds": 2,
@@ -379,6 +379,37 @@ emits the common fields plus:
 
 See [Notify test](../operations/notify-test.md) for target-selection
 rules and why delivery failures affect this helper's exit code.
+
+### `last-restore-test.json`
+
+`/bin/restore-test` (the disaster-recovery rehearsal) emits the common
+fields plus:
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `repository` | string | Masked repository URL. |
+| `snapshot` | string | Snapshot selector passed to restic (`latest` or short/long ID). |
+| `target` | string | Effective restore target. |
+| `target_autotmp` | string | `ON` when the target was an auto-mktemp tempdir, `OFF` for `--target`. |
+| `keep` | string | `ON` / `OFF`. |
+| `dry_run` | string | `ON` / `OFF`. |
+| `verify` | string | `ON` when restic was invoked with `--verify`. |
+| `min_files` | string | Effective `--min-files` floor. |
+| `min_files_met` | string | `"true"` / `"false"`. |
+| `files_restored` | string | Restored regular files counted on disk. |
+| `bytes_restored` | string | Restored bytes counted on disk. |
+| `verification` | string | `passed`, `failed`, `skipped`. |
+| `canary_total` | string | Total canary checks attempted. |
+| `canary_passed` / `canary_failed` | string | Per-canary outcome counts. |
+| `cleanup_status` | string | `cleaned`, `kept`, `cleanup-failed`, `absent`. |
+| `include_paths_count` | string | Number of `--path` filters used (0 = full snapshot). |
+| `tag_filter` / `host_filter` | string | Restic filters, when set. |
+| `restic_files_restored` / `restic_bytes_restored` / `restic_elapsed_human` | string | Parsed from restic's `Summary:` line. |
+| `include_zero_match` | string | `"true"` when `--path` matched zero files (exit `3`). |
+| `canary_results` | array | One object per canary with `path`, `expected_sha256`, `actual_sha256`, `status` (`passed`, `mismatch`, `missing`, `hash-failed`), `message`. |
+
+See [Restore test](../operations/restore-test.md) for the file-count
+floor, canary contract and the `cleanup_status` matrix.
 
 ## Reading the files
 

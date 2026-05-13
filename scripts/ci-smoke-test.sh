@@ -140,7 +140,7 @@ for section in ("runtime", "environment", "repository_probe", "replicate", "hook
     assert section in d, section
 assert d["repository_probe"]["status"] == "ok", d["repository_probe"]
 # Every known last-*.json is enumerated, even when missing.
-assert len(d["recent_json"]) == 13, d["recent_json"]
+assert len(d["recent_json"]) == 14, d["recent_json"]
 print("[smoke] doctor --json ok: checks={} warnings={}".format(len(d["checks"]), d["warnings"]))
 '
 
@@ -244,6 +244,57 @@ assert dry in ("ON", True), d
 # only care that it did NOT actually create a file (which is verified
 # implicitly by exit_code==0 and dry_run=="ON" together).
 print("[smoke] snapshot-export --dry-run JSON ok: archive={}".format(d.get("archive")))
+'
+
+	log_info "Running restore-test (canary checksum + auto tempdir cleanup)"
+	# Pre-compute the SHA-256 of the seeded canary file *inside* the container
+	# so the rehearsal asserts the bytes restored by restic match the bytes
+	# that were originally backed up. The canary path is the snapshot-
+	# absolute path (BACKUP_ROOT_DIR=/data/backup_src, file smoke.txt).
+	canary_sha="$(docker compose -f ci/docker-compose.smoke.yml exec -T "${service}" sha256sum /data/backup_src/smoke.txt | awk '{print $1}')"
+	if [[ -z "${canary_sha}" ]]; then
+		log_crit "Could not compute canary sha256 for smoke restore-test"
+		exit 1
+	fi
+	docker compose -f ci/docker-compose.smoke.yml exec -T "${service}" \
+		/bin/restore-test --min-files 1 --canary "/data/backup_src/smoke.txt=${canary_sha}"
+	docker compose -f ci/docker-compose.smoke.yml exec -T "${service}" \
+		cat /var/log/last-restore-test.json |
+		python3 -c '
+import json, sys
+d = json.load(sys.stdin)
+assert d["job"] == "restore-test", d
+assert d["exit_code"] == 0, d
+assert d.get("verification") == "passed", d
+assert int(d.get("files_restored", 0)) >= 1, d
+# Seeded canary smoke.txt is "smoke-ci\n" = 9 bytes; restore-test counts
+# the bytes that actually landed on disk, so this should be > 0.
+assert int(d.get("bytes_restored", 0)) > 0, d
+assert int(d.get("min_files", 0)) == 1, d
+assert d.get("min_files_met") in ("true", True), d
+assert int(d.get("canary_total", 0)) == 1, d
+assert int(d.get("canary_passed", 0)) == 1, d
+assert int(d.get("canary_failed", 0)) == 0, d
+assert d.get("target_autotmp") == "ON", d
+assert d.get("cleanup_status") == "cleaned", d
+results = d.get("canary_results") or []
+assert len(results) == 1 and results[0]["status"] == "passed", results
+print("[smoke] restore-test JSON ok: files={} canaries={}/{} cleanup={}".format(
+    d.get("files_restored"), d.get("canary_passed"), d.get("canary_total"), d.get("cleanup_status")))
+'
+
+	log_info "Running restore-test --dry-run (no verification, no tempdir mutation)"
+	docker compose -f ci/docker-compose.smoke.yml exec -T "${service}" /bin/restore-test --dry-run
+	docker compose -f ci/docker-compose.smoke.yml exec -T "${service}" \
+		cat /var/log/last-restore-test.json |
+		python3 -c '
+import json, sys
+d = json.load(sys.stdin)
+assert d["job"] == "restore-test", d
+assert d["exit_code"] == 0, d
+assert d.get("dry_run") == "ON", d
+assert d.get("verification") == "skipped", d
+print("[smoke] restore-test --dry-run JSON ok: verification={}".format(d.get("verification")))
 '
 
 	log_info "Testing RESTIC_REPOSITORY_FILE precedence (file wins over baked default)"

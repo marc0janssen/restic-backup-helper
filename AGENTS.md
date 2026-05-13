@@ -93,7 +93,7 @@ When you touch user-facing release metadata, keep **`README.md`** and **`README-
 
 - **`build.env`** — optional; loaded by **`./build.sh`** (stable).
 - **`build-testing.env`** — optional; loaded by **`./build-testing.sh`**.
-- **`build-testing-local.env`** — optional; loaded by **`./build-testing-local.sh`** for private registries. That script pushes **`<LOCAL_REPO>:develop`** and **`<LOCAL_REPO>:<release>`** (e.g. `…:2.12.1-0.18.1-dev`), matching the tag convention used by **`./build-testing.sh`** for Docker Hub. The release string is baked into the image as **`ENV RESTIC_BACKUP_HELPER_RELEASE`** via **`docker build --build-arg`** (no host `.release` file).
+- **`build-testing-local.env`** — optional; loaded by **`./build-testing-local.sh`** for private registries. That script pushes **`<LOCAL_REPO>:develop`** and **`<LOCAL_REPO>:<release>`** (e.g. `…:2.13.0-0.18.1-dev`), matching the tag convention used by **`./build-testing.sh`** for Docker Hub. The release string is baked into the image as **`ENV RESTIC_BACKUP_HELPER_RELEASE`** via **`docker build --build-arg`** (no host `.release` file).
 
 Templates are **`*.env.example`**. Real env files are gitignored; do not commit them.
 

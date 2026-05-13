@@ -2,6 +2,122 @@
 
 ## Restic Backup Helper
 
+### 2.13.0-0.18.1 (2026-05-13)
+
+This release adds **`/bin/restore-test`**, an explicit disaster-recovery
+rehearsal helper that complements `restic check` (repository health) by
+proving the **bytes can actually come back**: it restores a snapshot (or
+a small canary sub-path) into an isolated temp directory, asserts the
+restored tree is non-empty and optionally that one or more canary files
+match a known SHA-256, then cleans up and emits the same audit surface
+every other worker does (log + `last-*.json` + Prometheus + mail +
+webhook + pre-/post hooks). Where `restic check` answers "the repo is
+healthy", `restore-test` answers "I can really get my data back".
+
+#### Added
+
+- **`/bin/restore-test`: disaster-recovery rehearsal helper.**
+  - Snapshot selection mirrors `/bin/restore`: `--id`, `--tag`,
+    `--host`. Defaults to the literal `latest` for the container's
+    `$HOSTNAME` and `$RESTIC_TAG`.
+  - **Isolation by default.** Without `--target` the helper restores
+    into `mktemp -d /tmp/restore-test.XXXXXX`. With `--target` it
+    refuses to restore into `/`, `/data` or `BACKUP_ROOT_DIR`, and
+    requires an empty directory unless `--force` is set.
+  - **Scope knobs** for fast rehearsals on large repos: `--path PATH`
+    (repeatable) restores a snapshot-absolute sub-path; `--verify`
+    asks restic to check per-file hashes against the snapshot manifest
+    during restore.
+  - **Two-layer verification.** A file-count floor (`--min-files`,
+    default `1`) catches "restore silently produced nothing"
+    (e.g. `--path` typos against the snapshot tree). Per-file canary
+    checksums (`--canary PATH=SHA256`, repeatable, or
+    `--canary-file FILE` in the canonical `sha256sum` format) catch
+    silent corruption that `restic check` would miss because the
+    bytes are internally consistent but happen to be the wrong bytes.
+  - **Bounded cleanup.** Auto-tempdirs (`/tmp/restore-test.XXXXXX`)
+    are removed on exit unless `--keep` is set; operator-supplied
+    targets are never auto-removed so a failing rehearsal stays on
+    disk for inspection. The on-disk verdict is recorded in JSON as
+    `cleanup_status` (`cleaned`, `kept`, `cleanup-failed`, `absent`).
+  - **Dry-run mode** (`--dry-run`) calls `restic restore --dry-run`
+    only, skips verification and tempdir creation, and still emits
+    the full JSON / metrics / mail / webhook audit trail so CI can
+    smoke-check the helper itself.
+  - **Audit surface mirrors every other worker:**
+    `/var/log/restore-test-last.log`, `/var/log/last-restore-test.json`
+    (atomic temp-file write, includes a nested `canary_results[]`
+    array post-appended in the same `sources_report.sh` style), and
+    when `METRICS_DIR` is set, `restic_restore_test.prom` with the
+    common envelope plus `restic_restore_test_last_canary_total`,
+    `..._canary_passed`, `..._canary_failed`. Hooks
+    `/hooks/pre-restore-test.sh` / `/hooks/post-restore-test.sh` are
+    invoked through the standard `run_hook` plumbing, post-hook gets
+    the helper exit code as `$1`. `notify_mail` /  `notify_webhook`
+    fire with a one-line subject summarising file count and canary
+    pass ratio.
+  - **Environment-variable equivalents.** Every long-form CLI flag
+    has a `RESTORE_TEST_*` env counterpart so Compose / Kubernetes
+    manifests can configure the rehearsal without wrapping the
+    helper: `RESTORE_TEST_PATH`, `RESTORE_TEST_TARGET`,
+    `RESTORE_TEST_CANARY`, `RESTORE_TEST_CANARY_FILE`,
+    `RESTORE_TEST_KEEP`, `RESTORE_TEST_MIN_FILES`,
+    `RESTORE_TEST_VERIFY`.
+  - **No `RESTORE_TEST_CRON` by design.** Restore rehearsals consume
+    backend bandwidth and CPU; operators should opt in deliberately
+    via a sidecar cron / Kubernetes `CronJob` / systemd timer
+    invoking `docker exec restic-backup-helper /bin/restore-test`.
+    The new documentation page (`docs/operations/restore-test.md`)
+    explains cadence and canary recommendations.
+- **Smoke-test coverage for the new helper.**
+  `scripts/ci-smoke-test.sh` now seeds a real canary SHA-256 by
+  hashing `/data/backup_src/smoke.txt` inside the container, runs
+  `/bin/restore-test --min-files 1 --canary "...=<sha>"` and asserts
+  the documented JSON schema: `verification == "passed"`,
+  `files_restored >= 1`, `bytes_restored > 0`, `canary_total == 1`,
+  `canary_passed == 1`, `canary_failed == 0`,
+  `target_autotmp == "ON"`, `cleanup_status == "cleaned"`, and that
+  the nested `canary_results[0].status == "passed"`. A second pass
+  exercises `--dry-run` and asserts `verification == "skipped"`,
+  so both the verifying and the non-verifying paths are protected
+  against regression. The `doctor --json` assertion was bumped
+  accordingly (`recent_json[]` length 13 → 14).
+
+#### Changed
+
+- **`/bin/doctor` enumerates the new helper.** `recent_json[]` now
+  surfaces `/var/log/last-restore-test.json`, and the hook-phase
+  enumeration lists `pre-restore-test` / `post-restore-test` alongside
+  the existing helpers so the doctor output stays a single source of
+  truth for "which helpers does this image know about".
+- **Documentation, navigation and references updated.**
+  - New page **Operations → Restore test (DR rehearsal)** in
+    `mkdocs.yml`.
+  - **Configuration → Environment variables**: dedicated
+    *Restore test (disaster-recovery rehearsal)* section listing
+    every `RESTORE_TEST_*` knob.
+  - **Configuration → Hooks**: `pre-restore-test` /
+    `post-restore-test` rows added.
+  - **Configuration → Prometheus metrics** and
+    **Reference → Prometheus metrics**: `restic_restore_test.prom`
+    listed alongside the other helper-specific textfiles; new
+    `_canary_total/_passed/_failed` gauges documented; PromQL recipe
+    "Restore rehearsal stale" added.
+  - **Reference → JSON summaries**: `restore-test` added to the
+    `job` enumeration and a full table documenting every field on
+    `last-restore-test.json`, including the nested
+    `canary_results[]` array.
+  - **Operations → Diagnostics (doctor)**: mermaid diagram, recent
+    JSON list and example hook output updated; "See also" cross-link
+    to Restore test added.
+
+#### Versioning
+
+- This is a **MINOR** bump (2.12.1 → 2.13.0) because it adds a new
+  operator-facing helper, new environment variables, new hook phases,
+  new JSON / Prometheus surface and new documentation. No existing
+  contract is renamed or removed; everything is additive.
+
 ### 2.12.1-0.18.1 (2026-05-13)
 
 This patch release expands the **runtime smoke test** so it now exercises

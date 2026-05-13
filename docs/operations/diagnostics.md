@@ -51,6 +51,10 @@ flowchart LR
         J7[last-forget-preview.json]
         J8[last-mount-snapshot.json]
         J9[last-unlock.json]
+        J10[last-sources-report.json]
+        J11[last-init-repo.json]
+        J12[last-notify-test.json]
+        J13[last-restore-test.json]
     end
     subgraph Tail
         T1[Last 40 lines /var/log/cron.log]
@@ -65,7 +69,7 @@ flowchart LR
 | **Repository probe** | Non-mutating `restic cat config`. Exit 10 is reported as "repository missing/not initialized"; doctor never initializes it. The probe output is masked before printing. |
 | **Replicate** | Effective `REPLICATE_*` values and validation of `REPLICATE_JOB_FILE` rows (`SOURCE;DESTINATION[;MODE[;EXTRA_ARGS]]`) with endpoints masked. |
 | **Hooks** | Each known hook path is listed with executable status (`executable`, `not executable`, `not found`). |
-| **Recent JSON summaries** | The latest `last-{backup,check,prune,forget,replicate,restore,snapshot-export,forget-preview,mount-snapshot,unlock,sources-report,init-repo,notify-test}.json` content if present. |
+| **Recent JSON summaries** | The latest `last-{backup,check,prune,forget,replicate,restore,snapshot-export,forget-preview,mount-snapshot,unlock,sources-report,init-repo,notify-test,restore-test}.json` content if present. |
 | **Recent cron log** | Last 40 lines of `/var/log/cron.log`. |
 | **Summary** | `warnings: N`, `errors: N`. Exit non-zero only on errors. |
 
@@ -156,7 +160,7 @@ intended for init-container readiness probes and CI gates.
 {
   "schema": "restic-backup-helper.config-check/1",
   "command": "config-check",
-  "release": "2.12.1-0.18.1",
+  "release": "2.13.0-0.18.1",
   "hostname": "backup-node",
   "generated_at": "2026-05-13T22:07:08+0200",
   "generated_epoch": 1747166828,
@@ -199,7 +203,7 @@ findings.
 {
   "schema": "restic-backup-helper.doctor/1",
   "command": "doctor",
-  "release": "2.12.1-0.18.1",
+  "release": "2.13.0-0.18.1",
   "hostname": "backup-node",
   "generated_at": "2026-05-13T22:07:08+0200",
   "generated_epoch": 1747166828,
@@ -308,7 +312,7 @@ secrets into them — use a `RESTIC_PASSWORD_FILE` and
 
 ```text
 == Runtime ==
-release:            2.12.1-0.18.1
+release:            2.13.0-0.18.1
 hostname:           backup-node
 date:               2026-05-11 Mon 21:13:42 +0200
 timezone:           Europe/Amsterdam
@@ -376,10 +380,12 @@ hooks/pre-init-repo.sh: not found
 hooks/post-init-repo.sh: not found
 hooks/pre-notify-test.sh: not found
 hooks/post-notify-test.sh: not found
+hooks/pre-restore-test.sh: not found
+hooks/post-restore-test.sh: not found
 
 == Recent JSON summaries ==
 last-backup.json:
-{"job":"backup","hostname":"backup-node","release":"2.12.1-0.18.1","started_at":"2026-05-11T02:00:00+0200","finished_at":"2026-05-11T02:05:12+0200","duration_seconds":312,"exit_code":0,"repository":"rclone:jottacloud:backups","backup_root_dir":"","restic_tag":"backup-node-data","snapshot_id":"a1b2c3d4","files_new":12,"files_changed":4,"files_unmodified":21034,"bytes_added":"1.234 MiB"}
+{"job":"backup","hostname":"backup-node","release":"2.13.0-0.18.1","started_at":"2026-05-11T02:00:00+0200","finished_at":"2026-05-11T02:05:12+0200","duration_seconds":312,"exit_code":0,"repository":"rclone:jottacloud:backups","backup_root_dir":"","restic_tag":"backup-node-data","snapshot_id":"a1b2c3d4","files_new":12,"files_changed":4,"files_unmodified":21034,"bytes_added":"1.234 MiB"}
 ...
 
 == Recent cron log ==
@@ -412,3 +418,7 @@ errors:   0
   without mutation.
 - [Notify test](notify-test.md) — labelled mail/webhook test through
   the same notification helpers used by real workers.
+- [Restore test](restore-test.md) — disaster-recovery rehearsal that
+  actually restores a snapshot to a temp dir and verifies file count
+  plus optional SHA-256 canaries (`restic check` says "repo is
+  healthy"; restore-test says "I can really get my data back").

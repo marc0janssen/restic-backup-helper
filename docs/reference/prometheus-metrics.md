@@ -26,14 +26,15 @@ ${METRICS_DIR}/
 ├── restic_unlock.prom              # only when /bin/unlock has been run
 ├── restic_sources_report.prom      # only when /bin/sources-report has been run
 ├── restic_init_repo.prom           # only when /bin/init-repo has been run
-└── restic_notify_test.prom         # only when /bin/notify-test has been run
+├── restic_notify_test.prom         # only when /bin/notify-test has been run
+└── restic_restore_test.prom        # only when /bin/restore-test has been run
 ```
 
 ## Always-emitted gauges
 
 For each `<job>` ∈ `backup`, `check`, `forget`, `prune`, `replicate`,
 `restore`, `snapshot_export`, `forget_preview`, `mount_snapshot`,
-`unlock`, `sources_report`, `init_repo`, `notify_test`:
+`unlock`, `sources_report`, `init_repo`, `notify_test`, `restore_test`:
 
 | Metric | Type | Description |
 | --- | --- | --- |
@@ -70,9 +71,12 @@ skipped to keep the textfile strictly typed for Prometheus.
 | `forget` | `restic_forget_last_exit_code` | Top-level `exit_code` of the dedicated worker (`0`, `2` for empty policy, `11` for multi-host lock race, other = restic failure). Same alerting target as `restic_backup_last_forget_exit_code` for deployments that opted into `FORGET_CRON`. |
 | `replicate` | `restic_replicate_last_replicate_jobs_processed` | `replicate_jobs_processed` |
 | `replicate` | `restic_replicate_last_replicate_jobs_failed` | `replicate_jobs_failed` |
-| `restore`, `snapshot_export` | `restic_<job>_last_files_restored` | `files_restored` |
-| `restore`, `snapshot_export` | `restic_<job>_last_bytes_restored` | `bytes_restored` (when numeric) |
+| `restore`, `snapshot_export`, `restore_test` | `restic_<job>_last_files_restored` | `files_restored` |
+| `restore`, `snapshot_export`, `restore_test` | `restic_<job>_last_bytes_restored` | `bytes_restored` (when numeric) |
 | `snapshot_export` | `restic_snapshot_export_last_archive_size_bytes` | `archive_size_bytes` |
+| `restore_test` | `restic_restore_test_last_canary_total` | `canary_total` |
+| `restore_test` | `restic_restore_test_last_canary_passed` | `canary_passed` |
+| `restore_test` | `restic_restore_test_last_canary_failed` | `canary_failed` |
 
 The `bytes_*` metrics are only emitted when the underlying JSON field
 is a number. Restic's textual `bytes_added="1.234 MiB"` is **not**
@@ -126,6 +130,8 @@ that scrapes the volume directly — see [Docker Compose](../deployment/docker-c
 | Backup running long | `restic_backup_last_duration_seconds > 6*3600` |
 | Replicate partial failure | `restic_replicate_last_replicate_jobs_failed > 0` |
 | Restore zero-match warning | `restic_restore_last_files_restored == 0 and restic_restore_last_success == 1` (look at `last-restore.json` `include_zero_match` to confirm) |
+| Restore rehearsal failed | `restic_restore_test_last_success == 0` (drill into `/var/log/last-restore-test.json` to see whether it was a canary mismatch vs file-count floor vs restic error) |
+| Restore rehearsal stale | `time() - restic_restore_test_last_finished_timestamp > 7*86400` (no successful rehearsal in the last 7 days) |
 
 ## Stability promise
 

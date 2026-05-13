@@ -155,6 +155,13 @@ COPY /app/notify_test.sh /bin/notify-test
 # always operator-initiated); shares mail/webhook/metrics plumbing with the
 # other workers.
 COPY /app/restore.sh /bin/restore
+# Restore-rehearsal / disaster-recovery test: restores a snapshot (or
+# sub-path) into an auto-mktemp tempdir, verifies file count + optional
+# SHA-256 canary checksums, cleans up, and emits the same audit surface
+# (log / last-restore-test.json / restic_restore_test.prom / mail / webhook /
+# pre-/post-restore-test hooks). Complements `restic check` (repo health)
+# by proving the bytes can actually come back.
+COPY /app/restore_test.sh /bin/restore-test
 # Lock-aware cron wrapper used by /entry.sh to log "skipped: previous run
 # still active" instead of leaving cron with an opaque flock exit code.
 COPY /app/locked_run.sh /bin/locked_run
@@ -165,7 +172,7 @@ ARG RESTIC_BACKUP_HELPER_RELEASE=unknown
 LABEL org.opencontainers.image.title="restic-backup-helper" \
 	org.opencontainers.image.version="${RESTIC_BACKUP_HELPER_RELEASE}"
 ENV RESTIC_BACKUP_HELPER_RELEASE=${RESTIC_BACKUP_HELPER_RELEASE}
-RUN chmod 755 /entry.sh /bin/backup /bin/check /bin/replicate /bin/rotate_log /bin/prune /bin/forget /bin/doctor /bin/cron-list /bin/snapshot-export /bin/forget-preview /bin/mount-snapshot /bin/unlock /bin/sources-report /bin/init-repo /bin/notify-test /bin/restore /bin/locked_run \
+RUN chmod 755 /entry.sh /bin/backup /bin/check /bin/replicate /bin/rotate_log /bin/prune /bin/forget /bin/doctor /bin/cron-list /bin/snapshot-export /bin/forget-preview /bin/mount-snapshot /bin/unlock /bin/sources-report /bin/init-repo /bin/notify-test /bin/restore /bin/restore-test /bin/locked_run \
 	&& ln -s replicate /bin/bisync
 
 # set sendmail-path
