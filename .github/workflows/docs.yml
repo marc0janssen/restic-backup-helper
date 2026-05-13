@@ -64,7 +64,7 @@ jobs:
       # exactly one artifact. See actions/upload-pages-artifact#97.
       - name: Delete stale Pages artifact (if any)
         if: github.event_name != 'pull_request'
-        uses: geekyeggo/delete-artifact@v5
+        uses: geekyeggo/delete-artifact@v6
         with:
           name: github-pages
           failOnError: false
