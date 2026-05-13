@@ -21,7 +21,7 @@ provide it at runtime*.
 | `RESTIC_CACHE_DIR` | `/.cache/restic` | Restic cache directory. Mount a volume to persist across restarts. |
 | `RESTIC_CACERT` | *(empty)* | Path inside the container to a readable PEM bundle. Automatically passed as `--cacert "$RESTIC_CACERT"` to every restic invocation. Unreadable path logs a warning and omits the flag; `config-check` treats the same condition as a hard error. |
 | `RESTIC_CHECK_REPOSITORY_STATUS` | `ON` | When `ON`, the entrypoint probes the repo with `restic cat config`; auto-`restic init` runs only on exit `10`. Other non-zero exits abort startup. Set to anything else to skip both the probe and the auto-init. |
-| `RESTIC_AUTO_UNLOCK` | `OFF` | When `ON`, `/bin/backup` and `/bin/check` run `restic unlock` after a non-zero restic exit. Default leaves the lock alone — safer for repositories shared across multiple hosts. |
+| `RESTIC_AUTO_UNLOCK` | `OFF` | When `ON`, `/bin/backup` and `/bin/check` run `restic unlock` after a non-zero restic exit. Default leaves the lock alone — safer for repositories shared across multiple hosts. Use the audited [`/bin/unlock`](../operations/unlock.md) helper for explicit, logged manual unlocks instead. |
 
 ## Backup job
 
@@ -140,7 +140,7 @@ RESTIC_BACKUP_HELPER_RELEASE=…`. Read it from inside the container:
 
 ```shell
 docker exec restic-backup-helper printenv RESTIC_BACKUP_HELPER_RELEASE
-# → 2.5.0-0.18.1
+# → 2.7.0-0.18.1
 ```
 
 `/bin/doctor` includes the release in its `Runtime` section and every

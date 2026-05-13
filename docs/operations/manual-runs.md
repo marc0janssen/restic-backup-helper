@@ -22,7 +22,9 @@ docker exec -ti restic-backup-helper /bin/restore --id 5a3f2c8b --target /restor
 docker exec -ti restic-backup-helper /bin/snapshot-export --id latest
 docker exec -ti restic-backup-helper /bin/forget-preview
 docker exec -ti restic-backup-helper /bin/mount-snapshot
+docker exec -ti restic-backup-helper /bin/unlock --dry-run
 docker exec -ti restic-backup-helper /bin/doctor
+docker exec -ti restic-backup-helper /bin/cron-list
 
 # Raw restic / rclone for the rare case where you need to peek under the hood.
 docker exec -ti restic-backup-helper restic snapshots
@@ -64,6 +66,12 @@ docker run --rm \
   marc0janssen/restic-backup-helper:latest \
   doctor
 
+# Cron schedule preview (no repository access needed).
+docker run --rm \
+  --env-file restic.env \
+  marc0janssen/restic-backup-helper:latest \
+  cron-list
+
 # Snapshot export.
 docker run --rm \
   --env-file restic.env \
@@ -92,6 +100,14 @@ docker run --rm -it \
   -v ./restic.password:/run/secrets/restic_password:ro \
   marc0janssen/restic-backup-helper:latest \
   mount-snapshot
+
+# Manual unlock after independently confirming the lock is stale.
+docker run --rm \
+  --env-file restic.env \
+  -v ./config:/config:ro \
+  -v ./restic.password:/run/secrets/restic_password:ro \
+  marc0janssen/restic-backup-helper:latest \
+  unlock --dry-run
 ```
 
 Recognised entrypoint subcommands:
@@ -100,9 +116,11 @@ Recognised entrypoint subcommands:
 | --- | --- |
 | `config-check` | Validate env and critical paths; exits `0` or `1`. Does not run backups. |
 | `doctor` or `/bin/doctor` | Read-only diagnostics bundle. Does not run backups. |
+| `cron-list` or `/bin/cron-list` | Print timezone, rendered crontab (or env preview) and readable schedule summary. |
 | `snapshot-export` or `/bin/snapshot-export` | Pass remaining args to `/bin/snapshot-export`. |
 | `forget-preview` or `/bin/forget-preview` | Pass remaining args to `/bin/forget-preview`; always uses `restic forget --dry-run`. |
 | `mount-snapshot` or `/bin/mount-snapshot` | Pass remaining args to `/bin/mount-snapshot`; blocks until you unmount (Ctrl+C / SIGTERM). |
+| `unlock` or `/bin/unlock` | Pass remaining args to `/bin/unlock`. Audited manual `restic unlock` wrapper; supports `--dry-run` and `--remove-all`. |
 
 Anything else falls through to the normal cron startup.
 
@@ -178,4 +196,6 @@ between-snapshot diff, in-place tar streams).
   safely with host/tag scope by default.
 - [Mount snapshot](mount-snapshot.md) — browse snapshots read-only over
   FUSE with safe target validation and clean unmount.
+- [Unlock](unlock.md) — audited manual `restic unlock` wrapper that
+  complements the safer `RESTIC_AUTO_UNLOCK=OFF` default.
 - [Troubleshooting](troubleshooting.md) — common manual-run hiccups.

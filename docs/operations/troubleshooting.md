@@ -124,17 +124,23 @@ into a single command.
 
 ??? failure "Restic reports `unable to create lock in backend: repository is already locked`"
 
-    List the locks and confirm whose they are:
+    List the locks first and confirm whose they are before clearing:
 
     ```shell
     docker exec restic-backup-helper restic list locks
-    docker exec restic-backup-helper restic unlock
+    docker exec restic-backup-helper /bin/unlock --dry-run
+    docker exec restic-backup-helper /bin/unlock
     ```
 
     Since 1.12.0 the helper no longer auto-unlocks after a failure
     (safer for multi-host repos). Set `RESTIC_AUTO_UNLOCK=ON` to
     restore the previous behaviour **only if you back up from one
     host**.
+
+    Prefer the audited [`/bin/unlock`](unlock.md) wrapper over a raw
+    `restic unlock`: it masks the repository URL, writes
+    `last-unlock.json`, runs `pre-unlock` / `post-unlock` hooks and
+    fires the same mail / webhook plumbing as the cron-driven workers.
 
 ??? failure "Cron tick logs `⏭ <job> skipped: previous run still active`"
 
@@ -164,6 +170,8 @@ into a single command.
     - **`restic unlock` is intentionally NOT run** on exit `11`
       regardless of `RESTIC_AUTO_UNLOCK`, because the lock that
       blocked the run is another host's legitimate exclusive lock.
+      If you have independently confirmed the lock is stale, use
+      [`/bin/unlock`](unlock.md) to clear it explicitly.
 
     Retention is cumulative, so a single skipped forget is harmless —
     the next backup tick will catch up. Three increasingly thorough

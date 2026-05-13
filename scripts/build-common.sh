@@ -88,6 +88,10 @@ Options:
                        Special value 'prerelease' (aliases 'rc' / 'beta')
                        resolves to the newest Docker Hub restic/restic tag
                        that looks like a Restic rc/beta version.
+                       The resolved tag is verified against Docker Hub before
+                       the Dockerfile is patched; non-existent tags abort the
+                       build instead of producing an image whose tag suffix
+                       does not match the base actually used.
 
 Precedence: CLI flags > non-empty exported variables > env file > defaults.
 EOF
@@ -251,6 +255,30 @@ resolve_prerelease_restic_tag() {
 	printf '%s' "${v}"
 }
 
+# Verifies that restic/restic:<VERSION_RESTIC> is actually published before any
+# consumer (Dockerfile FROM, image tag, build-arg) bakes it in. Without this
+# check, a typo'd or future-dated --base value would still produce a tagged
+# image because some flows (e.g. build-testing-local.sh) leave Dockerfile FROM
+# untouched, so buildx silently keeps using the pre-existing base while the
+# published image tag advertises a different version. Uses
+# `docker buildx imagetools inspect` because it queries the registry without
+# pulling layers and works on the buildx that the build flow already requires.
+verify_restic_base_tag_exists() {
+	local tag="${VERSION_RESTIC:-}"
+
+	if ! command -v docker >/dev/null 2>&1; then
+		echo "Cannot verify restic base tag: docker is not on PATH." >&2
+		exit 1
+	fi
+	echo "[build] Verifying restic/restic:${tag} exists on Docker Hub..."
+	if ! docker buildx imagetools inspect "restic/restic:${tag}" >/dev/null 2>&1; then
+		echo "Restic base image tag 'restic/restic:${tag}' does not exist (or is not reachable from Docker Hub)." >&2
+		echo "Refusing to build — would produce a tagged image whose --base does not match what is actually pullable." >&2
+		echo "Pass an existing tag, e.g. --base 0.18.1, or --base newest to auto-resolve restic/restic:latest." >&2
+		exit 1
+	fi
+}
+
 # Materialises VERSION_RESTIC into a concrete semver tag before any consumer
 # (Dockerfile FROM, image tag, build-arg) reads it. Rejects bogus values like
 # "newest-typo" so they never end up in published artefacts as "2.5.0-<typo>-dev".
@@ -284,6 +312,8 @@ finalize_restic_base_tag() {
 		echo "Pass --base 0.18.2, set VERSION_RESTIC=0.18.2, use --base newest for restic/restic:latest, or use --base prerelease for the newest rc/beta." >&2
 		exit 1
 	fi
+
+	verify_restic_base_tag_exists
 }
 
 read_image_version() {

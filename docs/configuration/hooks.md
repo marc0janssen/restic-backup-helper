@@ -26,6 +26,8 @@ executable, and the workers will run them automatically.
 | `/hooks/post-forget-preview.sh` | `/bin/forget-preview` | Forget-preview exit code |
 | `/hooks/pre-mount-snapshot.sh` | `/bin/mount-snapshot` | *none* |
 | `/hooks/post-mount-snapshot.sh` | `/bin/mount-snapshot` | Mount-snapshot exit code (post-unmount) |
+| `/hooks/pre-unlock.sh` | `/bin/unlock` | *none* |
+| `/hooks/post-unlock.sh` | `/bin/unlock` | Unlock exit code |
 
 Hooks must be **executable** inside the container (`chmod +x`). A hook
 present but not executable is reported as an error in `cron.log`, not

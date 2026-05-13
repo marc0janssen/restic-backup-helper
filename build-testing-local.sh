@@ -21,8 +21,9 @@ Local/private-registry variant of build-testing.sh.
 --base accepts a concrete Restic version (e.g. 0.18.1, 0.18.2-rc.1),
 'newest' (alias 'latest') or 'prerelease' (aliases 'rc' / 'beta'). Sentinels
 are resolved before the tag is computed, so the published image tag never
-contains the literal keyword. Note that this script does not patch Dockerfile
-FROM; keep your Dockerfile FROM aligned with --base / VERSION_RESTIC manually.
+contains the literal keyword. The tag is checked for existence on Docker Hub
+before any files are mutated, and the Dockerfile FROM line is patched so the
+pushed image always matches the version baked into the tag.
 
 Builds ./Dockerfile with the same layout as production testing images. Does not
 increment VERSION and does not modify README.md. The image gets release metadata
@@ -39,7 +40,8 @@ Precedence (hoog → laag): CLI --repo / --platform / --base → niet-lege expor
 in je shell → build-testing-local.env → defaults in dit script / scripts/build-common.sh.
 
 Environment:
-  VERSION_RESTIC   Same as build-testing.sh (default 0.18.1); keep in sync with Dockerfile FROM.
+  VERSION_RESTIC   Same as build-testing.sh (default 0.18.1). The build patches
+                   Dockerfile FROM to match this value, so they never drift.
   SBOM             Set to ON to generate SPDX + CycloneDX SBOMs of the pushed
                    image via syft (requires syft on PATH). Default: off.
   SBOM_DIR         Output directory for SBOM artifacts. Default: ./sbom/local
@@ -48,7 +50,7 @@ Environment:
 
 Docker tags pushed:
   <LOCAL_REPO>:develop
-  <LOCAL_REPO>:<release>            e.g. 2.5.0-0.18.1-dev
+  <LOCAL_REPO>:<release>            e.g. 2.7.0-0.18.1-dev
 
 Examples:
   ./build-testing-local.sh
@@ -195,6 +197,14 @@ RESTIC_NEW_RELEASE="${RELEASE}"
 # so contributors who run both build flows on the same machine don't clobber
 # each other's artifacts. Honours an explicit SBOM_DIR override.
 export SBOM_DIR="${SBOM_DIR:-${REPO_ROOT}/sbom/local}"
+
+# Keep Dockerfile FROM in sync with VERSION_RESTIC so the tag suffix
+# (image_version-VERSION_RESTIC-dev) always matches what is actually pulled as
+# the base. Without this, --base <new-tag> would silently keep building against
+# the pre-existing Dockerfile FROM while still tagging the image as the new
+# version. See finalize_restic_base_tag for the existence check that prevents
+# patching the Dockerfile to a non-existent tag.
+patch_dockerfile_restic_base
 
 docker buildx build --no-cache --platform "${PLATFORM_ARG}" --push \
 	--build-arg "RESTIC_BACKUP_HELPER_RELEASE=${RELEASE}" \

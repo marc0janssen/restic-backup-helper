@@ -163,6 +163,7 @@ nav:
       - Snapshot export: operations/snapshot-export.md
       - Forget preview: operations/forget-preview.md
       - Mount snapshot: operations/mount-snapshot.md
+      - Unlock: operations/unlock.md
       - Diagnostics (doctor): operations/diagnostics.md
       - Troubleshooting: operations/troubleshooting.md
   - Deployment:

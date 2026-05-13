@@ -22,13 +22,15 @@ ${METRICS_DIR}/
 ├── restic_restore.prom
 ├── restic_snapshot_export.prom
 ├── restic_forget_preview.prom
-└── restic_mount_snapshot.prom
+├── restic_mount_snapshot.prom
+└── restic_unlock.prom              # only when /bin/unlock has been run
 ```
 
 ## Always-emitted gauges
 
 For each `<job>` ∈ `backup`, `check`, `forget`, `prune`, `replicate`,
-`restore`, `snapshot_export`, `forget_preview`, `mount_snapshot`:
+`restore`, `snapshot_export`, `forget_preview`, `mount_snapshot`,
+`unlock`:
 
 | Metric | Type | Description |
 | --- | --- | --- |

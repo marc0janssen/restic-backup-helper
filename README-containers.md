@@ -5,7 +5,7 @@
 [![Security Scan](https://github.com/marc0janssen/restic-backup-helper/actions/workflows/security-scan.yml/badge.svg)](https://github.com/marc0janssen/restic-backup-helper/actions/workflows/security-scan.yml)
 [![Docs](https://github.com/marc0janssen/restic-backup-helper/actions/workflows/docs.yml/badge.svg)](https://github.com/marc0janssen/restic-backup-helper/actions/workflows/docs.yml)
 
-Scheduled [Restic](https://restic.net) backups, optional `restic check`, optional [Rclone](https://rclone.org) **replicate** jobs (`bisync` / `sync` / `copy`), cron automation, logs under `/var/log`, optional mail via **msmtp** + **mailx**. Based on **`restic/restic`** Alpine.
+Scheduled [Restic](https://restic.net) backups, optional `restic check`, optional [Rclone](https://rclone.org) **replicate** jobs (`bisync` / `sync` / `copy`), cron automation, logs under `/var/log`, optional mail via **msmtp** + **mailx**. Includes read-only operator helpers such as `/bin/doctor` and `/bin/cron-list`. Based on **`restic/restic`** Alpine.
 
 **Documentation:** [marc0janssen.github.io/restic-backup-helper](https://marc0janssen.github.io/restic-backup-helper/) · **GitHub (full manual, Compose, hooks, env matrix):** [github.com/marc0janssen/restic-backup-helper](https://github.com/marc0janssen/restic-backup-helper)
 
@@ -13,24 +13,26 @@ Scheduled [Restic](https://restic.net) backups, optional `restic check`, optiona
 
 ## Release
 
-release: 2.5.0-0.18.1
+release: 2.7.0-0.18.1
 
 **Stable**
 
 ```shell
 docker pull marc0janssen/restic-backup-helper:latest
-docker pull marc0janssen/restic-backup-helper:2.5.0-0.18.1
+docker pull marc0janssen/restic-backup-helper:2.7.0-0.18.1
 ```
 
 **Development (experimental)**
 
 ```shell
 docker pull marc0janssen/restic-backup-helper:develop
-docker pull marc0janssen/restic-backup-helper:2.5.0-0.18.1-dev
+docker pull marc0janssen/restic-backup-helper:2.7.0-0.18.1-dev
 ```
 
 > **Upgrading?**
 >
+> - **2.6.0 → 2.7.0:** purely additive. New audited operator helper `/bin/unlock` complements the safer `RESTIC_AUTO_UNLOCK=OFF` default (workers still never auto-clear locks on failure). Removes stale exclusive locks by default; `--remove-all` widens to non-exclusive locks; `--dry-run` only lists current locks. Writes `/var/log/last-unlock.json` (with `remove_all`, `dry_run`, `locks_before`, `locks_after`), `restic_unlock.prom`, and runs `pre-unlock` / `post-unlock` hooks, mail and webhook the same way as the other workers. Reachable via `docker exec … /bin/unlock` or `docker run … unlock`. No env-var changes; `RESTIC_AUTO_UNLOCK` keeps its existing semantics.
+> - **2.5.0 → 2.6.0:** purely additive. New read-only `/bin/cron-list` inspector prints `TZ`, the rendered crontab and a per-job summary (run via `docker exec … /bin/cron-list` or `docker run … cron-list`). Build scripts gain a `--base <restic-tag>` CLI flag with `newest`/`latest` and `prerelease`/`rc`/`beta` sentinels resolved against Docker Hub before the tag is computed; the resolved tag is verified to exist on Docker Hub before any files are mutated, so a non-existent `--base 0.19.0` aborts cleanly instead of producing an image whose tag suffix does not match the base actually used. `./build-testing-local.sh` now also patches `Dockerfile FROM` to match `--base`, and pushes `:develop` instead of `:testing` (versioned `:<release>` tag unchanged) — update any `image: …:testing` references in your private-registry manifests to `…:develop` or pin to `…:2.6.0-0.18.1-dev`. No runtime change inside the container beyond the new cron-list helper.
 > - **2.4.0 → 2.5.0:** multi-host retention hardening. New standalone `/bin/forget` worker scheduled via `FORGET_CRON` (own JSON/Prometheus/mail/webhook/hooks like `/bin/prune`); when set, `/bin/backup` skips its inline forget so the exclusive lock is only taken in the dedicated window — eliminates the exit-11 race. Inline post-backup forget exit 11 is also downgraded to `⏭ Forget skipped …` (backup `exit_code` stays `0`); the forget result is recorded separately as `forget_exit_code` in `last-backup.json` and as a `restic_backup_last_forget_exit_code` Prometheus gauge. `restic unlock` is **never** auto-run on exit 11 regardless of `RESTIC_AUTO_UNLOCK` (the lock we lost is another host's legitimate lock). Drop-in: `FORGET_CRON` empty (= default) keeps legacy behaviour. Adding `--retry-lock=DURATION` to `RESTIC_FORGET_ARGS` is recommended either way.
 > - **2.3.x → 2.4.0:** additive. New `/bin/mount-snapshot` helper wraps `restic mount` (FUSE) read-only under `/fusemount` (container-internal by design, never collides with `/bin/restore` output or host bind-mounts), scoped to this container's host/tag by default, with safe target validation, opt-in `--allow-other`, repeatable `--path`, an explicit `--repo-wide` override and an `EXIT` trap so SIGINT / SIGTERM / crash always unmounts cleanly. FUSE still requires `--cap-add SYS_ADMIN --device /dev/fuse` and, on hosts that ship AppArmor's `docker-default` profile, `--security-opt apparmor=unconfined`.
 > - **2.2.x → 2.3.0:** additive. New `/bin/forget-preview` helper runs `restic forget --dry-run` with `RESTIC_FORGET_ARGS`, host/tag-scoped by default and repository-wide only with `--repo-wide`.
@@ -53,7 +55,7 @@ docker pull marc0janssen/restic-backup-helper:2.5.0-0.18.1-dev
 | Tag | Meaning |
 | --- | --- |
 | `latest` | Current stable |
-| `<semver>-<restic>` | Pinned stable (helper version + Restic base), e.g. `2.5.0-0.18.1` |
+| `<semver>-<restic>` | Pinned stable (helper version + Restic base), e.g. `2.7.0-0.18.1` |
 | `develop` | Latest testing build |
 | `<semver>-<restic>-dev` | Pinned testing image |
 
@@ -72,6 +74,7 @@ Full documentation: <https://marc0janssen.github.io/restic-backup-helper/>
 | **Log rotate** | `ROTATE_LOG_CRON` → `/bin/rotate_log` for `cron.log` |
 | **Config check** | One-shot `docker run … config-check` (same env as prod) validates settings without cron |
 | **Doctor** | One-shot `/bin/doctor` or `docker run … doctor` read-only diagnostics for support/triage |
+| **Cron list** | `/bin/cron-list` or `docker run … cron-list` prints timezone, rendered crontab and schedule summary |
 | **Snapshot export** | One-shot `/bin/snapshot-export` or `docker run … snapshot-export` archives a selected snapshot/subtree as `.tar.gz` |
 | **Forget preview** | One-shot `/bin/forget-preview` or `docker run … forget-preview` previews `RESTIC_FORGET_ARGS` with `restic forget --dry-run` |
 | **Mount snapshot** | One-shot `/bin/mount-snapshot` or `docker run … mount-snapshot` mounts the repo read-only over FUSE under `/fusemount` (container-internal; needs `--cap-add SYS_ADMIN --device /dev/fuse` + `--security-opt apparmor=unconfined` on Ubuntu/Debian hosts) |

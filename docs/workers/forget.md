@@ -59,7 +59,9 @@ Notes on the flow:
   unlock` is **never** auto-run on exit `11`, regardless of
   `RESTIC_AUTO_UNLOCK`: the lock that blocked us is another host's
   legitimate lock. Retention is cumulative; the next `FORGET_CRON`
-  tick catches up.
+  tick catches up. If you have independently confirmed a lock is
+  stale (the holding container is gone), use the audited
+  [`/bin/unlock`](../operations/unlock.md) helper to clear it.
 - **Empty `RESTIC_FORGET_ARGS`** exits with `2` and a `❌ No
   retention policy configured` error message so the misconfiguration
   is loud rather than silently "succeeding" with nothing to do.

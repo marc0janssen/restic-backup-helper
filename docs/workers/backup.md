@@ -223,7 +223,7 @@ on host A removes host B's legitimate lock.
 Default since 1.12.0:
 
 - `RESTIC_AUTO_UNLOCK=OFF` — leave the lock alone, log a one-line hint
-  pointing at `restic list locks` / `restic unlock`.
+  pointing at `restic list locks` / [`/bin/unlock`](../operations/unlock.md).
 - `RESTIC_AUTO_UNLOCK=ON` — opt back into the historical 1.11.x
   behaviour. Only safe when **exactly one host** writes to the
   repository.

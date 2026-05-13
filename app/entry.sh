@@ -68,6 +68,9 @@ fi
 if [ "${1:-}" = "doctor" ] || [ "${1:-}" = "/bin/doctor" ]; then
 	exec /bin/doctor
 fi
+if [ "${1:-}" = "cron-list" ] || [ "${1:-}" = "/bin/cron-list" ]; then
+	exec /bin/cron-list
+fi
 if [ "${1:-}" = "snapshot-export" ] || [ "${1:-}" = "/bin/snapshot-export" ]; then
 	shift
 	exec /bin/snapshot-export "$@"
@@ -79,6 +82,10 @@ fi
 if [ "${1:-}" = "mount-snapshot" ] || [ "${1:-}" = "/bin/mount-snapshot" ]; then
 	shift
 	exec /bin/mount-snapshot "$@"
+fi
+if [ "${1:-}" = "unlock" ] || [ "${1:-}" = "/bin/unlock" ]; then
+	shift
+	exec /bin/unlock "$@"
 fi
 
 # shellcheck source=app/lib.sh
