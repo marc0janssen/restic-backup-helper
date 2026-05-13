@@ -33,7 +33,7 @@ flowchart TD
 
     - the required `--tag "$RESTIC_TAG"` (hard-failing on empty since 1.14.0),
     - `BACKUP_ROOT_DIR` as the trailing path argument when set,
-    - `RESTIC_JOB_ARGS` split as shell words for `--exclude-file`,
+    - `RESTIC_JOB_ARGS` whitespace-split for `--exclude-file`,
       `--files-from`, `--one-file-system`, `--skip-if-unchanged`,
       `--limit-upload`, etc.,
     - `--cacert "$RESTIC_CACERT"` when the file exists,
@@ -43,7 +43,7 @@ flowchart TD
    `RESTIC_FORGET_ARGS` is set **and** `FORGET_CRON` is empty (since
    2.5.0 — when `FORGET_CRON` is set retention is owned by the
    dedicated [Forget worker](forget.md) and the inline path is
-   skipped). Words are shell-split and forwarded verbatim, e.g.
+   skipped). Words are whitespace-split and forwarded verbatim, e.g.
    `--keep-daily 7 --keep-weekly 5 --keep-monthly 12`. Add `--prune`
    to combine forget+prune in one cron tick if you do not schedule
    `PRUNE_CRON` separately. The forget exit code is recorded
@@ -82,7 +82,7 @@ flowchart TD
 | Variable | What it controls |
 | --- | --- |
 | `BACKUP_ROOT_DIR` | Appended verbatim as the source path. Most users set this to `/data`. |
-| `RESTIC_JOB_ARGS` | Extra restic words; supports `--exclude-file`, `--files-from`, `--one-file-system`, `--skip-if-unchanged`, `--limit-upload`, `--verbose`, etc. |
+| `RESTIC_JOB_ARGS` | Extra restic words; supports `--exclude-file`, `--files-from`, `--one-file-system`, `--skip-if-unchanged`, `--limit-upload`, `--verbose`, etc. The value is whitespace-split, not parsed as full shell syntax, so keep paths/values free of spaces and put complex path lists in files. |
 
 !!! tip "`--files-from` is the most flexible knob"
 
@@ -105,7 +105,7 @@ flowchart TD
 
 | Variable | What it controls |
 | --- | --- |
-| `RESTIC_FORGET_ARGS` | Shell-split arguments for `restic forget`. Examples: `--keep-daily 7`, `--keep-weekly 5`, `--keep-monthly 12`, `--keep-yearly 10`. Add `--prune` only if you do **not** run `PRUNE_CRON` separately. Add `--retry-lock=DURATION` (e.g. `5m`) on multi-host repositories so a forget that races against another host's exclusive lock waits instead of returning exit 11. |
+| `RESTIC_FORGET_ARGS` | Whitespace-split arguments for `restic forget`; not full shell syntax. Examples: `--keep-daily 7`, `--keep-weekly 5`, `--keep-monthly 12`, `--keep-yearly 10`. Add `--prune` only if you do **not** run `PRUNE_CRON` separately. Add `--retry-lock=DURATION` (e.g. `5m`) on multi-host repositories so a forget that races against another host's exclusive lock waits instead of returning exit 11. |
 
 Preview retention safely before relying on it:
 

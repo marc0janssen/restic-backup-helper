@@ -71,7 +71,7 @@ Options:
                    aborts with exit 2 to prevent surprise init runs.
   --help, -h       Show this help.
 
-Extra restic-init flags are read from $RESTIC_INIT_ARGS (shell-word
+Extra restic-init flags are read from $RESTIC_INIT_ARGS (whitespace-
 split, analogous to RESTIC_JOB_ARGS / RESTIC_FORGET_ARGS) and from any
 positional arguments after `--`. Useful examples:
   --repository-version=2

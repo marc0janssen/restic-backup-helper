@@ -49,7 +49,7 @@ flowchart TD
 | Variable | Default | Description |
 | --- | --- | --- |
 | `PRUNE_CRON` | *(empty)* | If non-empty, schedules `/bin/prune`. Typical value `0 4 * * 0` (Sundays at 04:00, after the weekly check). |
-| `RESTIC_PRUNE_ARGS` | *(empty)* | Extra words for `restic prune`. Examples: `--max-unused 10%`, `--max-repack-size 5G`. |
+| `RESTIC_PRUNE_ARGS` | *(empty)* | Extra words for `restic prune`, whitespace-split rather than parsed as full shell syntax. Examples: `--max-unused 10%`, `--max-repack-size 5G`. |
 
 ## Sample configurations
 

@@ -45,7 +45,9 @@ For each `<job>` ∈ `backup`, `check`, `forget`, `prune`, `replicate`,
 
 The `hostname` label comes from the container's hostname (set
 explicitly in Compose / Kubernetes with `hostname:`). Run one container
-per logical job so the label is unique.
+per logical job so the label is unique. The label value is escaped
+before writing, so unusual hostnames containing quotes, backslashes or
+newlines do not break the textfile format.
 
 ## Worker-specific gauges
 

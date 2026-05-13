@@ -7,8 +7,8 @@ on Docker Hub.
 ## Tag schema
 
 ```text
-<helper-semver>-<restic-version>          # stable, e.g. 2.10.0-0.18.1
-<helper-semver>-<restic-version>-dev      # testing, e.g. 2.10.0-0.18.1-dev
+<helper-semver>-<restic-version>          # stable, e.g. 2.10.1-0.18.1
+<helper-semver>-<restic-version>-dev      # testing, e.g. 2.10.1-0.18.1-dev
 ```
 
 Two moving aliases also exist:
@@ -30,7 +30,7 @@ Two moving aliases also exist:
 | Tag | Meaning |
 | --- | --- |
 | `latest` | Current stable. |
-| `<semver>-<restic>` | Pinned stable, e.g. `2.10.0-0.18.1`. |
+| `<semver>-<restic>` | Pinned stable, e.g. `2.10.1-0.18.1`. |
 | `develop` | Latest testing build. |
 | `<semver>-<restic>-dev` | Pinned testing image. |
 
@@ -43,7 +43,7 @@ stay consistent.
 ## How to read a tag
 
 ```text
-2.10.0-0.18.1-dev
+2.10.1-0.18.1-dev
 │   │ │   │
 │   │ │   └── -dev suffix → testing train
 │   │ └────── Restic base image tag (FROM restic/restic:0.18.1)
@@ -51,7 +51,7 @@ stay consistent.
 └──────────── helper MAJOR.MINOR (e.g. replicate rename + snapshot-export)
 ```
 
-Concrete example: `2.10.0-0.18.1-dev` is "helper 2.10.0 on top of Restic
+Concrete example: `2.10.1-0.18.1-dev` is "helper 2.10.1 on top of Restic
 0.18.1, testing build".
 
 ## Where each tag comes from
@@ -93,7 +93,7 @@ runtime.
 
     ```text
     org.opencontainers.image.title=restic-backup-helper
-    org.opencontainers.image.version=2.10.0-0.18.1
+    org.opencontainers.image.version=2.10.1-0.18.1
     ```
 
     Inspect with `docker inspect --format '{{ .Config.Labels }}' marc0janssen/restic-backup-helper:latest`.
@@ -101,10 +101,10 @@ runtime.
 ## Verifying you got the tag you asked for
 
 ```shell
-docker pull marc0janssen/restic-backup-helper:2.10.0-0.18.1
-docker run --rm marc0janssen/restic-backup-helper:2.10.0-0.18.1 \
+docker pull marc0janssen/restic-backup-helper:2.10.1-0.18.1
+docker run --rm marc0janssen/restic-backup-helper:2.10.1-0.18.1 \
   printenv RESTIC_BACKUP_HELPER_RELEASE
-# → 2.10.0-0.18.1
+# → 2.10.1-0.18.1
 ```
 
 If you see `unknown`, the image was hand-built without the

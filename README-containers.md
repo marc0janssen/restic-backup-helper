@@ -13,24 +13,25 @@ Scheduled [Restic](https://restic.net) backups, optional `restic check`, optiona
 
 ## Release
 
-release: 2.10.0-0.18.1
+release: 2.10.1-0.18.1
 
 **Stable**
 
 ```shell
 docker pull marc0janssen/restic-backup-helper:latest
-docker pull marc0janssen/restic-backup-helper:2.10.0-0.18.1
+docker pull marc0janssen/restic-backup-helper:2.10.1-0.18.1
 ```
 
 **Development (experimental)**
 
 ```shell
 docker pull marc0janssen/restic-backup-helper:develop
-docker pull marc0janssen/restic-backup-helper:2.10.0-0.18.1-dev
+docker pull marc0janssen/restic-backup-helper:2.10.1-0.18.1-dev
 ```
 
 > **Upgrading?**
 >
+> - **2.10.0 → 2.10.1:** patch release. Prometheus textfile metrics now escape the `hostname` label and emit the documented `restic_<job>_last_started_timestamp` gauge, the webhook helper contract is documented accurately, and docs clarify that `RESTIC_*_ARGS` / `REPLICATE_*_ARGS` values are whitespace-split strings rather than full shell syntax. Keep paths/values free of spaces, or use file-based inputs such as `--files-from`, `--exclude-file` and rclone config files.
 > - **2.9.0 → 2.10.0:** purely additive. New `/bin/notify-test` helper sends clearly-labelled test mail and/or webhook notifications through the same `notify_mail` / `notify_webhook` helpers used by real jobs, so operators can validate `msmtprc`, `MAILX_RCPT`, `WEBHOOK_URL`, `WEBHOOK_HEADER_AUTH` and `WEBHOOK_TIMEOUT` before waiting for a real failure. Default mode sends to every configured target; `--mail`, `--webhook` and `--all` select target scope; `--dry-run` prints what would be sent without invoking `mail` or `curl`; `--subject` / `--message` label the test. Unlike real workers, delivery failures affect the helper exit code (`1`) so CI can catch notification drift. Writes `/var/log/last-notify-test.json`, `restic_notify_test.prom`, and runs `pre-notify-test` / `post-notify-test` hooks. No new environment variables.
 > - **2.8.0 → 2.9.0:** purely additive. New audited operator helper `/bin/init-repo` is the operator-driven counterpart to the entrypoint auto-init probe. The recommended deployment pattern on shared remotes is now `RESTIC_CHECK_REPOSITORY_STATUS=OFF` (no auto-init on a transient TLS / DNS / auth hiccup) plus a one-shot `/bin/init-repo --yes` (CI) or interactive `/bin/init-repo` (operator) for the first bootstrap. `--dry-run` runs the same `restic cat config` probe and prints the planned `restic init` command + verdict (`would CREATE` / `would REFUSE — already exists` / probe error) without mutation. Without `--dry-run` a typed `init` confirmation (interactive TTY) or explicit `--yes` is required. Adds the `RESTIC_INIT_ARGS` env-var (e.g. `--repository-version=2`, `--copy-chunker-params=…`); CLI passthrough after `--` works too. Writes `/var/log/last-init-repo.json` (with `dry_run`, `assume_yes`, `confirmed`, `repo_existed`, `probe_exit_code`, `init_args`), `restic_init_repo.prom`, and runs `pre-init-repo` / `post-init-repo` hooks, mail and webhook the same way as the other workers. Reachable via `docker exec … /bin/init-repo` or `docker run … init-repo`. Idempotent: exits `3` when the repo already exists. No behaviour change for the entrypoint auto-init probe; `RESTIC_CHECK_REPOSITORY_STATUS=ON` keeps its existing semantics.
 > - **2.7.0 → 2.8.0:** purely additive. New read-only operator helper `/bin/sources-report` is a pre-flight inventory of the paths your next backup will actually read: re-uses the same `BACKUP_ROOT_DIR` + `RESTIC_JOB_ARGS` parsing as `/bin/backup`, reports readability, type, file count and (optional) size per source, plus pattern counts and missing-entry counts for every `--files-from` / `--exclude-file` reference. `--no-size` skips `du -sk` on slow / remote sources; `--depth N` caps `find` depth; repeatable `--source PATH` / `--files-from FILE` add ad-hoc entries. Writes `/var/log/last-sources-report.json` (flat aggregates plus nested `sources`, `files_from`, `exclude_files` arrays), `restic_sources_report.prom`, and runs `pre-sources-report` / `post-sources-report` hooks, mail and webhook the same way as the other workers. Reachable via `docker exec … /bin/sources-report` or `docker run … sources-report`. The size figure is unfiltered (exclude rules are not applied); the exclude-file inventory is reported separately. No env-var changes.
@@ -58,7 +59,7 @@ docker pull marc0janssen/restic-backup-helper:2.10.0-0.18.1-dev
 | Tag | Meaning |
 | --- | --- |
 | `latest` | Current stable |
-| `<semver>-<restic>` | Pinned stable (helper version + Restic base), e.g. `2.10.0-0.18.1` |
+| `<semver>-<restic>` | Pinned stable (helper version + Restic base), e.g. `2.10.1-0.18.1` |
 | `develop` | Latest testing build |
 | `<semver>-<restic>-dev` | Pinned testing image |
 

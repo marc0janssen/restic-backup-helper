@@ -71,7 +71,7 @@ Notes on the flow:
 | Variable | Default | Description |
 | --- | --- | --- |
 | `FORGET_CRON` | *(empty)* | If non-empty, schedules `/bin/forget` and **disables** the inline post-backup forget in `/bin/backup`. Typical value `30 1 * * *` (daily at 01:30, well outside the backup window) or `0 5 * * *` (after the nightly backups finished). |
-| `RESTIC_FORGET_ARGS` | *(empty)* | Shared with the inline path. Words are shell-split and passed to `restic forget` verbatim. Add `--retry-lock=DURATION` (e.g. `5m`) on multi-host repositories so a `FORGET_CRON` tick that races against another host's exclusive lock waits instead of returning exit `11`. |
+| `RESTIC_FORGET_ARGS` | *(empty)* | Shared with the inline path. Words are whitespace-split and passed to `restic forget` verbatim; this is not full shell syntax, so keep values free of spaces. Add `--retry-lock=DURATION` (e.g. `5m`) on multi-host repositories so a `FORGET_CRON` tick that races against another host's exclusive lock waits instead of returning exit `11`. |
 
 ## Sample configurations
 

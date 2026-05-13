@@ -2,6 +2,33 @@
 
 ## Restic Backup Helper
 
+### 2.10.1-0.18.1 (2026-05-13)
+
+This patch tightens observability and documentation around the shared
+notification / metrics helpers.
+
+#### Fixed
+
+- Prometheus textfile metrics now escape the `hostname` label before
+  writing `restic_<job>.prom`, so unusual container hostnames containing
+  quotes, backslashes or newlines cannot produce invalid textfile output.
+- Prometheus textfile metrics now also emit the documented
+  `restic_<job>_last_started_timestamp` gauge alongside the existing
+  finished timestamp.
+- The `notify_webhook` helper comment now matches the actual helper
+  contract: it returns curl's status for callers that need it, while
+  cron-driven workers explicitly keep webhook delivery failures from
+  changing the worker exit code.
+
+#### Documentation
+
+- Clarified that `RESTIC_JOB_ARGS`, `RESTIC_CHECK_ARGS`,
+  `RESTIC_FORGET_ARGS`, `RESTIC_PRUNE_ARGS`, `RESTIC_INIT_ARGS`,
+  `REPLICATE_JOB_ARGS` and replicate per-job `EXTRA_ARGS` are
+  whitespace-split argument strings, not a shell parser. Keep paths/values
+  free of spaces, or use file-based inputs such as `--files-from`,
+  `--exclude-file` or rclone config files.
+
 ### 2.10.0-0.18.1 (2026-05-13)
 
 This release adds a first-class notification plumbing test so operators

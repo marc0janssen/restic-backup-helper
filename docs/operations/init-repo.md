@@ -64,7 +64,10 @@ docker exec -ti restic-backup-helper /bin/init-repo --dry-run -- \
 | `-- restic-init-flags...` | – | Everything after `--` is appended verbatim to the `restic init` invocation (in addition to `RESTIC_INIT_ARGS`). |
 
 `RESTIC_INIT_ARGS` is the stable env-driven knob, analogous to
-`RESTIC_FORGET_ARGS` / `RESTIC_PRUNE_ARGS`. Useful values include:
+`RESTIC_FORGET_ARGS` / `RESTIC_PRUNE_ARGS`. It is whitespace-split
+rather than parsed as full shell syntax, so keep values free of spaces
+or pass complex cases after `--` from an operator shell. Useful values
+include:
 
 - `--repository-version=2` — pin the on-disk format.
 - `--copy-chunker-params=/path/to/other_repo` — match the chunker of
@@ -192,7 +195,7 @@ In addition to the common fields (`job`, `hostname`, `release`,
 {
   "job": "init-repo",
   "hostname": "backup-node",
-  "release": "2.10.0-0.18.1",
+  "release": "2.10.1-0.18.1",
   "started_at": "2026-05-13T16:30:00+0200",
   "finished_at": "2026-05-13T16:30:02+0200",
   "duration_seconds": 2,

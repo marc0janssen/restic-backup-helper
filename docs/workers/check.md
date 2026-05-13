@@ -21,9 +21,10 @@ flowchart TD
 ```
 
 1. Run `pre-check` hook when present.
-2. Invoke `restic check` with `RESTIC_CHECK_ARGS` shell-split (typical
-   `--read-data-subset 5%`), the `--cacert` flag when configured, and
-   output tee'd to `/var/log/check-last.log`.
+2. Invoke `restic check` with `RESTIC_CHECK_ARGS` whitespace-split
+   (typical `--read-data-subset 5%`; not full shell syntax), the
+   `--cacert` flag when configured, and output tee'd to
+   `/var/log/check-last.log`.
 3. Apply `RESTIC_AUTO_UNLOCK` policy on non-zero exit (same rules as
    [Backup worker](backup.md#restic-auto-unlock)).
 4. Write `/var/log/last-check.json`, `restic_check.prom`.
@@ -35,7 +36,7 @@ flowchart TD
 | Variable | Default | Description |
 | --- | --- | --- |
 | `CHECK_CRON` | *(empty)* | If non-empty, schedules `/bin/check`. Typical value `37 3 * * 0` (Sundays at 03:37). |
-| `RESTIC_CHECK_ARGS` | *(empty)* | Extra arguments. `--read-data-subset 5%` is a popular middle ground between cheap structural checks and full re-downloads. |
+| `RESTIC_CHECK_ARGS` | *(empty)* | Extra arguments, whitespace-split rather than parsed as full shell syntax. `--read-data-subset 5%` is a popular middle ground between cheap structural checks and full re-downloads. |
 
 ## Sample configurations
 

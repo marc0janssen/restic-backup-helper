@@ -5,8 +5,8 @@ twist that the published tag combines **the helper semver** with **the
 Restic base image version**:
 
 ```text
-<helper-semver>-<restic-version>          # stable, e.g. 2.10.0-0.18.1
-<helper-semver>-<restic-version>-dev      # testing, e.g. 2.10.0-0.18.1-dev
+<helper-semver>-<restic-version>          # stable, e.g. 2.10.1-0.18.1
+<helper-semver>-<restic-version>-dev      # testing, e.g. 2.10.1-0.18.1-dev
 ```
 
 ## What each bump means
@@ -20,7 +20,7 @@ Restic base image version**:
 ## What the tag tells you
 
 ```text
-2.10.0-0.18.1-dev
+2.10.1-0.18.1-dev
 │   │ │   │
 │   │ │   └── -dev suffix → testing train
 │   │ └────── Restic base image tag (FROM restic/restic:0.18.1)
@@ -28,7 +28,7 @@ Restic base image version**:
 └──────────── helper MAJOR.MINOR (operator helper feature line)
 ```
 
-So `2.10.0-0.18.1-dev` is "helper 2.10.0 on top of Restic 0.18.1, testing
+So `2.10.1-0.18.1-dev` is "helper 2.10.1 on top of Restic 0.18.1, testing
 build". Pinning the full tag locks both layers.
 
 ## Why a coupled tag

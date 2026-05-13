@@ -54,7 +54,7 @@ warnings.
 | `SOURCE` | yes | Local path or rclone remote path. |
 | `DESTINATION` | yes | Local path or rclone remote path. |
 | `MODE` | no (default `bisync`) | `bisync` keeps both sides in sync (recovery on failure). `sync` makes destination match source (deletions propagate). `copy` is additive, no deletes. |
-| `EXTRA_ARGS` | no | Per-job rclone flags, shell-word split, appended after `REPLICATE_JOB_ARGS`. `--resync` is filtered out so a routine run can never resync implicitly. |
+| `EXTRA_ARGS` | no | Per-job rclone flags, whitespace-split and appended after `REPLICATE_JOB_ARGS`. This is not full shell syntax; keep values free of spaces or move complex settings into rclone config/files. `--resync` is filtered out so a routine run can never resync implicitly. |
 
 ## What it does
 

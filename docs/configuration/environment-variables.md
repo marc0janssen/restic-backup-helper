@@ -29,15 +29,15 @@ provide it at runtime*.
 | --- | --- | --- |
 | `BACKUP_CRON` | `0 */6 * * *` | Cron schedule for `/bin/backup`. |
 | `BACKUP_ROOT_DIR` | *(empty)* | If set, appended as backup path(s). If empty and `RESTIC_JOB_ARGS` does not contain paths, `restic backup` runs with no explicit path. Run [`/bin/sources-report`](../operations/sources-report.md) to inspect what these paths look like on disk before the next backup. |
-| `RESTIC_JOB_ARGS` | *(empty)* | Extra words passed to `restic backup` (shell-word split). Examples: `--exclude-file /config/exclude_files.txt --one-file-system`, `--files-from /config/include_files.txt`. [`/bin/sources-report`](../operations/sources-report.md) re-uses the same parsing rules to surface `--files-from` / `--exclude-file` readability and pattern counts. |
-| `RESTIC_FORGET_ARGS` | *(empty)* | If set **and** backup exits `0`, runs `restic forget` with these words (shell-word split). Example: `--retry-lock=5m --keep-daily 7 --keep-weekly 5 --keep-monthly 12`. Add `--prune` only if you do not run `PRUNE_CRON` separately. |
+| `RESTIC_JOB_ARGS` | *(empty)* | Extra words passed to `restic backup` (whitespace-split; not full shell syntax). Examples: `--exclude-file /config/exclude_files.txt --one-file-system`, `--files-from /config/include_files.txt`. Keep values free of spaces; use file-based inputs such as `--files-from` / `--exclude-file` for complex path lists. [`/bin/sources-report`](../operations/sources-report.md) re-uses the same parsing rules to surface `--files-from` / `--exclude-file` readability and pattern counts. |
+| `RESTIC_FORGET_ARGS` | *(empty)* | If set **and** backup exits `0`, runs `restic forget` with these words (whitespace-split; not full shell syntax). Example: `--retry-lock=5m --keep-daily 7 --keep-weekly 5 --keep-monthly 12`. Add `--prune` only if you do not run `PRUNE_CRON` separately. |
 
 ## Check job
 
 | Variable | Default | Description |
 | --- | --- | --- |
 | `CHECK_CRON` | *(empty)* | If non-empty, schedules `/bin/check`. |
-| `RESTIC_CHECK_ARGS` | *(empty)* | Extra arguments for `restic check`, e.g. `--read-data-subset 5%`. |
+| `RESTIC_CHECK_ARGS` | *(empty)* | Extra arguments for `restic check` (whitespace-split; not full shell syntax), e.g. `--read-data-subset 5%`. |
 
 ## Prune job
 
@@ -45,8 +45,8 @@ provide it at runtime*.
 | --- | --- | --- |
 | `FORGET_CRON` | *(empty)* | If non-empty, schedules a standalone `/bin/forget` on its own `flock` (`/var/run/forget.lock`). When set, `/bin/backup` **skips** its inline post-backup forget so the repository's exclusive forget-lock is only ever taken in this dedicated maintenance window — the recommended pattern for repositories shared by multiple hosts (eliminates the exit-11 race entirely). `RESTIC_FORGET_ARGS` is reused verbatim. Typical value `30 1 * * *`. See [Forget worker](../workers/forget.md). |
 | `PRUNE_CRON` | *(empty)* | If non-empty, schedules a standalone `/bin/prune` on its own `flock`. Run the heavy `restic prune` on its own cadence (typically weekly) while `RESTIC_FORGET_ARGS` keeps post-backup forget cheap. |
-| `RESTIC_PRUNE_ARGS` | *(empty)* | Extra words passed to `restic prune`, e.g. `--max-unused 10%`, `--max-repack-size 5G`. |
-| `RESTIC_INIT_ARGS` | *(empty)* | Extra words passed to `restic init` by [`/bin/init-repo`](../operations/init-repo.md). Shell-word split, analogous to `RESTIC_FORGET_ARGS` / `RESTIC_PRUNE_ARGS`. Examples: `--repository-version=2`, `--copy-chunker-params=/run/secrets/other_repo` (deduplication-friendly when cloning a sibling repository). Only consulted by `/bin/init-repo`; the cron-driven workers ignore it. |
+| `RESTIC_PRUNE_ARGS` | *(empty)* | Extra words passed to `restic prune` (whitespace-split; not full shell syntax), e.g. `--max-unused 10%`, `--max-repack-size 5G`. |
+| `RESTIC_INIT_ARGS` | *(empty)* | Extra words passed to `restic init` by [`/bin/init-repo`](../operations/init-repo.md). Whitespace-split, analogous to `RESTIC_FORGET_ARGS` / `RESTIC_PRUNE_ARGS`. Examples: `--repository-version=2`, `--copy-chunker-params=/run/secrets/other_repo` (deduplication-friendly when cloning a sibling repository). Only consulted by `/bin/init-repo`; the cron-driven workers ignore it. |
 
 ## NFS
 
@@ -60,7 +60,7 @@ provide it at runtime*.
 | --- | --- | --- |
 | `RCLONE_CONFIG` | `/config/rclone.conf` | Path to the Rclone configuration. |
 | `REPLICATE_JOB_FILE` | `/config/replicate_jobs.txt` | Job file: `SOURCE;DESTINATION[;MODE[;EXTRA_ARGS]]` per line; `#` comments allowed. See [Replicate worker](../workers/replicate.md). |
-| `REPLICATE_JOB_ARGS` | *(empty)* | Extra global args passed to every rclone job (shell-word split; `--resync` stripped from routine runs). |
+| `REPLICATE_JOB_ARGS` | *(empty)* | Extra global args passed to every rclone job (whitespace-split; not full shell syntax; `--resync` stripped from routine runs). Keep values free of spaces or move complex settings into rclone config/files. |
 | `REPLICATE_CRON` | *(empty)* | If non-empty, schedules `/bin/replicate`. |
 | `REPLICATE_VERBOSE` | `ON` | When `ON`, replicate messages also echo to stdout (still always logged to file). |
 | `REPLICATE_BISYNC_CHECK_ACCESS` | `OFF` | When `ON`, appends `--check-access` to the routine `bisync` runs and the recovery `bisync --resync`. Requires the `RCLONE_TEST` marker file on both endpoints. |
@@ -141,7 +141,7 @@ RESTIC_BACKUP_HELPER_RELEASE=…`. Read it from inside the container:
 
 ```shell
 docker exec restic-backup-helper printenv RESTIC_BACKUP_HELPER_RELEASE
-# → 2.10.0-0.18.1
+# → 2.10.1-0.18.1
 ```
 
 `/bin/doctor` includes the release in its `Runtime` section and every
