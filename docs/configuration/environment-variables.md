@@ -49,6 +49,24 @@ provide it at runtime*.
 | `RESTIC_PRUNE_ARGS` | *(empty)* | Extra words passed to `restic prune` (whitespace-split; not full shell syntax), e.g. `--max-unused 10%`, `--max-repack-size 5G`. |
 | `RESTIC_INIT_ARGS` | *(empty)* | Extra words passed to `restic init` by [`/bin/init-repo`](../operations/init-repo.md). Whitespace-split, analogous to `RESTIC_FORGET_ARGS` / `RESTIC_PRUNE_ARGS`. Examples: `--repository-version=2`, `--copy-chunker-params=/run/secrets/other_repo` (deduplication-friendly when cloning a sibling repository). Only consulted by `/bin/init-repo`; the cron-driven workers ignore it. |
 
+## Restore test (disaster-recovery rehearsal)
+
+| Variable | Default | Description |
+| --- | --- | --- |
+| `RESTORE_TEST_PATH` | *(empty)* | Optional snapshot-absolute sub-path to restore for rehearsal (whitespace-split, repeatable). Equivalent to one or more `--path` flags on [`/bin/restore-test`](../operations/restore-test.md). Defaults to the full snapshot. |
+| `RESTORE_TEST_TARGET` | *(empty)* | Explicit restore target. When unset, the helper picks an auto-mktemp directory under `/tmp/restore-test.XXXXXX`. Explicit targets must be empty or used together with `--force`. Refuses `/`, `/data` and `BACKUP_ROOT_DIR` for safety. |
+| `RESTORE_TEST_CANARY` | *(empty)* | Whitespace-separated `PATH=SHA256` entries; the helper verifies each restored file matches the given lowercase SHA-256 hex digest. Use `RESTORE_TEST_CANARY_FILE` when paths contain `=` or whitespace. |
+| `RESTORE_TEST_CANARY_FILE` | *(empty)* | Path to a `sha256sum`-format manifest (`<sha256>  <path>` per line; `#` comments allowed). Useful for many canaries or awkward paths. |
+| `RESTORE_TEST_KEEP` | `OFF` | When `ON`, leaves the restored tree on disk after verification (default removes auto-tempdirs; operator-supplied targets are never auto-removed). |
+| `RESTORE_TEST_MIN_FILES` | `1` | Minimum number of regular files that must be present in the restored tree for the rehearsal to pass. Set to `0` to disable the file-count floor. |
+| `RESTORE_TEST_VERIFY` | `OFF` | When `ON`, passes `--verify` to restic so per-file hashes are checked against the snapshot manifest during restore. Slower; catches silent corruption. |
+
+There is **no `RESTORE_TEST_CRON`** baked into the entrypoint by design;
+schedule the rehearsal from a sidecar cron / Kubernetes `CronJob` /
+systemd timer that runs `docker exec restic-backup-helper
+/bin/restore-test`. See [Restore test](../operations/restore-test.md)
+for cadence and canary recommendations.
+
 ## NFS
 
 | Variable | Default | Description |
@@ -142,7 +160,7 @@ RESTIC_BACKUP_HELPER_RELEASE=…`. Read it from inside the container:
 
 ```shell
 docker exec restic-backup-helper printenv RESTIC_BACKUP_HELPER_RELEASE
-# → 2.11.0-0.18.1
+# → 2.14.0-0.18.1
 ```
 
 `/bin/doctor` includes the release in its `Runtime` section and every

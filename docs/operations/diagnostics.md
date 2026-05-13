@@ -1,6 +1,12 @@
-# Diagnostics (doctor and cron-list)
+# Diagnostics (status, doctor and cron-list)
 
-`/bin/doctor` is a read-only support command for "what is wrong with
+`/bin/status` is the quick daily operator command for "is this container
+broadly healthy?" moments. It reads only local state (`last-*.json`,
+the rendered crontab or env preview, release metadata and cron settings)
+and returns a compact `OK` / `WARN` / `FAIL` summary without touching
+the repository.
+
+`/bin/doctor` is the deeper read-only support command for "what is wrong with
 this container?" moments. It does not run `restic init`, `restic
 unlock`, backups, restores, replicate jobs, hooks, mail or webhooks. It
 only inspects the current environment and mounted files, then exits
@@ -51,6 +57,10 @@ flowchart LR
         J7[last-forget-preview.json]
         J8[last-mount-snapshot.json]
         J9[last-unlock.json]
+        J10[last-sources-report.json]
+        J11[last-init-repo.json]
+        J12[last-notify-test.json]
+        J13[last-restore-test.json]
     end
     subgraph Tail
         T1[Last 40 lines /var/log/cron.log]
@@ -65,11 +75,23 @@ flowchart LR
 | **Repository probe** | Non-mutating `restic cat config`. Exit 10 is reported as "repository missing/not initialized"; doctor never initializes it. The probe output is masked before printing. |
 | **Replicate** | Effective `REPLICATE_*` values and validation of `REPLICATE_JOB_FILE` rows (`SOURCE;DESTINATION[;MODE[;EXTRA_ARGS]]`) with endpoints masked. |
 | **Hooks** | Each known hook path is listed with executable status (`executable`, `not executable`, `not found`). |
-| **Recent JSON summaries** | The latest `last-{backup,check,prune,replicate,restore,snapshot-export,forget-preview,mount-snapshot,unlock}.json` content if present. |
+| **Recent JSON summaries** | The latest `last-{backup,check,prune,forget,replicate,restore,snapshot-export,forget-preview,mount-snapshot,unlock,sources-report,init-repo,notify-test,restore-test}.json` content if present. |
 | **Recent cron log** | Last 40 lines of `/var/log/cron.log`. |
 | **Summary** | `warnings: N`, `errors: N`. Exit non-zero only on errors. |
 
 ## Quick start
+
+For the daily health summary:
+
+```shell
+docker exec -ti restic-backup-helper /bin/status
+docker exec restic-backup-helper /bin/status --json | jq '.verdict, .findings'
+docker exec -ti restic-backup-helper /bin/health-summary
+```
+
+`/bin/health-summary` is a symlink alias for `/bin/status`.
+
+For deeper diagnostics:
 
 ```shell
 docker exec -ti restic-backup-helper /bin/doctor
@@ -86,8 +108,8 @@ docker run --rm \
   doctor
 ```
 
-The `doctor` entrypoint subcommand short-circuits cron startup and
-exec's `/bin/doctor` directly.
+The `status`, `health-summary` and `doctor` entrypoint subcommands
+short-circuit cron startup and exec the matching helper directly.
 
 For cron schedules:
 
@@ -110,14 +132,205 @@ as the entrypoint (`BACKUP_CRON`, `CHECK_CRON`, `REPLICATE_CRON`,
 | `0` | No hard errors. There may still be warnings (e.g. legacy `SYNC_*`, missing `MAILX_RCPT` when you expected mail). |
 | `1` | At least one hard error. Examples: missing repository settings, unreadable required secrets / config, empty `RESTIC_TAG`, no backup paths, failed repository probe. |
 
+## Machine-readable output (`--json`)
+
+`/bin/status`, `/bin/doctor` and `config-check` accept `--json` (alias
+`-j`) and emit a single JSON document on **stdout** in addition to the
+usual text mode. The text-mode banners/error lines are suppressed in
+JSON mode so consumers see only the JSON envelope. `doctor` and
+`config-check` exit `1` when hard errors are recorded; `status` exits
+`1` only on `FAIL` (a scheduled core job's last run failed), while a
+`WARN` verdict remains exit `0` for daily operator use.
+
+This is the same JSON philosophy as the per-worker `last-*.json` files
+and the `restic_*.prom` textfile collector — CI / Kubernetes / external
+monitoring should not have to regex-parse text lines.
+
+```shell
+docker exec restic-backup-helper doctor --json | jq '.checks[] | select(.status=="fail")'
+docker exec restic-backup-helper status --json | jq '.verdict, .findings'
+docker exec restic-backup-helper config-check --json | jq -r '.errors, .warnings'
+
+# As a one-shot in CI / preflight init container:
+docker run --rm --env-file restic.env \
+  -v ./config:/config:ro \
+  -v ./restic.password:/run/secrets/restic_password:ro \
+  marc0janssen/restic-backup-helper:latest \
+  config-check --json
+```
+
+### `status --json`
+
+Schema `restic-backup-helper.status/1`. This is the lightweight daily
+health summary: local state only, no repository probe and no restic /
+rclone execution.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `schema` | string | Constant `restic-backup-helper.status/1`. |
+| `command` | string | Constant `status`. |
+| `release` | string | `${VERSION}-${restic_base}` baked at build time. |
+| `hostname` | string | Container hostname. |
+| `generated_at` / `generated_epoch` | string / integer | Generation time. |
+| `verdict` | string | `OK`, `WARN` or `FAIL`. |
+| `warnings` / `failures` | integer | Finding counts. |
+| `exit_code` | integer | `0` for `OK` / `WARN`, `1` for `FAIL`. |
+| `runtime` | object | `tz` and masked `repository`. |
+| `crontab` | object | `source`, `path`, `line_count`. |
+| `schedules` | array | Known schedule rows. |
+| `jobs` | array | Core job status rows for `backup`, `check`, `forget`, `prune`, `replicate`. |
+| `recent_json` | array | Known `/var/log/last-*.json` files with presence, exit code and age. |
+| `findings` | array | Compact `{level, message}` list. |
+
+See [Status / health summary](status.md) for the exact health rules and
+staleness heuristic.
+
+### `config-check --json`
+
+Schema `restic-backup-helper.config-check/1`. Lean by design — it is
+intended for init-container readiness probes and CI gates.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `schema` | string | Constant `restic-backup-helper.config-check/1`. |
+| `command` | string | Constant `config-check`. |
+| `release` | string | `${VERSION}-${restic_base}` baked at build time. |
+| `hostname` | string | Container hostname. |
+| `generated_at` | string | ISO 8601 in container `TZ`. |
+| `generated_epoch` | integer | Unix epoch seconds. |
+| `warnings` | integer | Number of `warn` findings. |
+| `errors` | integer | Number of `fail` findings (matches `exit_code`). |
+| `exit_code` | integer | `0` on success, `1` when at least one `fail`. |
+| `checks` | array of `{key, status, message}` | One entry per validation. `status` ∈ `ok`, `warn`, `fail`. `key` is a stable identifier (e.g. `RESTIC_REPOSITORY`, `RESTIC_PASSWORD`, `BACKUP_PATHS`). |
+
+```json
+{
+  "schema": "restic-backup-helper.config-check/1",
+  "command": "config-check",
+  "release": "2.14.0-0.18.1",
+  "hostname": "backup-node",
+  "generated_at": "2026-05-13T22:07:08+0200",
+  "generated_epoch": 1747166828,
+  "warnings": 0,
+  "errors": 0,
+  "exit_code": 0,
+  "checks": [
+    {"key": "RESTIC_REPOSITORY", "status": "ok", "message": "RESTIC_REPOSITORY is set to rclone:jottacloud:backups."},
+    {"key": "RESTIC_PASSWORD", "status": "ok", "message": "RESTIC_PASSWORD_FILE is readable."},
+    {"key": "RESTIC_TAG", "status": "ok", "message": "RESTIC_TAG is set (backup-node)."},
+    {"key": "BACKUP_PATHS", "status": "ok", "message": "Backup paths are configured."}
+  ]
+}
+```
+
+### `doctor --json`
+
+Schema `restic-backup-helper.doctor/1`. Same envelope as
+`config-check` plus six typed sections so dashboards can pin specific
+fields without re-deriving them from the flat `checks[]` array. Every
+text-mode finding (`[OK] / [INFO] / [WARN] / [FAIL]`) appears in
+`checks[]` tagged with the section it was emitted under, so existing
+text consumers and the JSON consumer always see the same set of
+findings.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `schema` | string | Constant `restic-backup-helper.doctor/1`. |
+| `command` | string | Constant `doctor`. |
+| Common envelope | – | `release`, `hostname`, `generated_at`, `generated_epoch`, `warnings`, `errors`, `exit_code` (same semantics as `config-check`). |
+| `runtime` | object | `release`, `hostname`, `date`, `timezone`, `restic_version`, `rclone_version`, `bash_version`. Values are the same strings shown in the `== Runtime ==` text section. |
+| `environment` | object | Masked key/value map of every variable shown under `== Effective environment ==`. Passwords are rendered as `"<set, hidden>"` / `"<empty>"`. Repository URLs are masked via `mask_repository`. Webhook URLs are masked to `scheme://host/...`. |
+| `repository_probe` | object | `{status: "ok"|"fail"|"skipped", repository: "<masked URL>", restic_exit_code: <int|null>}`. `restic_exit_code` is `10` for "repository missing / not initialized". |
+| `replicate` | object | `{effective: {…REPLICATE_* values…}, jobs_count: int, malformed_count: int}`. |
+| `hooks` | object | `{hook_timeout: "<seconds>", directory_mounted: bool, present: [{phase, executable}]}`. Only hooks that actually exist on disk are listed. |
+| `recent_json` | array | One entry per known `last-*.json`: `{path, present, size_bytes}`. The body of each file is **not** inlined — consumers should fetch the file directly when interested. |
+| `checks` | array of `{section, status, message}` | Flat list of every text-mode finding. `status` ∈ `info`, `ok`, `warn`, `fail`. `section` matches the `== … ==` header in text mode (`Runtime`, `Effective environment`, `Configuration checks`, `Repository probe`, `Replicate`, `Hooks`, `Recent JSON summaries`, `Summary`). |
+
+```json
+{
+  "schema": "restic-backup-helper.doctor/1",
+  "command": "doctor",
+  "release": "2.14.0-0.18.1",
+  "hostname": "backup-node",
+  "generated_at": "2026-05-13T22:07:08+0200",
+  "generated_epoch": 1747166828,
+  "warnings": 0,
+  "errors": 0,
+  "exit_code": 0,
+  "runtime": {
+    "restic_version": "restic 0.18.1 compiled with go1.22.2 on linux/amd64",
+    "rclone_version": "rclone v1.66.0",
+    "bash_version": "GNU bash, version 5.2.21(1)-release"
+  },
+  "environment": {
+    "RESTIC_REPOSITORY": "rclone:jottacloud:backups",
+    "RESTIC_TAG": "backup-node-data",
+    "WEBHOOK_URL": "https://hc-ping.com/..."
+  },
+  "repository_probe": {
+    "status": "ok",
+    "repository": "rclone:jottacloud:backups",
+    "restic_exit_code": 0
+  },
+  "replicate": {
+    "effective": {"REPLICATE_CRON": "0 6 * * *"},
+    "jobs_count": 2,
+    "malformed_count": 0
+  },
+  "hooks": {
+    "hook_timeout": "300",
+    "directory_mounted": true,
+    "present": [
+      {"phase": "pre-backup", "executable": true},
+      {"phase": "post-backup", "executable": true}
+    ]
+  },
+  "recent_json": [
+    {"path": "/var/log/last-backup.json", "present": true, "size_bytes": 412}
+  ],
+  "checks": [
+    {"section": "Configuration checks", "status": "ok", "message": "RESTIC_REPOSITORY is set to rclone:jottacloud:backups"},
+    {"section": "Repository probe", "status": "ok", "message": "restic cat config succeeded for rclone:jottacloud:backups"}
+  ]
+}
+```
+
+### Stability promise
+
+Both schemas are part of the public API surface, on the same footing
+as `last-*.json` (see [JSON summaries → Stability
+promise](../reference/json-summaries.md#stability-promise)):
+
+- Adding fields is a **MINOR** bump.
+- Renaming or removing fields is a **MAJOR** bump.
+
+### Useful one-liners
+
+```shell
+# Exit non-zero in CI when any doctor check fails, with a readable summary.
+doctor --json | jq -e '.exit_code == 0' && echo "doctor ok" || \
+  doctor --json | jq -r '.checks[] | select(.status=="fail") | "FAIL [\(.section)] \(.message)"'
+
+# Surface the masked repository URL the helper would actually use at runtime.
+doctor --json | jq -r '.repository_probe.repository'
+
+# Kubernetes init container readiness probe.
+config-check --json | jq -e '.errors == 0' >/dev/null
+```
+
 ## When to run it
 
 - **After every config change.** Catches typos, mis-mounted secrets,
   unreadable `rclone.conf` before they show up as a failed cron job.
 - **Before opening an issue / support ticket.** The output is a
   ready-made support bundle.
-- **As a CI step.** Run `doctor` in a smoke-test job to validate the
-  full env / mount surface without writing data.
+- **As a CI step.** Run `doctor --json` (or `config-check --json`) in
+  a smoke-test job to validate the full env / mount surface without
+  writing data; gate the pipeline on `.exit_code == 0`.
+- **As a Kubernetes readiness / preflight init container.**
+  `config-check --json` is the cheaper of the two — no repository
+  probe — and is ideal for an `initContainers` step that gates the
+  CronJob from starting on misconfiguration.
 - **As a health probe**, when a strong probe is overkill. The Docker
   `HEALTHCHECK` example uses `restic cat config` directly because it is
   cheaper.
@@ -146,7 +359,7 @@ secrets into them — use a `RESTIC_PASSWORD_FILE` and
 
 ```text
 == Runtime ==
-release:            2.11.0-0.18.1
+release:            2.14.0-0.18.1
 hostname:           backup-node
 date:               2026-05-11 Mon 21:13:42 +0200
 timezone:           Europe/Amsterdam
@@ -194,6 +407,8 @@ hooks/pre-check.sh:   not found
 hooks/post-check.sh:  not found
 hooks/pre-prune.sh:   not found
 hooks/post-prune.sh:  not found
+hooks/pre-forget.sh:  not found
+hooks/post-forget.sh: not found
 hooks/pre-replicate.sh: not found
 hooks/post-replicate.sh: not found
 hooks/pre-restore.sh: not found
@@ -206,10 +421,18 @@ hooks/pre-mount-snapshot.sh: not found
 hooks/post-mount-snapshot.sh: not found
 hooks/pre-unlock.sh: not found
 hooks/post-unlock.sh: not found
+hooks/pre-sources-report.sh: not found
+hooks/post-sources-report.sh: not found
+hooks/pre-init-repo.sh: not found
+hooks/post-init-repo.sh: not found
+hooks/pre-notify-test.sh: not found
+hooks/post-notify-test.sh: not found
+hooks/pre-restore-test.sh: not found
+hooks/post-restore-test.sh: not found
 
 == Recent JSON summaries ==
 last-backup.json:
-{"job":"backup","hostname":"backup-node","release":"2.11.0-0.18.1","started_at":"2026-05-11T02:00:00+0200","finished_at":"2026-05-11T02:05:12+0200","duration_seconds":312,"exit_code":0,"repository":"rclone:jottacloud:backups","backup_root_dir":"","restic_tag":"backup-node-data","snapshot_id":"a1b2c3d4","files_new":12,"files_changed":4,"files_unmodified":21034,"bytes_added":"1.234 MiB"}
+{"job":"backup","hostname":"backup-node","release":"2.14.0-0.18.1","started_at":"2026-05-11T02:00:00+0200","finished_at":"2026-05-11T02:05:12+0200","duration_seconds":312,"exit_code":0,"repository":"rclone:jottacloud:backups","backup_root_dir":"","restic_tag":"backup-node-data","snapshot_id":"a1b2c3d4","files_new":12,"files_changed":4,"files_unmodified":21034,"bytes_added":"1.234 MiB"}
 ...
 
 == Recent cron log ==
@@ -242,3 +465,7 @@ errors:   0
   without mutation.
 - [Notify test](notify-test.md) — labelled mail/webhook test through
   the same notification helpers used by real workers.
+- [Restore test](restore-test.md) — disaster-recovery rehearsal that
+  actually restores a snapshot to a temp dir and verifies file count
+  plus optional SHA-256 canaries (`restic check` says "repo is
+  healthy"; restore-test says "I can really get my data back").

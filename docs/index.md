@@ -142,10 +142,13 @@ webhook notifications**, **Prometheus textfile metrics** and
 
     ---
 
-    `/bin/doctor` prints a read-only support bundle; `/bin/cron-list`
-    answers "what will run and when?" with timezone, rendered crontab
-    and schedule summary.
+    `/bin/status` (`/bin/health-summary`) gives a fast daily
+    OK/WARN/FAIL summary from local state only. `/bin/doctor` prints a
+    deeper read-only support bundle; `/bin/cron-list` answers "what
+    will run and when?" with timezone, rendered crontab and schedule
+    summary.
 
+    [:octicons-arrow-right-24: Status](operations/status.md)
     [:octicons-arrow-right-24: Diagnostics](operations/diagnostics.md)
 
 - :material-chart-line: __Observability__
@@ -227,7 +230,7 @@ The shortest "it backs up every night and yells when it breaks" setup:
 !!! tip "Pin your tags"
 
     Tagged images use the schema `<helper-semver>-<restic-version>`, e.g.
-    `2.11.0-0.18.1`. Pinning both protects you from surprise upstream
+    `2.14.0-0.18.1`. Pinning both protects you from surprise upstream
     behaviour changes. See [Image tags](reference/image-tags.md).
 
 ---

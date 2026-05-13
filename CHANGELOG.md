@@ -2,6 +2,359 @@
 
 ## Restic Backup Helper
 
+### 2.14.0-0.18.1 (2026-05-13)
+
+This release adds **`/bin/status`** (alias **`/bin/health-summary`**),
+a fast daily operator summary that answers "is this container broadly
+healthy?" without the depth or cost of `/bin/doctor`. It reads only
+local state: release metadata, the rendered crontab (or environment
+preview), known `/var/log/last-*.json` files and the ages / exit codes
+for scheduled core jobs.
+
+#### Added
+
+- **`/bin/status` / `/bin/health-summary`: local-state health summary.**
+  - Prints release, hostname, current time, masked repository,
+    warnings/failures, schedule state and the latest core-job ages.
+  - Reads `/var/log/last-*.json`, `/var/spool/cron/crontabs/root`
+    (falling back to an env-derived cron preview), `RESTIC_*` release
+    metadata and schedule env vars. It deliberately never runs
+    `restic`, `rclone`, hooks, mail, webhooks or a repository probe.
+  - Health rules are intentionally operator-friendly:
+    - `OK`: all enabled core jobs have a successful recent JSON summary.
+    - `WARN`: an enabled core job is missing a `last-*.json`, looks
+      stale for a simple cron expression, or a non-scheduled helper JSON
+      reports a non-zero exit.
+    - `FAIL`: an enabled core job (`backup`, `check`, `forget`, `prune`,
+      `replicate`) has a non-zero last exit code.
+  - Staleness is applied only to simple cron expressions
+    (`*/N * * * *`, `M */N * * *`, daily, weekly-ish and monthly-ish)
+    with a threshold of three expected intervals plus ten minutes.
+    Custom expressions still show age but do not trigger stale warnings.
+  - Supports `--json` / `-j` with schema
+    `restic-backup-helper.status/1`. The JSON includes `verdict`,
+    `warnings`, `failures`, `runtime`, `crontab`, `schedules[]`,
+    `jobs[]`, `recent_json[]` and compact `findings[]`. It is
+    stdout-only and does **not** create `/var/log/last-status.json`, so
+    asking for status does not mutate the local run history.
+  - Exit code is `0` for `OK` / `WARN`, `1` for `FAIL`, and `2` for bad
+    CLI usage.
+- **Smoke-test coverage for `/bin/status`.**
+  `scripts/ci-smoke-test.sh` now runs both text mode and the
+  `/bin/health-summary --json` alias, asserting schema
+  `restic-backup-helper.status/1`, `command == "status"`,
+  `exit_code == 0`, `verdict in ("OK", "WARN")`, required typed
+  sections, a present successful backup row, non-empty crontab and the
+  expected 14 `recent_json[]` entries.
+
+#### Changed
+
+- **Entrypoint and image wiring.** `Dockerfile` copies
+  `app/status.sh` to `/bin/status`, creates `/bin/health-summary` as a
+  symlink alias and marks the helper executable. `/entry.sh` accepts
+  `status`, `/bin/status`, `health-summary` and `/bin/health-summary`
+  as one-shot subcommands.
+- **Documentation.**
+  - New **Operations → Status / health summary** page with health rules,
+    examples, JSON schema and exit-code contract.
+  - **Operations → Diagnostics** now positions `status` as the fast daily
+    view, with `doctor` remaining the deeper support bundle and
+    `cron-list` the schedule explanation.
+  - **Reference → JSON summaries** documents `status --json` as a
+    stdout-only command schema (not a new `last-*.json` file).
+  - README / Docker Hub summary mention `/bin/status` and the
+    `/bin/health-summary` alias.
+
+#### Versioning
+
+- This is a **MINOR** bump (2.13.0 → 2.14.0) because it adds a new
+  operator-facing command, an entrypoint alias and a new machine-readable
+  JSON schema. No existing contract is renamed or removed.
+
+### 2.13.0-0.18.1 (2026-05-13)
+
+This release adds **`/bin/restore-test`**, an explicit disaster-recovery
+rehearsal helper that complements `restic check` (repository health) by
+proving the **bytes can actually come back**: it restores a snapshot (or
+a small canary sub-path) into an isolated temp directory, asserts the
+restored tree is non-empty and optionally that one or more canary files
+match a known SHA-256, then cleans up and emits the same audit surface
+every other worker does (log + `last-*.json` + Prometheus + mail +
+webhook + pre-/post hooks). Where `restic check` answers "the repo is
+healthy", `restore-test` answers "I can really get my data back".
+
+#### Added
+
+- **`/bin/restore-test`: disaster-recovery rehearsal helper.**
+  - Snapshot selection mirrors `/bin/restore`: `--id`, `--tag`,
+    `--host`. Defaults to the literal `latest` for the container's
+    `$HOSTNAME` and `$RESTIC_TAG`.
+  - **Isolation by default.** Without `--target` the helper restores
+    into `mktemp -d /tmp/restore-test.XXXXXX`. With `--target` it
+    refuses to restore into `/`, `/data` or `BACKUP_ROOT_DIR`, and
+    requires an empty directory unless `--force` is set.
+  - **Scope knobs** for fast rehearsals on large repos: `--path PATH`
+    (repeatable) restores a snapshot-absolute sub-path; `--verify`
+    asks restic to check per-file hashes against the snapshot manifest
+    during restore.
+  - **Two-layer verification.** A file-count floor (`--min-files`,
+    default `1`) catches "restore silently produced nothing"
+    (e.g. `--path` typos against the snapshot tree). Per-file canary
+    checksums (`--canary PATH=SHA256`, repeatable, or
+    `--canary-file FILE` in the canonical `sha256sum` format) catch
+    silent corruption that `restic check` would miss because the
+    bytes are internally consistent but happen to be the wrong bytes.
+  - **Bounded cleanup.** Auto-tempdirs (`/tmp/restore-test.XXXXXX`)
+    are removed on exit unless `--keep` is set; operator-supplied
+    targets are never auto-removed so a failing rehearsal stays on
+    disk for inspection. The on-disk verdict is recorded in JSON as
+    `cleanup_status` (`cleaned`, `kept`, `cleanup-failed`, `absent`).
+  - **Dry-run mode** (`--dry-run`) calls `restic restore --dry-run`
+    only, skips verification and tempdir creation, and still emits
+    the full JSON / metrics / mail / webhook audit trail so CI can
+    smoke-check the helper itself.
+  - **Audit surface mirrors every other worker:**
+    `/var/log/restore-test-last.log`, `/var/log/last-restore-test.json`
+    (atomic temp-file write, includes a nested `canary_results[]`
+    array post-appended in the same `sources_report.sh` style), and
+    when `METRICS_DIR` is set, `restic_restore_test.prom` with the
+    common envelope plus `restic_restore_test_last_canary_total`,
+    `..._canary_passed`, `..._canary_failed`. Hooks
+    `/hooks/pre-restore-test.sh` / `/hooks/post-restore-test.sh` are
+    invoked through the standard `run_hook` plumbing, post-hook gets
+    the helper exit code as `$1`. `notify_mail` /  `notify_webhook`
+    fire with a one-line subject summarising file count and canary
+    pass ratio.
+  - **Environment-variable equivalents.** Every long-form CLI flag
+    has a `RESTORE_TEST_*` env counterpart so Compose / Kubernetes
+    manifests can configure the rehearsal without wrapping the
+    helper: `RESTORE_TEST_PATH`, `RESTORE_TEST_TARGET`,
+    `RESTORE_TEST_CANARY`, `RESTORE_TEST_CANARY_FILE`,
+    `RESTORE_TEST_KEEP`, `RESTORE_TEST_MIN_FILES`,
+    `RESTORE_TEST_VERIFY`.
+  - **No `RESTORE_TEST_CRON` by design.** Restore rehearsals consume
+    backend bandwidth and CPU; operators should opt in deliberately
+    via a sidecar cron / Kubernetes `CronJob` / systemd timer
+    invoking `docker exec restic-backup-helper /bin/restore-test`.
+    The new documentation page (`docs/operations/restore-test.md`)
+    explains cadence and canary recommendations.
+- **Smoke-test coverage for the new helper.**
+  `scripts/ci-smoke-test.sh` now seeds a real canary SHA-256 by
+  hashing `/data/backup_src/smoke.txt` inside the container, runs
+  `/bin/restore-test --min-files 1 --canary "...=<sha>"` and asserts
+  the documented JSON schema: `verification == "passed"`,
+  `files_restored >= 1`, `bytes_restored > 0`, `canary_total == 1`,
+  `canary_passed == 1`, `canary_failed == 0`,
+  `target_autotmp == "ON"`, `cleanup_status == "cleaned"`, and that
+  the nested `canary_results[0].status == "passed"`. A second pass
+  exercises `--dry-run` and asserts `verification == "skipped"`,
+  so both the verifying and the non-verifying paths are protected
+  against regression. The `doctor --json` assertion was bumped
+  accordingly (`recent_json[]` length 13 → 14).
+
+#### Changed
+
+- **`/bin/doctor` enumerates the new helper.** `recent_json[]` now
+  surfaces `/var/log/last-restore-test.json`, and the hook-phase
+  enumeration lists `pre-restore-test` / `post-restore-test` alongside
+  the existing helpers so the doctor output stays a single source of
+  truth for "which helpers does this image know about".
+- **Documentation, navigation and references updated.**
+  - New page **Operations → Restore test (DR rehearsal)** in
+    `mkdocs.yml`.
+  - **Configuration → Environment variables**: dedicated
+    *Restore test (disaster-recovery rehearsal)* section listing
+    every `RESTORE_TEST_*` knob.
+  - **Configuration → Hooks**: `pre-restore-test` /
+    `post-restore-test` rows added.
+  - **Configuration → Prometheus metrics** and
+    **Reference → Prometheus metrics**: `restic_restore_test.prom`
+    listed alongside the other helper-specific textfiles; new
+    `_canary_total/_passed/_failed` gauges documented; PromQL recipe
+    "Restore rehearsal stale" added.
+  - **Reference → JSON summaries**: `restore-test` added to the
+    `job` enumeration and a full table documenting every field on
+    `last-restore-test.json`, including the nested
+    `canary_results[]` array.
+  - **Operations → Diagnostics (doctor)**: mermaid diagram, recent
+    JSON list and example hook output updated; "See also" cross-link
+    to Restore test added.
+
+#### Versioning
+
+- This is a **MINOR** bump (2.12.1 → 2.13.0) because it adds a new
+  operator-facing helper, new environment variables, new hook phases,
+  new JSON / Prometheus surface and new documentation. No existing
+  contract is renamed or removed; everything is additive.
+
+### 2.12.1-0.18.1 (2026-05-13)
+
+This patch release expands the **runtime smoke test** so it now exercises
+every recently-added operator helper in CI, not just the original
+`backup` / `check` / `replicate` / `rotate_log` quartet. The image
+binary contents are unchanged; this is a test-coverage release that
+catches regressions in the helper-script surface earlier.
+
+#### Changed
+
+- **`scripts/ci-smoke-test.sh` now covers the operator helper surface.**
+  Each new step is run end-to-end against the live smoke stack (so it
+  drives the actual `/bin/*` entrypoint dispatch, hooks, JSON summary
+  writers and exit-code contracts), and every helper's `last-*.json`
+  is parsed on the host with `python3` to assert the documented schema.
+  Added steps, in execution order:
+  - `cron-list` — invoked twice. Once via `docker compose run --rm`
+    (env-preview / no-tty path: only `BACKUP_CRON`-shaped rows expected)
+    and once via `docker compose exec` on the long-running container
+    (rendered-crontab path: full `/var/spool/cron/crontabs/root`).
+  - `config-check --json` — schema = `restic-backup-helper.config-check/1`,
+    `exit_code == 0`, `errors == 0`, and the required check keys
+    (`RESTIC_REPOSITORY`, `RESTIC_PASSWORD`, `RESTIC_TAG`, `BACKUP_PATHS`)
+    must be present in the flat `checks[]` array.
+  - `doctor --json` — schema = `restic-backup-helper.doctor/1`,
+    `exit_code == 0`, all six typed sections (`runtime`, `environment`,
+    `repository_probe`, `replicate`, `hooks`, `recent_json`) plus the
+    flat `checks[]` array must be present, `repository_probe.status`
+    must be `ok` (so we know the probe ran against the seeded repo)
+    and `recent_json[]` must enumerate exactly 13 known `last-*.json`
+    paths.
+  - `sources-report` — runs `/bin/sources-report` once and then asserts
+    `last-sources-report.json` has `sources_count >= 1` and
+    `total_files >= 1` for the seeded `/data/backup_src` source.
+  - `forget-preview` — runs the host/tag-scoped dry-run with the
+    smoke-test container hostname + `RESTIC_TAG=ci-smoke` and asserts
+    `last-forget-preview.json` reports `exit_code == 0`.
+  - `init-repo --dry-run --yes` — exercises the already-exists branch
+    (the smoke stack auto-inits at startup), asserts `exit_code == 0`,
+    `dry_run == "ON"` and `repo_existed == "true"` in
+    `last-init-repo.json`. Confirms the helper does NOT mutate an
+    existing repo in dry-run.
+  - `notify-test --all --dry-run` — invoked with ephemeral
+    `MAILX_RCPT=ops@smoke.invalid` and
+    `WEBHOOK_URL=https://webhook.smoke.invalid/test` passed via
+    `docker compose exec -e` so the helper has both targets configured
+    without leaking those values into the long-running compose
+    environment. `last-notify-test.json` must report
+    `mail_result == "dry-run"` and `webhook_result == "dry-run"` so
+    we know neither `mailx` nor `curl` was actually invoked.
+  - `restore --dry-run --yes --target /tmp/restore-smoke` — runs the
+    latest snapshot through `restic restore --dry-run`, asserts
+    `last-restore.json` reports `exit_code == 0` and `dry_run == "ON"`.
+    The smoke test creates the target dir inline so the
+    `non-empty-target` refusal path stays untouched.
+  - `snapshot-export --dry-run` — invokes the latest-snapshot export
+    in dry-run mode, asserts `last-snapshot-export.json` reports
+    `exit_code == 0` and `dry_run == "ON"`. Confirms no `.tar.gz` is
+    written even though the planned archive path is still recorded.
+- **`RESTIC_REPOSITORY_FILE` precedence is now smoke-tested explicitly.**
+  After the operator-helper sweep the smoke test seeds a temporary
+  `/data/repo.url` file (header comment + actual URL on the second
+  line so the parser's "first non-blank, non-comment" rule is also
+  exercised) and runs `config-check --json` via
+  `docker compose run --rm --no-deps -e RESTIC_REPOSITORY= -e
+  RESTIC_REPOSITORY_FILE=/data/repo.url`. The assertions confirm that
+  the resolver inside `lib.sh::resolve_restic_repository_file`
+  promotes the file's content into `RESTIC_REPOSITORY` (the
+  `RESTIC_REPOSITORY` check status is `ok` and its message contains
+  `/data/repo`) AND unsets `RESTIC_REPOSITORY_FILE` before validation
+  runs (no `RESTIC_REPOSITORY_FILE` check appears in `checks[]`). This
+  is the regression test for the `Options --repo and
+  --repository-file are mutually exclusive` symptom fixed in 2.11.0.
+- **JSON assertions run on the host, not in the container.** The
+  Alpine-based `restic/restic` base does not ship Python, so the new
+  steps `cat /var/log/last-<job>.json` out via `docker compose exec`
+  and pipe the body into a host-side `python3 -c '…'` block (Python
+  3.8+ compatible, no f-string-with-backslash gotchas). This keeps
+  the image footprint unchanged while still letting CI assert on
+  structured fields.
+
+#### Notes
+
+- The smoke test still tears the stack down on exit (or keeps it up
+  when `KEEP_SMOKE_STACK=yes` is set, unchanged) and the failure-path
+  artifact upload (`smoke-failure-logs.txt` / `smoke-failure-ps.txt`)
+  also captures the new steps' stdout/stderr automatically.
+- No `app/` script, Dockerfile layer, README user-facing instruction
+  or environment-variable contract changed in this release — only
+  `scripts/ci-smoke-test.sh`, `VERSION`, `CHANGELOG.md`,
+  `README.md` and `README-containers.md`, plus the bulk current-release
+  string update across docs and examples.
+
+### 2.12.0-0.18.1 (2026-05-13)
+
+This release adds **machine-readable diagnostics**: both `/bin/doctor` and
+`config-check` now accept `--json` (alias `-j`) and emit a single JSON
+document on stdout in addition to the usual text mode. CI pipelines,
+Kubernetes init-container readiness probes and external monitoring no
+longer have to regex-parse `[OK] / [WARN] / [FAIL]` lines — they can
+gate on `.exit_code == 0` or drill into `.checks[] | select(.status=="fail")`
+just like they already do for the per-worker `last-*.json` files. The
+text-mode behaviour is unchanged; the JSON path is fed by the same
+internal accumulators so the two surfaces always report the same set of
+findings.
+
+#### Added
+
+- **`doctor --json` (schema `restic-backup-helper.doctor/1`).** Emits a
+  single JSON envelope (`schema`, `command`, `release`, `hostname`,
+  `generated_at`, `generated_epoch`, `warnings`, `errors`, `exit_code`)
+  plus six typed sections so dashboards can pin individual fields:
+  - `runtime{}` — `restic_version`, `rclone_version`, `bash_version`,
+    `release`, `hostname`, `date`, `timezone`.
+  - `environment{}` — masked key/value map of every variable shown in
+    the text-mode `== Effective environment ==` section. Passwords are
+    rendered as `"<set, hidden>"` / `"<empty>"`; repository URLs go
+    through `mask_repository`; webhook URLs through `mask_webhook_url`.
+  - `repository_probe{}` — `{status: "ok"|"fail"|"skipped",
+    repository: "<masked URL>", restic_exit_code: <int|null>}`. Mirrors
+    the non-mutating `restic cat config` probe, never runs
+    `restic init`.
+  - `replicate{effective, jobs_count, malformed_count}` — effective
+    `REPLICATE_*` values (legacy `SYNC_*` mapping already applied) and
+    a count of valid vs. malformed rows in `REPLICATE_JOB_FILE`.
+  - `hooks{hook_timeout, directory_mounted, present[{phase, executable}]}`
+    — every hook that actually exists on disk, with its executable bit.
+  - `recent_json[]` — one `{path, present, size_bytes}` per known
+    `last-*.json` (`backup`, `check`, `prune`, `forget`, `replicate`,
+    `restore`, `snapshot-export`, `forget-preview`, `mount-snapshot`,
+    `unlock`, `sources-report`, `init-repo`, `notify-test`). The file
+    body is intentionally not inlined — consumers fetch it directly
+    when interested.
+  - `checks[]` — flat array of every `[INFO] / [OK] / [WARN] / [FAIL]`
+    finding emitted in text mode, tagged with the section it came from
+    (`Runtime`, `Effective environment`, `Configuration checks`,
+    `Repository probe`, `Replicate`, `Hooks`, `Recent JSON summaries`,
+    `Summary`). `status` ∈ `info`, `ok`, `warn`, `fail`.
+- **`config-check --json` (schema
+  `restic-backup-helper.config-check/1`).** Lean envelope designed for
+  Kubernetes init-container readiness probes and CI gates — no
+  repository probe, no environment dump, just the validation findings:
+  `checks[] = [{key, status, message}, …]` plus the common envelope
+  fields. `key` is a stable identifier (`RESTIC_REPOSITORY`,
+  `RESTIC_PASSWORD`, `RESTIC_TAG`, `BACKUP_PATHS`, `RCLONE_CONFIG`,
+  `REPLICATE_JOB_FILE`, `RESTIC_CACERT`, `RESTIC_REPOSITORY_FILE`) so
+  alerts can be wired without parsing message text.
+- **Same exit-code contract as text mode.** Both `--json` modes return
+  `0` when no errors were recorded and `1` otherwise, matching the
+  pre-existing text-mode behaviour. Existing shell wrappers that check
+  the exit code of `doctor` / `config-check` continue to work; only
+  consumers that scrape the output need to switch.
+
+#### Documentation
+
+- **Operations → Diagnostics** now documents the `--json` flag, both
+  schemas, the full field reference, the stability promise (MINOR
+  bumps add fields, MAJOR bumps rename/remove), an example output and
+  three `jq` one-liners (`exit_code == 0`, masked repository URL,
+  Kubernetes readiness probe).
+
+#### Notes
+
+- Strictly additive change. The text output of `doctor` and
+  `config-check` is byte-for-byte unchanged (the JSON path is fed from
+  the same accumulators); existing dashboards / Loki queries / support
+  bundles continue to work.
+
 ### 2.11.0-0.18.1 (2026-05-13)
 
 This release promotes `RESTIC_REPOSITORY_FILE` to a first-class alternative

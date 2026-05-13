@@ -3,7 +3,14 @@
 # Name: restic-backup-helper
 # Coder: Marco Janssen (micro.blog @marc0janssen https://micro.mjanssen.nl)
 # Doctor Script
-# Description: Read-only operator diagnostics for common runtime issues
+# Description: Read-only operator diagnostics for common runtime issues.
+#              Supports two output modes:
+#                * text (default) — human-readable sections + summary line.
+#                * --json         — single JSON document on stdout for CI /
+#                                   Kubernetes / monitoring consumers.
+#                                   Schema "restic-backup-helper.doctor/1";
+#                                   adding fields is MINOR, renaming/removing
+#                                   fields is MAJOR.
 # =========================================================
 
 set -Eeuo pipefail
@@ -11,29 +18,92 @@ set -Eeuo pipefail
 # shellcheck source=app/lib.sh
 . /bin/lib.sh
 
+JSON_MODE=false
+case "${1:-}" in
+--json | -j)
+	JSON_MODE=true
+	shift
+	;;
+-h | --help)
+	cat <<'USAGE'
+Usage: doctor [--json|-j]
+
+Read-only diagnostics covering runtime versions, masked environment, config
+checks, a non-mutating repository probe, replicate job validation, hooks and
+the most recent per-worker JSON summaries.
+
+Modes:
+  (default)      Human-readable sections + a final "warnings / errors" summary.
+  --json, -j     Emit a single JSON document on stdout (schema
+                 "restic-backup-helper.doctor/1"). Top-level fields:
+                   schema, command, release, hostname, generated_at,
+                   generated_epoch, warnings, errors, exit_code,
+                   runtime{}, environment{}, repository_probe{},
+                   replicate{}, hooks{}, recent_json[], checks[].
+
+Exit code: 0 when no errors, 1 when at least one fail was recorded
+(identical in text and JSON mode).
+USAGE
+	exit 0
+	;;
+esac
+
 WARNINGS=0
 ERRORS=0
+CURRENT_SECTION=""
+
+# Accumulators populated alongside text output. Used unconditionally so the two
+# render paths stay aligned (the only difference is which sink is flushed at
+# the end).
+JSON_CHECKS=()
+JSON_RUNTIME_KEYS=()
+JSON_RUNTIME_VALS=()
+JSON_ENV_KEYS=()
+JSON_ENV_VALS=()
+JSON_REPO_PROBE_STATUS=""
+JSON_REPO_PROBE_RC=""
+JSON_REPLICATE_KEYS=()
+JSON_REPLICATE_VALS=()
+JSON_REPLICATE_JOBS_COUNT=0
+JSON_REPLICATE_MALFORMED_COUNT=0
+JSON_HOOKS_TIMEOUT=""
+JSON_HOOKS_DIR_MOUNTED=true
+JSON_HOOKS_PRESENT=() # "phase|true|false"
+JSON_RECENT_JSON=()   # "path|true|N" or "path|false|0"
 
 section() {
-	printf '\n== %s ==\n' "$1"
+	CURRENT_SECTION="$1"
+	${JSON_MODE} || printf '\n== %s ==\n' "$1"
+}
+
+# Append a structured finding to the JSON checks accumulator. Caller is one of
+# info/ok/warn/fail and we record the current section so consumers can group
+# without re-parsing the message.
+record_check() {
+	local status="$1" msg="$2"
+	JSON_CHECKS+=("{\"section\":\"$(json_escape "${CURRENT_SECTION}")\",\"status\":\"${status}\",\"message\":\"$(json_escape "${msg}")\"}")
 }
 
 info() {
-	printf '[INFO] %s\n' "$1"
+	${JSON_MODE} || printf '[INFO] %s\n' "$1"
+	record_check "info" "$1"
 }
 
 ok() {
-	printf '[OK] %s\n' "$1"
+	${JSON_MODE} || printf '[OK] %s\n' "$1"
+	record_check "ok" "$1"
 }
 
 warn() {
 	WARNINGS=$((WARNINGS + 1))
-	printf '[WARN] %s\n' "$1"
+	${JSON_MODE} || printf '[WARN] %s\n' "$1"
+	record_check "warn" "$1"
 }
 
 fail() {
 	ERRORS=$((ERRORS + 1))
-	printf '[FAIL] %s\n' "$1"
+	${JSON_MODE} || printf '[FAIL] %s\n' "$1"
+	record_check "fail" "$1"
 }
 
 trim() {
@@ -43,8 +113,29 @@ trim() {
 	printf '%s' "${s}"
 }
 
+# Print a key/value pair in text mode AND capture it into the right
+# JSON accumulator based on the current section.
 print_kv() {
-	printf '  %-34s %s\n' "$1:" "$2"
+	${JSON_MODE} || printf '  %-34s %s\n' "$1:" "$2"
+	case "${CURRENT_SECTION}" in
+	"Runtime")
+		JSON_RUNTIME_KEYS+=("$1")
+		JSON_RUNTIME_VALS+=("$2")
+		;;
+	"Effective environment")
+		JSON_ENV_KEYS+=("$1")
+		JSON_ENV_VALS+=("$2")
+		;;
+	"Replicate")
+		JSON_REPLICATE_KEYS+=("$1")
+		JSON_REPLICATE_VALS+=("$2")
+		;;
+	"Hooks")
+		if [ "$1" = "HOOK_TIMEOUT" ]; then
+			JSON_HOOKS_TIMEOUT="$2"
+		fi
+		;;
+	esac
 }
 
 masked_env_value() {
@@ -120,17 +211,23 @@ check_writable_dir() {
 	fi
 }
 
+# Capture the first line of `cmd --version` output. Also recorded into the
+# runtime JSON object so the doctor JSON has a single typed home for
+# `restic_version`, `rclone_version`, `bash_version`.
 report_command_version() {
 	local label="$1"
 	shift
 	local output rc
-
 	if output="$("$@" 2>&1 | sed -n '1p')"; then
 		rc=0
 		ok "${label}: ${output}"
+		JSON_RUNTIME_KEYS+=("${label}_version")
+		JSON_RUNTIME_VALS+=("${output}")
 	else
 		rc=$?
 		warn "${label}: unavailable (exit ${rc})"
+		JSON_RUNTIME_KEYS+=("${label}_version")
+		JSON_RUNTIME_VALS+=("unavailable")
 	fi
 }
 
@@ -171,6 +268,8 @@ report_replicate_jobs() {
 
 	if [ -z "${job_file}" ]; then
 		info "Replicate job file: not configured"
+		JSON_REPLICATE_JOBS_COUNT=0
+		JSON_REPLICATE_MALFORMED_COUNT=0
 		return 0
 	fi
 	if [ ! -e "${job_file}" ]; then
@@ -206,6 +305,9 @@ report_replicate_jobs() {
 		fi
 	done <"${job_file}"
 
+	JSON_REPLICATE_JOBS_COUNT="${count}"
+	JSON_REPLICATE_MALFORMED_COUNT="${malformed}"
+
 	if [ "${count}" -eq 0 ]; then
 		warn "Replicate job file is readable but contains no active jobs: ${job_file}"
 	elif [ "${malformed}" -eq 0 ]; then
@@ -230,11 +332,13 @@ report_hooks() {
 		pre-sources-report post-sources-report
 		pre-init-repo post-init-repo
 		pre-notify-test post-notify-test
+		pre-restore-test post-restore-test
 	)
 	local phase hook found
 	found=0
 
 	if [ ! -d /hooks ]; then
+		JSON_HOOKS_DIR_MOUNTED=false
 		info "Hook directory /hooks is not mounted."
 		return 0
 	fi
@@ -245,8 +349,10 @@ report_hooks() {
 			found=$((found + 1))
 			if [ -x "${hook}" ]; then
 				ok "${hook} is executable"
+				JSON_HOOKS_PRESENT+=("${phase}|true")
 			else
 				warn "${hook} exists but is not executable"
+				JSON_HOOKS_PRESENT+=("${phase}|false")
 			fi
 		fi
 	done
@@ -257,7 +363,7 @@ report_hooks() {
 }
 
 report_last_json() {
-	local file
+	local file size
 	local files=(
 		/var/log/last-backup.json
 		/var/log/last-check.json
@@ -272,14 +378,20 @@ report_last_json() {
 		/var/log/last-sources-report.json
 		/var/log/last-init-repo.json
 		/var/log/last-notify-test.json
+		/var/log/last-restore-test.json
 	)
 
 	for file in "${files[@]}"; do
 		if [ -s "${file}" ]; then
-			info "${file}:"
-			sed 's/^/  /' "${file}"
+			size="$(wc -c <"${file}" 2>/dev/null | tr -d ' ' || echo 0)"
+			JSON_RECENT_JSON+=("${file}|true|${size}")
+			if ! ${JSON_MODE}; then
+				info "${file}:"
+				sed 's/^/  /' "${file}"
+			fi
 		else
-			info "${file}: missing or empty"
+			JSON_RECENT_JSON+=("${file}|false|0")
+			${JSON_MODE} || info "${file}: missing or empty"
 		fi
 	done
 }
@@ -288,12 +400,164 @@ report_log_tail() {
 	local file="$1"
 	local lines="${2:-40}"
 
+	# In JSON mode the cron log tail is not part of the schema (it is mostly
+	# free-form text and we already capture worker results in last-*.json /
+	# recent_json[] and checks[]). Skip the noisy block entirely.
+	${JSON_MODE} && return 0
+
 	if [ -s "${file}" ]; then
 		info "Last ${lines} lines from ${file}:"
 		tail -n "${lines}" "${file}" | sed 's/^/  /'
 	else
 		info "${file}: missing or empty"
 	fi
+}
+
+# Render the doctor JSON document on stdout.
+# Schema "restic-backup-helper.doctor/1" — adding fields is MINOR,
+# renaming/removing fields is MAJOR.
+emit_doctor_json() {
+	local exit_code="$1"
+	local hostname now_epoch now_iso release
+	hostname="${HOSTNAME:-$(hostname 2>/dev/null || echo unknown)}"
+	release="${RESTIC_BACKUP_HELPER_RELEASE:-unknown}"
+	now_epoch="$(date +%s)"
+	now_iso="$(iso8601_local "${now_epoch}")"
+
+	local i sep entry IFS_save
+
+	printf '{\n'
+	printf '  "schema": "restic-backup-helper.doctor/1",\n'
+	printf '  "command": "doctor",\n'
+	printf '  "release": "%s",\n' "$(json_escape "${release}")"
+	printf '  "hostname": "%s",\n' "$(json_escape "${hostname}")"
+	printf '  "generated_at": "%s",\n' "$(json_escape "${now_iso}")"
+	printf '  "generated_epoch": %d,\n' "${now_epoch}"
+	printf '  "warnings": %d,\n' "${WARNINGS}"
+	printf '  "errors": %d,\n' "${ERRORS}"
+	printf '  "exit_code": %d,\n' "${exit_code}"
+
+	# runtime{}
+	# Iterate only when the array is non-empty. The size-guard pattern works on
+	# every bash (3.2/4.x/5.x) while keeping `set -u` happy; the alternative
+	# `${!arr[@]+...}` is buggy on Bash 3.2 (silently empty even for populated
+	# arrays — bites macOS smoke tests).
+	printf '  "runtime": {'
+	sep=""
+	if [ ${#JSON_RUNTIME_KEYS[@]} -gt 0 ]; then
+		for i in "${!JSON_RUNTIME_KEYS[@]}"; do
+			printf '%s\n    "%s": "%s"' \
+				"${sep}" \
+				"$(json_escape "${JSON_RUNTIME_KEYS[$i]}")" \
+				"$(json_escape "${JSON_RUNTIME_VALS[$i]}")"
+			sep=","
+		done
+		printf '\n  '
+	fi
+	printf '},\n'
+
+	# environment{}
+	printf '  "environment": {'
+	sep=""
+	if [ ${#JSON_ENV_KEYS[@]} -gt 0 ]; then
+		for i in "${!JSON_ENV_KEYS[@]}"; do
+			printf '%s\n    "%s": "%s"' \
+				"${sep}" \
+				"$(json_escape "${JSON_ENV_KEYS[$i]}")" \
+				"$(json_escape "${JSON_ENV_VALS[$i]}")"
+			sep=","
+		done
+		printf '\n  '
+	fi
+	printf '},\n'
+
+	# repository_probe{}
+	printf '  "repository_probe": {\n'
+	printf '    "status": "%s",\n' "$(json_escape "${JSON_REPO_PROBE_STATUS:-skipped}")"
+	printf '    "repository": "%s",\n' "$(json_escape "$(mask_repository "${RESTIC_REPOSITORY:-}")")"
+	if [ -n "${JSON_REPO_PROBE_RC}" ]; then
+		printf '    "restic_exit_code": %d\n' "${JSON_REPO_PROBE_RC}"
+	else
+		printf '    "restic_exit_code": null\n'
+	fi
+	printf '  },\n'
+
+	# replicate{}
+	printf '  "replicate": {\n'
+	printf '    "effective": {'
+	sep=""
+	if [ ${#JSON_REPLICATE_KEYS[@]} -gt 0 ]; then
+		for i in "${!JSON_REPLICATE_KEYS[@]}"; do
+			printf '%s\n      "%s": "%s"' \
+				"${sep}" \
+				"$(json_escape "${JSON_REPLICATE_KEYS[$i]}")" \
+				"$(json_escape "${JSON_REPLICATE_VALS[$i]}")"
+			sep=","
+		done
+		printf '\n    '
+	fi
+	printf '},\n'
+	printf '    "jobs_count": %d,\n' "${JSON_REPLICATE_JOBS_COUNT}"
+	printf '    "malformed_count": %d\n' "${JSON_REPLICATE_MALFORMED_COUNT}"
+	printf '  },\n'
+
+	# hooks{}
+	printf '  "hooks": {\n'
+	printf '    "hook_timeout": "%s",\n' "$(json_escape "${JSON_HOOKS_TIMEOUT}")"
+	if ${JSON_HOOKS_DIR_MOUNTED}; then
+		printf '    "directory_mounted": true,\n'
+	else
+		printf '    "directory_mounted": false,\n'
+	fi
+	printf '    "present": ['
+	sep=""
+	IFS_save="${IFS}"
+	if [ ${#JSON_HOOKS_PRESENT[@]} -gt 0 ]; then
+		for entry in "${JSON_HOOKS_PRESENT[@]}"; do
+			IFS='|' read -r phase exec_flag <<<"${entry}"
+			printf '%s\n      {"phase": "%s", "executable": %s}' \
+				"${sep}" \
+				"$(json_escape "${phase}")" \
+				"${exec_flag}"
+			sep=","
+		done
+		printf '\n    '
+	fi
+	IFS="${IFS_save}"
+	printf ']\n'
+	printf '  },\n'
+
+	# recent_json[]
+	printf '  "recent_json": ['
+	sep=""
+	IFS_save="${IFS}"
+	if [ ${#JSON_RECENT_JSON[@]} -gt 0 ]; then
+		for entry in "${JSON_RECENT_JSON[@]}"; do
+			IFS='|' read -r path present size <<<"${entry}"
+			printf '%s\n    {"path": "%s", "present": %s, "size_bytes": %d}' \
+				"${sep}" \
+				"$(json_escape "${path}")" \
+				"${present}" \
+				"${size}"
+			sep=","
+		done
+		printf '\n  '
+	fi
+	IFS="${IFS_save}"
+	printf '],\n'
+
+	# checks[]
+	printf '  "checks": ['
+	sep=""
+	if [ ${#JSON_CHECKS[@]} -gt 0 ]; then
+		for i in "${!JSON_CHECKS[@]}"; do
+			printf '%s\n    %s' "${sep}" "${JSON_CHECKS[$i]}"
+			sep=","
+		done
+		printf '\n  '
+	fi
+	printf ']\n'
+	printf '}\n'
 }
 
 section "Runtime"
@@ -391,17 +655,24 @@ section "Repository probe"
 build_restic_cacert_args
 if [ -z "${RESTIC_REPOSITORY:-}" ]; then
 	warn "Skipping repository probe because RESTIC_REPOSITORY is empty."
+	JSON_REPO_PROBE_STATUS="skipped"
 else
-	if probe_output="$(restic "${RESTIC_CACERT_ARGS[@]}" cat config 2>&1 >/dev/null)"; then
+	# ${arr[@]+...} keeps `set -u` happy when RESTIC_CACERT_ARGS is the empty
+	# array (RESTIC_CACERT unset, the common case).
+	if probe_output="$(restic ${RESTIC_CACERT_ARGS[@]+"${RESTIC_CACERT_ARGS[@]}"} cat config 2>&1 >/dev/null)"; then
 		ok "restic cat config succeeded for $(mask_repository "${RESTIC_REPOSITORY}")"
+		JSON_REPO_PROBE_STATUS="ok"
+		JSON_REPO_PROBE_RC=0
 	else
 		probe_status=$?
+		JSON_REPO_PROBE_STATUS="fail"
+		JSON_REPO_PROBE_RC="${probe_status}"
 		if [ "${probe_status}" -eq 10 ]; then
 			fail "Repository does not exist or is not initialized (restic exit 10). Doctor does not run restic init."
 		else
 			fail "Repository probe failed with restic exit ${probe_status}."
 		fi
-		if [ -n "${probe_output}" ]; then
+		if ! ${JSON_MODE} && [ -n "${probe_output}" ]; then
 			info "Probe stderr:"
 			printf '%s\n' "${probe_output}" | while IFS= read -r line; do
 				printf '  %s\n' "$(mask_repository "${line}")"
@@ -431,6 +702,14 @@ report_log_tail "/var/log/cron.log" 40
 section "Summary"
 print_kv "warnings" "${WARNINGS}"
 print_kv "errors" "${ERRORS}"
+
+if ${JSON_MODE}; then
+	exit_code=0
+	[ "${ERRORS}" -gt 0 ] && exit_code=1
+	emit_doctor_json "${exit_code}"
+	exit "${exit_code}"
+fi
+
 if [ "${ERRORS}" -gt 0 ]; then
 	fail "Doctor found ${ERRORS} error(s)."
 	exit 1
