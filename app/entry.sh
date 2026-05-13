@@ -87,6 +87,10 @@ if [ "${1:-}" = "unlock" ] || [ "${1:-}" = "/bin/unlock" ]; then
 	shift
 	exec /bin/unlock "$@"
 fi
+if [ "${1:-}" = "sources-report" ] || [ "${1:-}" = "/bin/sources-report" ]; then
+	shift
+	exec /bin/sources-report "$@"
+fi
 
 # shellcheck source=app/lib.sh
 . /bin/lib.sh

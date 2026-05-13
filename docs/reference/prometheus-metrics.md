@@ -23,7 +23,8 @@ ${METRICS_DIR}/
 ├── restic_snapshot_export.prom
 ├── restic_forget_preview.prom
 ├── restic_mount_snapshot.prom
-└── restic_unlock.prom              # only when /bin/unlock has been run
+├── restic_unlock.prom              # only when /bin/unlock has been run
+└── restic_sources_report.prom      # only when /bin/sources-report has been run
 ```
 
 ## Always-emitted gauges

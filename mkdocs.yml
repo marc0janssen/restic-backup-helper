@@ -164,6 +164,7 @@ nav:
       - Forget preview: operations/forget-preview.md
       - Mount snapshot: operations/mount-snapshot.md
       - Unlock: operations/unlock.md
+      - Sources report: operations/sources-report.md
       - Diagnostics (doctor): operations/diagnostics.md
       - Troubleshooting: operations/troubleshooting.md
   - Deployment:

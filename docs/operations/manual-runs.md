@@ -23,6 +23,7 @@ docker exec -ti restic-backup-helper /bin/snapshot-export --id latest
 docker exec -ti restic-backup-helper /bin/forget-preview
 docker exec -ti restic-backup-helper /bin/mount-snapshot
 docker exec -ti restic-backup-helper /bin/unlock --dry-run
+docker exec -ti restic-backup-helper /bin/sources-report --no-size
 docker exec -ti restic-backup-helper /bin/doctor
 docker exec -ti restic-backup-helper /bin/cron-list
 
@@ -108,6 +109,14 @@ docker run --rm \
   -v ./restic.password:/run/secrets/restic_password:ro \
   marc0janssen/restic-backup-helper:latest \
   unlock --dry-run
+
+# Pre-flight source inventory (readability, type, file count, optional size).
+docker run --rm \
+  --env-file restic.env \
+  -v /srv/documents:/data:ro \
+  -v ./config:/config:ro \
+  marc0janssen/restic-backup-helper:latest \
+  sources-report --no-size
 ```
 
 Recognised entrypoint subcommands:
@@ -121,6 +130,7 @@ Recognised entrypoint subcommands:
 | `forget-preview` or `/bin/forget-preview` | Pass remaining args to `/bin/forget-preview`; always uses `restic forget --dry-run`. |
 | `mount-snapshot` or `/bin/mount-snapshot` | Pass remaining args to `/bin/mount-snapshot`; blocks until you unmount (Ctrl+C / SIGTERM). |
 | `unlock` or `/bin/unlock` | Pass remaining args to `/bin/unlock`. Audited manual `restic unlock` wrapper; supports `--dry-run` and `--remove-all`. |
+| `sources-report` or `/bin/sources-report` | Pass remaining args to `/bin/sources-report`. Pre-flight inventory of `BACKUP_ROOT_DIR` + `--files-from` / `--exclude-file`; supports `--no-size`, `--depth N`, `--source`, `--files-from`. |
 
 Anything else falls through to the normal cron startup.
 
@@ -198,4 +208,7 @@ between-snapshot diff, in-place tar streams).
   FUSE with safe target validation and clean unmount.
 - [Unlock](unlock.md) — audited manual `restic unlock` wrapper that
   complements the safer `RESTIC_AUTO_UNLOCK=OFF` default.
+- [Sources report](sources-report.md) — pre-flight inventory of
+  `BACKUP_ROOT_DIR` + `--files-from` / `--exclude-file` references,
+  with optional size estimation.
 - [Troubleshooting](troubleshooting.md) — common manual-run hiccups.

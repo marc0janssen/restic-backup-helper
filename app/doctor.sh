@@ -120,29 +120,6 @@ check_writable_dir() {
 	fi
 }
 
-collect_arg_paths() {
-	local args="$1"
-	local flag="$2"
-	local -a parts
-	local i token next
-
-	[ -n "${args}" ] || return 0
-	read -r -a parts <<<"${args}"
-
-	for ((i = 0; i < ${#parts[@]}; i++)); do
-		token="${parts[$i]}"
-		case "${token}" in
-		"${flag}")
-			next="${parts[$((i + 1))]:-}"
-			[ -n "${next}" ] && printf '%s\n' "${next}"
-			;;
-		"${flag}"=*)
-			printf '%s\n' "${token#*=}"
-			;;
-		esac
-	done
-}
-
 report_command_version() {
 	local label="$1"
 	shift
@@ -250,6 +227,7 @@ report_hooks() {
 		pre-forget-preview post-forget-preview
 		pre-mount-snapshot post-mount-snapshot
 		pre-unlock post-unlock
+		pre-sources-report post-sources-report
 	)
 	local phase hook found
 	found=0
@@ -289,6 +267,7 @@ report_last_json() {
 		/var/log/last-forget-preview.json
 		/var/log/last-mount-snapshot.json
 		/var/log/last-unlock.json
+		/var/log/last-sources-report.json
 	)
 
 	for file in "${files[@]}"; do

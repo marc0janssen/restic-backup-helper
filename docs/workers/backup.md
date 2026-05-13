@@ -91,6 +91,16 @@ flowchart TD
     --exclude-file /config/exclude_files.txt --skip-if-unchanged"`
     when you want to back up multiple disjoint trees with one cron tick.
 
+!!! tip "Verify your sources before the next tick"
+
+    [`/bin/sources-report`](../operations/sources-report.md) is a
+    read-only pre-flight inventory that re-uses the exact same
+    `BACKUP_ROOT_DIR` + `RESTIC_JOB_ARGS` parsing as this worker.
+    Run it after editing your env file or moving mounts; it reports
+    readability, type, file count and (optional) size for each
+    source plus the contents of every `--files-from` /
+    `--exclude-file`.
+
 ### Retention
 
 | Variable | What it controls |

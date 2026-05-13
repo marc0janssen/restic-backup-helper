@@ -102,6 +102,18 @@ webhook notifications**, **Prometheus textfile metrics** and
 
     [:octicons-arrow-right-24: Unlock](operations/unlock.md)
 
+- :material-clipboard-text-search-outline: __Sources report__
+
+    ---
+
+    `/bin/sources-report` is the pre-flight inventory: readability,
+    type, file count and (optional) size for `BACKUP_ROOT_DIR` plus
+    every `--files-from` / `--exclude-file` reference in
+    `RESTIC_JOB_ARGS`. Catches missing mounts, stale `--files-from`
+    entries and silently-empty exclude files before the next backup.
+
+    [:octicons-arrow-right-24: Sources report](operations/sources-report.md)
+
 - :material-stethoscope: __Doctor diagnostics__
 
     ---
@@ -191,7 +203,7 @@ The shortest "it backs up every night and yells when it breaks" setup:
 !!! tip "Pin your tags"
 
     Tagged images use the schema `<helper-semver>-<restic-version>`, e.g.
-    `2.7.0-0.18.1`. Pinning both protects you from surprise upstream
+    `2.8.0-0.18.1`. Pinning both protects you from surprise upstream
     behaviour changes. See [Image tags](reference/image-tags.md).
 
 ---

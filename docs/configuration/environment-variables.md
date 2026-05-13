@@ -28,8 +28,8 @@ provide it at runtime*.
 | Variable | Default | Description |
 | --- | --- | --- |
 | `BACKUP_CRON` | `0 */6 * * *` | Cron schedule for `/bin/backup`. |
-| `BACKUP_ROOT_DIR` | *(empty)* | If set, appended as backup path(s). If empty and `RESTIC_JOB_ARGS` does not contain paths, `restic backup` runs with no explicit path. |
-| `RESTIC_JOB_ARGS` | *(empty)* | Extra words passed to `restic backup` (shell-word split). Examples: `--exclude-file /config/exclude_files.txt --one-file-system`, `--files-from /config/include_files.txt`. |
+| `BACKUP_ROOT_DIR` | *(empty)* | If set, appended as backup path(s). If empty and `RESTIC_JOB_ARGS` does not contain paths, `restic backup` runs with no explicit path. Run [`/bin/sources-report`](../operations/sources-report.md) to inspect what these paths look like on disk before the next backup. |
+| `RESTIC_JOB_ARGS` | *(empty)* | Extra words passed to `restic backup` (shell-word split). Examples: `--exclude-file /config/exclude_files.txt --one-file-system`, `--files-from /config/include_files.txt`. [`/bin/sources-report`](../operations/sources-report.md) re-uses the same parsing rules to surface `--files-from` / `--exclude-file` readability and pattern counts. |
 | `RESTIC_FORGET_ARGS` | *(empty)* | If set **and** backup exits `0`, runs `restic forget` with these words (shell-word split). Example: `--retry-lock=5m --keep-daily 7 --keep-weekly 5 --keep-monthly 12`. Add `--prune` only if you do not run `PRUNE_CRON` separately. |
 
 ## Check job
@@ -140,7 +140,7 @@ RESTIC_BACKUP_HELPER_RELEASE=…`. Read it from inside the container:
 
 ```shell
 docker exec restic-backup-helper printenv RESTIC_BACKUP_HELPER_RELEASE
-# → 2.7.0-0.18.1
+# → 2.8.0-0.18.1
 ```
 
 `/bin/doctor` includes the release in its `Runtime` section and every

@@ -2,6 +2,84 @@
 
 ## Restic Backup Helper
 
+### 2.8.0-0.18.1 (2026-05-13)
+
+This release adds a **pre-flight source inventory** so operators can
+answer "what will actually get backed up next tick?" without taking a
+repository lock or running a probe backup. `/bin/sources-report` reads
+`BACKUP_ROOT_DIR` and parses every `--files-from` / `--exclude-file`
+reference out of `RESTIC_JOB_ARGS`, then reports readability, type,
+file count and (optional) size per source plus pattern counts and
+missing-entry counts per files-from / exclude-file. Catches the four
+silent-drift failure modes that doctor's boolean readability check
+cannot: missing mounts that look "fine, just smaller", stale entries
+inside `--files-from` files, mistyped exclude-file paths that restic
+silently treats as "no excludes", and host-migration mismatches where
+the path list inherited from another host doesn't resolve yet.
+
+#### Added
+
+- **`/bin/sources-report` operator-driven pre-flight inventory.**
+  Read-only. Default scope is the exact same contract `/bin/backup`
+  feeds restic: `BACKUP_ROOT_DIR` (positional path) plus every
+  `--files-from`, `--files-from-verbatim`, `--files-from-raw`,
+  `--exclude-file` and `--iexclude-file` discovered inside
+  `RESTIC_JOB_ARGS`. The CLI adds `--source PATH` and `--files-from
+  FILE` for ad-hoc inspection (repeatable); `--no-size` skips the
+  `du -sk` / `find -type f` probes for slow / remote sources;
+  `--depth N` caps directory traversal depth. Emits the standard
+  worker surface: human-readable `/var/log/sources-report-last.log`
+  with per-source / per-files-from / per-exclude-file tables;
+  `/var/log/last-sources-report.json` with flat aggregates plus
+  nested `sources`, `files_from` and `exclude_files` arrays (each
+  source carries `{path, readable, type, files, bytes}`; each
+  files-from carries `{path, readable, lines, missing_entries}`);
+  `restic_sources_report.prom` when `METRICS_DIR` is set; mail
+  subject (`[OK|FAIL N] Sources report …`) and webhook payload; the
+  `pre-sources-report` / `post-sources-report "$rc"` hook pair.
+  Reachable via `docker exec … /bin/sources-report` and the
+  entrypoint shortcut `docker run … sources-report`. Registered in
+  `/bin/doctor` alongside the other hook families and JSON
+  summaries. The size figure is intentionally **unfiltered**
+  (`du -sk` without applying restic excludes); exclude files are
+  inventoried separately so operators can reason about expected
+  exclusions without this helper having to re-implement restic's
+  matcher.
+- **`collect_arg_paths` helper promoted to `app/lib.sh`.**
+  Internal: the RESTIC_JOB_ARGS parser previously private to
+  `/bin/doctor` is now a library function shared with
+  `/bin/sources-report`, so both helpers tokenise `--files-from`
+  and `--exclude-file` identically. Pure refactor; no behaviour
+  change for `/bin/doctor`.
+- **Documentation: `/bin/sources-report` operations page**
+  ([`docs/operations/sources-report.md`](https://marc0janssen.github.io/restic-backup-helper/operations/sources-report.html))
+  with mermaid flowchart, scope discovery semantics, estimate
+  caveats (size is unfiltered; exclude-file inventory is separate),
+  JSON schema, exit-code table and cross-links from
+  [Backup worker](https://marc0janssen.github.io/restic-backup-helper/workers/backup.html),
+  [Manual runs](https://marc0janssen.github.io/restic-backup-helper/operations/manual-runs.html),
+  [Diagnostics](https://marc0janssen.github.io/restic-backup-helper/operations/diagnostics.html),
+  [Environment variables](https://marc0janssen.github.io/restic-backup-helper/configuration/environment-variables.html),
+  [Hooks](https://marc0janssen.github.io/restic-backup-helper/configuration/hooks.html)
+  and the JSON / Prometheus reference pages.
+
+#### Notes
+
+- No new environment variables; `/bin/sources-report` reuses
+  `BACKUP_ROOT_DIR`, `RESTIC_JOB_ARGS`, `MAILX_*`, `WEBHOOK_*`,
+  `METRICS_DIR` and `HOOK_TIMEOUT` exactly like the other operator
+  wrappers.
+- Exit code is `0` even when individual sources are unreadable; the
+  `errors_count` aggregate (and the per-row `readable` flags in the
+  JSON) carry that signal. Wire alerts on
+  `restic_sources_report_last_errors_count > 0` for loud CI
+  behaviour. The non-zero exit `2` is reserved for configuration
+  errors (no sources to inspect, invalid `--depth`).
+- Internal SemVer policy: MINOR rather than PATCH because
+  `/bin/sources-report` is a new in-container helper with its own
+  JSON schema (including nested `sources` / `files_from` /
+  `exclude_files` arrays), Prometheus textfile and hook family.
+
 ### 2.7.0-0.18.1 (2026-05-13)
 
 This release adds an audited operator counterpart to the safer

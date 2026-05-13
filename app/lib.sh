@@ -449,6 +449,36 @@ mask_endpoint() {
 	mask_repository "$1"
 }
 
+# Extract every value following `--flag` (or `--flag=VALUE`) in a tokenised
+# restic-style argument string. One value per line on stdout; empty stdout
+# when neither the args nor the flag appear. Both spaced and `=`-glued
+# forms are recognised, matching how restic itself parses flags. Used by
+# /bin/doctor and /bin/sources-report to discover --files-from /
+# --exclude-file references inside RESTIC_JOB_ARGS without re-implementing
+# the same loop in two places.
+collect_arg_paths() {
+	local args="$1"
+	local flag="$2"
+	local -a parts
+	local i token next
+
+	[ -n "${args}" ] || return 0
+	read -r -a parts <<<"${args}"
+
+	for ((i = 0; i < ${#parts[@]}; i++)); do
+		token="${parts[$i]}"
+		case "${token}" in
+		"${flag}")
+			next="${parts[$((i + 1))]:-}"
+			[ -n "${next}" ] && printf '%s\n' "${next}"
+			;;
+		"${flag}"=*)
+			printf '%s\n' "${token#*=}"
+			;;
+		esac
+	done
+}
+
 # Render an epoch duration as a short, human-friendly string used in subject
 # lines and log footers. 0 → "0s"; 65 → "1m5s"; 3725 → "1h2m"; >24h → "Xh".
 human_duration() {
