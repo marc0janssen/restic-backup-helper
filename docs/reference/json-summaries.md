@@ -14,7 +14,7 @@ scrape never sees a partial document.
 | --- | --- | --- |
 | `job` | string | One of `backup`, `check`, `prune`, `replicate`, `restore`, `snapshot-export`, `forget-preview`, `mount-snapshot`. |
 | `hostname` | string | Container hostname. Set explicitly in Compose / Kubernetes for stable labels. |
-| `release` | string | `${VERSION}-${restic_base}` baked at build time, e.g. `2.4.0-0.18.1`. |
+| `release` | string | `${VERSION}-${restic_base}` baked at build time, e.g. `2.5.0-0.18.1`. |
 | `started_at` | string | ISO 8601 in container `TZ`. |
 | `finished_at` | string | ISO 8601 in container `TZ`. |
 | `started_epoch` | integer | Unix epoch seconds at start. |
@@ -33,6 +33,7 @@ scrape never sees a partial document.
 | --- | --- | --- |
 | `backup_root_dir` | string | Value of `BACKUP_ROOT_DIR` at runtime. |
 | `restic_tag` | string | The tag passed to `restic backup`. |
+| `forget_exit_code` | integer \| omitted | Exit code of the post-backup `restic forget` when `RESTIC_FORGET_ARGS` is set. `0` = success, `11` = skipped because another host held the exclusive lock (multi-host race, harmless), other values = forget failure. Omitted when no forget was attempted. See [Backup worker → Multi-host repositories and exit 11](../workers/backup.md#multi-host-repositories-and-exit-11). |
 | `snapshot_id` | string \| omitted | Short snapshot ID when restic produced one. |
 | `files_new` | integer \| omitted | Files added in this snapshot. |
 | `files_changed` | integer \| omitted | Files changed since the previous snapshot. |
@@ -49,7 +50,7 @@ common fields and `exit_code`.
 {
   "job": "backup",
   "hostname": "backup-node",
-  "release": "2.4.0-0.18.1",
+  "release": "2.5.0-0.18.1",
   "started_at": "2026-05-11T02:00:00+0200",
   "finished_at": "2026-05-11T02:05:12+0200",
   "started_epoch": 1762828800,
@@ -59,6 +60,7 @@ common fields and `exit_code`.
   "repository": "s3:https://s3.example.com/***@bucket/restic",
   "backup_root_dir": "/data",
   "restic_tag": "backup-node-data",
+  "forget_exit_code": 0,
   "snapshot_id": "a1b2c3d4",
   "files_new": 12,
   "files_changed": 4,
@@ -75,6 +77,28 @@ extracting; `repository` is the helpful one.
 ### `last-prune.json`
 
 Common fields only.
+
+### `last-forget.json`
+
+`/bin/forget` (the standalone retention worker, activated by
+`FORGET_CRON`) emits the common fields plus the masked `repository`
+URL. The cumulative-and-idempotent nature of `restic forget` means
+the JSON does not duplicate the inline path's `forget_exit_code`
+field — here the top-level `exit_code` **is** the forget result:
+
+- `0` = success
+- `2` = `RESTIC_FORGET_ARGS` empty (misconfiguration; nothing to
+  forget — set a policy or unset `FORGET_CRON`)
+- `11` = skipped because another host held the exclusive lock
+  (multi-host race, harmless; retention catches up on the next
+  tick)
+- other = restic failure (see `forget-error-last.log`).
+
+Exit `11` is also auto-promoted to a `restic_forget_last_exit_code`
+gauge in `restic_forget.prom` — monitoring can alert on persistent
+`11` without false-flagging the dedicated worker run.
+
+See [Forget worker](../workers/forget.md) for the full state machine.
 
 ### `last-forget-preview.json`
 
@@ -102,7 +126,7 @@ snapshots.
 {
   "job": "replicate",
   "hostname": "backup-node",
-  "release": "2.4.0-0.18.1",
+  "release": "2.5.0-0.18.1",
   "started_at": "2026-05-11T09:00:00+0200",
   "finished_at": "2026-05-11T09:11:23+0200",
   "duration_seconds": 683,
@@ -147,7 +171,7 @@ Exit codes:
 {
   "job": "snapshot-export",
   "hostname": "backup-node",
-  "release": "2.4.0-0.18.1",
+  "release": "2.5.0-0.18.1",
   "started_at": "2026-05-11T15:30:00+0200",
   "finished_at": "2026-05-11T15:31:12+0200",
   "duration_seconds": 72,
@@ -187,7 +211,7 @@ browsing this can be minutes-to-hours.
 {
   "job": "mount-snapshot",
   "hostname": "backup-node",
-  "release": "2.4.0-0.18.1",
+  "release": "2.5.0-0.18.1",
   "started_at": "2026-05-12T17:00:00+0200",
   "finished_at": "2026-05-12T17:12:31+0200",
   "duration_seconds": 751,

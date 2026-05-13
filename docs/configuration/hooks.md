@@ -14,6 +14,8 @@ executable, and the workers will run them automatically.
 | `/hooks/post-check.sh` | `/bin/check` | Check exit code |
 | `/hooks/pre-prune.sh` | `/bin/prune` | *none* |
 | `/hooks/post-prune.sh` | `/bin/prune` | Prune exit code |
+| `/hooks/pre-forget.sh` | `/bin/forget` (when `FORGET_CRON` is set) | *none* |
+| `/hooks/post-forget.sh` | `/bin/forget` (when `FORGET_CRON` is set) | Forget exit code (`0`, `2`, `11`, …) |
 | `/hooks/pre-replicate.sh` | `/bin/replicate` | *none* |
 | `/hooks/post-replicate.sh` | `/bin/replicate` | Aggregate exit code |
 | `/hooks/pre-restore.sh` | `/bin/restore` | *none* |

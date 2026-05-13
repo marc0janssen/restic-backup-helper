@@ -86,7 +86,15 @@ services:
       BACKUP_ROOT_DIR: /data
       RESTIC_TAG: documents
       RESTIC_JOB_ARGS: "--exclude-file /config/exclude_documents.txt --one-file-system"
-      RESTIC_FORGET_ARGS: "--keep-daily 14 --keep-weekly 8 --keep-monthly 24 --keep-yearly 10"
+      RESTIC_FORGET_ARGS: "--retry-lock=5m --keep-daily 14 --keep-weekly 8 --keep-monthly 24 --keep-yearly 10"
+      # Per-job FORGET_CRON (since 2.5.0). When set, /bin/backup skips
+      # its inline forget so the exclusive forget-lock is only ever
+      # taken in this dedicated window. Stagger the FORGET_CRON values
+      # across services (here :30, :40, :50 of the same hour) so the
+      # windows of the three jobs do not converge on the same minute.
+      # Each service keeps its own RESTIC_FORGET_ARGS so per-tag
+      # retention stays per-tag.
+      FORGET_CRON: "30 1 * * *"
       # Repository-wide jobs — schedule on this owner only.
       CHECK_CRON: "37 3 * * 0"
       PRUNE_CRON: "0 4 * * 0"
@@ -107,7 +115,9 @@ services:
       BACKUP_ROOT_DIR: /data
       RESTIC_TAG: media
       RESTIC_JOB_ARGS: "--exclude-file /config/exclude_media.txt"
-      RESTIC_FORGET_ARGS: "--keep-daily 7 --keep-weekly 4 --keep-monthly 6"
+      RESTIC_FORGET_ARGS: "--retry-lock=5m --keep-daily 7 --keep-weekly 4 --keep-monthly 6"
+      # Staggered 10 minutes after restic-documents (see comment there).
+      FORGET_CRON: "40 1 * * *"
       # No CHECK_CRON / PRUNE_CRON here — owner handles them for the repo.
       CHECK_CRON: ""
       PRUNE_CRON: ""
@@ -128,7 +138,9 @@ services:
       RESTIC_TAG: vmstore
       # VM disk images compress poorly; use --read-concurrency to cap I/O.
       RESTIC_JOB_ARGS: "--exclude-file /config/exclude_vmstore.txt --read-concurrency 2"
-      RESTIC_FORGET_ARGS: "--keep-daily 3 --keep-weekly 2 --keep-monthly 3"
+      RESTIC_FORGET_ARGS: "--retry-lock=5m --keep-daily 3 --keep-weekly 2 --keep-monthly 3"
+      # Staggered 20 minutes after restic-documents (see comment there).
+      FORGET_CRON: "50 1 * * *"
       CHECK_CRON: ""
       PRUNE_CRON: ""
     volumes:

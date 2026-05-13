@@ -56,6 +56,7 @@ ENV NFS_TARGET=""
 ENV BACKUP_CRON="0 */6 * * *"
 ENV BACKUP_ROOT_DIR=""
 ENV CHECK_CRON=""
+ENV FORGET_CRON=""
 ENV PRUNE_CRON=""
 ENV RCLONE_CONFIG="/config/rclone.conf"
 ENV REPLICATE_JOB_FILE="/config/replicate_jobs.txt"
@@ -103,6 +104,12 @@ COPY /app/check.sh /bin/check
 COPY /app/replicate.sh /bin/replicate
 COPY /app/rotate_log.sh /bin/rotate_log
 COPY /app/prune.sh /bin/prune
+# Standalone retention worker; activates when FORGET_CRON is non-empty.
+# When set, /bin/backup skips its inline post-backup `restic forget` so
+# the repository's exclusive forget-lock is only taken by this dedicated
+# maintenance window (avoids the multi-host exit-11 race). Reuses
+# RESTIC_FORGET_ARGS verbatim.
+COPY /app/forget.sh /bin/forget
 # Read-only diagnostics: prints effective env, path checks, repo probe, hooks,
 # replicate job-file validation and recent last-*.json/log context.
 COPY /app/doctor.sh /bin/doctor
@@ -133,7 +140,7 @@ ARG RESTIC_BACKUP_HELPER_RELEASE=unknown
 LABEL org.opencontainers.image.title="restic-backup-helper" \
 	org.opencontainers.image.version="${RESTIC_BACKUP_HELPER_RELEASE}"
 ENV RESTIC_BACKUP_HELPER_RELEASE=${RESTIC_BACKUP_HELPER_RELEASE}
-RUN chmod 755 /entry.sh /bin/backup /bin/check /bin/replicate /bin/rotate_log /bin/prune /bin/doctor /bin/snapshot-export /bin/forget-preview /bin/mount-snapshot /bin/restore /bin/locked_run \
+RUN chmod 755 /entry.sh /bin/backup /bin/check /bin/replicate /bin/rotate_log /bin/prune /bin/forget /bin/doctor /bin/snapshot-export /bin/forget-preview /bin/mount-snapshot /bin/restore /bin/locked_run \
 	&& ln -s replicate /bin/bisync
 
 # set sendmail-path

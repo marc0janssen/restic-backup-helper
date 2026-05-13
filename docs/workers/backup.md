@@ -39,11 +39,18 @@ flowchart TD
     - `--cacert "$RESTIC_CACERT"` when the file exists,
     - all output tee'd to `/var/log/backup-last.log`.
 
-3. **Optional `restic forget`** runs only when the backup exited `0` and
-   `RESTIC_FORGET_ARGS` is set. Words are shell-split and forwarded
-   verbatim, e.g. `--keep-daily 7 --keep-weekly 5 --keep-monthly 12`.
-   Add `--prune` to combine forget+prune in one cron tick if you do not
-   schedule `PRUNE_CRON` separately.
+3. **Optional `restic forget`** runs only when the backup exited `0`,
+   `RESTIC_FORGET_ARGS` is set **and** `FORGET_CRON` is empty (since
+   2.5.0 — when `FORGET_CRON` is set retention is owned by the
+   dedicated [Forget worker](forget.md) and the inline path is
+   skipped). Words are shell-split and forwarded verbatim, e.g.
+   `--keep-daily 7 --keep-weekly 5 --keep-monthly 12`. Add `--prune`
+   to combine forget+prune in one cron tick if you do not schedule
+   `PRUNE_CRON` separately. The forget exit code is recorded
+   separately in `last-backup.json` as `forget_exit_code` so retention
+   problems stay visible even when the backup itself is fine; see
+   [Multi-host repositories and exit 11](#multi-host-repositories-and-exit-11)
+   below.
 4. **Optional auto-unlock**: when a non-zero exit was observed **and**
    `RESTIC_AUTO_UNLOCK=ON`, the worker runs `restic unlock`. Default is
    off — see [Restic auto-unlock](#restic-auto-unlock) for the safety
@@ -88,7 +95,7 @@ flowchart TD
 
 | Variable | What it controls |
 | --- | --- |
-| `RESTIC_FORGET_ARGS` | Shell-split arguments for `restic forget`. Examples: `--keep-daily 7`, `--keep-weekly 5`, `--keep-monthly 12`, `--keep-yearly 10`. Add `--prune` only if you do **not** run `PRUNE_CRON` separately. |
+| `RESTIC_FORGET_ARGS` | Shell-split arguments for `restic forget`. Examples: `--keep-daily 7`, `--keep-weekly 5`, `--keep-monthly 12`, `--keep-yearly 10`. Add `--prune` only if you do **not** run `PRUNE_CRON` separately. Add `--retry-lock=DURATION` (e.g. `5m`) on multi-host repositories so a forget that races against another host's exclusive lock waits instead of returning exit 11. |
 
 Preview retention safely before relying on it:
 
@@ -99,6 +106,57 @@ docker exec -ti restic-backup-helper /bin/forget-preview
 The preview uses `restic forget --dry-run`, `RESTIC_FORGET_ARGS`, and
 the current host/tag scope by default. See
 [Forget preview](../operations/forget-preview.md).
+
+### Multi-host repositories and exit 11
+
+`restic forget` needs an **exclusive** repository lock. Two hosts that
+finish their `backup` phase at roughly the same time will both attempt
+forget; only one acquires the lock, the other returns exit code `11`
+("failed to lock repository") almost immediately.
+
+Since 2.4.1 the backup worker treats `forget` exit `11` as an
+informational skip rather than a hard failure:
+
+- The cron log records `⏭ Forget skipped: repository was locked by
+  another host (exit 11). Retention will catch up on the next backup
+  tick.`
+- The backup itself still exits `0` and `last-backup.json` keeps
+  `exit_code: 0`.
+- The forget result is recorded separately as `forget_exit_code: 11`
+  in `last-backup.json`, so monitoring can alert on persistent
+  skipping without false-flagging the backup itself.
+- **`restic unlock` is intentionally not invoked** on exit `11`,
+  regardless of `RESTIC_AUTO_UNLOCK`: the lock that blocked this run
+  is another host's legitimate exclusive lock, and clearing it would
+  let two hosts mutate the repository concurrently.
+
+Three increasingly thorough ways to make the skip rare or eliminate
+it entirely:
+
+1. **Move retention to a dedicated worker via `FORGET_CRON`** (since
+   2.5.0; recommended for multi-host repos). When set, this inline
+   path is automatically skipped — the standalone [Forget
+   worker](forget.md) owns the exclusive lock window so backups
+   never race for it:
+   ```yaml
+   FORGET_CRON: "30 1 * * *"
+   RESTIC_FORGET_ARGS: "--retry-lock=5m --keep-daily 7 --keep-weekly 8 --keep-monthly 12"
+   ```
+2. **Add `--retry-lock=DURATION` to `RESTIC_FORGET_ARGS`** (restic
+   ≥ 0.16). Restic waits up to that duration for the lock instead of
+   returning exit `11`:
+   ```yaml
+   RESTIC_FORGET_ARGS: "--retry-lock=5m --keep-daily 7 --keep-weekly 8 --keep-monthly 12"
+   ```
+3. **Stagger `BACKUP_CRON` between hosts** so they do not converge on
+   the same forget moment. A `5 */4 * * *` on host A and a
+   `35 */4 * * *` on host B keeps both backups in the same four-hour
+   cadence with 30 minutes between their forget attempts.
+
+A `forget_exit_code: 11` that persists across many runs (visible in
+`last-backup.json` history or Prometheus) suggests the two hosts
+always converge — staggering the cron schedule fixes that without
+touching restic flags.
 
 ## Sample configurations
 
@@ -112,7 +170,7 @@ the current host/tag scope by default. See
       BACKUP_CRON: "0 2 * * *"
       BACKUP_ROOT_DIR: /data
       RESTIC_JOB_ARGS: "--exclude-file /config/exclude_files.txt --one-file-system"
-      RESTIC_FORGET_ARGS: "--keep-daily 7 --keep-weekly 5 --keep-monthly 12"
+      RESTIC_FORGET_ARGS: "--retry-lock=5m --keep-daily 7 --keep-weekly 5 --keep-monthly 12"
     ```
 
 === "Files-from list"
@@ -125,7 +183,7 @@ the current host/tag scope by default. See
       BACKUP_CRON: "5 6 * * *"
       BACKUP_ROOT_DIR: ""
       RESTIC_JOB_ARGS: "--exclude-file /config/exclude_files.txt --files-from /config/include_files.txt --skip-if-unchanged --verbose=2"
-      RESTIC_FORGET_ARGS: "--keep-daily 7 --keep-weekly 8 --keep-monthly 12"
+      RESTIC_FORGET_ARGS: "--retry-lock=5m --keep-daily 7 --keep-weekly 8 --keep-monthly 12"
     ```
 
     `/config/include_files.txt` example:

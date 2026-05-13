@@ -12,4 +12,4 @@ source "${SCRIPT_DIR}/scripts/build-common.sh"
 
 # Optional repo-root env: ./build-testing.env — wordt gelezen als eerste stap in
 # run_testing_build() → apply_optional_env_file() in scripts/build-common.sh
-run_testing_build
+run_testing_build "$@"

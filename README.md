@@ -75,15 +75,16 @@ If this image saves you time, you can [leave a tip on Ko-fi](https://ko-fi.com/m
 
 ## Image tags and release
 
-release: 2.4.0-0.18.1
+release: 2.5.0-0.18.1
 
 | Train | When to use | Example pull |
 | --- | --- | --- |
-| **Stable** | Production | `docker pull marc0janssen/restic-backup-helper:latest` or pinned `marc0janssen/restic-backup-helper:2.4.0-0.18.1` |
-| **Testing** | Pre-release / CI | `docker pull marc0janssen/restic-backup-helper:develop` or `marc0janssen/restic-backup-helper:2.4.0-0.18.1-dev` |
+| **Stable** | Production | `docker pull marc0janssen/restic-backup-helper:latest` or pinned `marc0janssen/restic-backup-helper:2.5.0-0.18.1` |
+| **Testing** | Pre-release / CI | `docker pull marc0janssen/restic-backup-helper:develop` or `marc0janssen/restic-backup-helper:2.5.0-0.18.1-dev` |
 
 > **Upgrading?**
 >
+> - **From 2.4.0 → 2.5.0:** multi-host retention hardening. Three composing changes: (1) a new standalone **`/bin/forget`** worker scheduled via the new `FORGET_CRON` env var — same shape as `/bin/prune` (own `flock`, JSON, Prometheus textfile, mail subject, webhook, `pre-forget` / `post-forget` hooks). When set, `/bin/backup` **automatically skips** its inline post-backup forget so the repository's exclusive forget-lock is only ever taken inside the dedicated maintenance window. Recommended for repositories shared by multiple hosts; eliminates the exit-11 race entirely. (2) Post-backup `restic forget` exit `11` ("failed to lock repository") is now downgraded to an informational skip (`⏭ Forget skipped: repository was locked by another host (exit 11). Retention will catch up on the next backup tick.`) instead of a hard failure, with backup `exit_code: 0` preserved and **`restic unlock` intentionally never** invoked on exit 11 regardless of `RESTIC_AUTO_UNLOCK` (the lock we lose is another host's legitimate lock). Same semantic in the new worker. (3) The inline forget result is recorded separately as `forget_exit_code` in `last-backup.json` (auto-promoted to a `restic_backup_last_forget_exit_code` Prometheus gauge), so monitoring can still see persistent skipping without false-flagging the backup itself. **Drop-in:** `FORGET_CRON` empty (= default) keeps the legacy inline-forget behaviour byte-for-byte. To avoid the skip on multi-host repositories pick one or more of: add `--retry-lock=DURATION` (restic ≥ 0.16) to `RESTIC_FORGET_ARGS`, stagger `BACKUP_CRON` between hosts, or opt into `FORGET_CRON` for a clean architectural fix.
 > - **From 2.3.x → 2.4.0:** purely additive. New `/bin/mount-snapshot` helper wraps `restic mount` (FUSE) read-only under `/fusemount` (container-internal by design, to avoid collisions with `/bin/restore` and host bind-mounts), scoped to this container's `--host "$HOSTNAME"` and `--tag "$RESTIC_TAG"` by default. Refuses to mount on `/data`, `BACKUP_ROOT_DIR` or system directories unless `--force`; supports repeatable `--path`, opt-in `--allow-other`, explicit `--repo-wide`. Registers an `EXIT` trap that calls `fusermount -u` (or `umount` as a fallback) so SIGINT / SIGTERM / crash always unmounts cleanly. Writes logs, JSON, webhooks/mail and `restic_mount_snapshot.prom` like the other helpers. FUSE still requires `--cap-add SYS_ADMIN --device /dev/fuse` and, on hosts that ship AppArmor's `docker-default` profile (Ubuntu/Debian), `--security-opt apparmor=unconfined`.
 > - **From 2.2.x → 2.3.0:** purely additive. New `/bin/forget-preview` helper runs `restic forget --dry-run` with `RESTIC_FORGET_ARGS`, host/tag-scoped by default (`HOSTNAME` + `RESTIC_TAG`) and repository-wide only with `--repo-wide`. It writes logs, JSON, webhooks/mail and Prometheus metrics like the other helpers.
 > - **From 2.2.1 → 2.2.2:** patch / docs release. Adds a full Material for MkDocs documentation site under `docs/` (navigable Getting started / Concepts / Configuration / Workers / Operations / Deployment / Reference tabs, search, dark mode, mermaid diagrams) and a `.github/workflows/docs.yml` GitHub Pages deploy. No runtime / env-var changes. Hosted site: <https://marc0janssen.github.io/restic-backup-helper/>.
@@ -102,6 +103,22 @@ release: 2.4.0-0.18.1
 > - **From 1.11.x:** Automatic `restic unlock` after backup / check failures is **opt-in** via `RESTIC_AUTO_UNLOCK=ON` (since 1.12.0). The new default leaves the lock alone (safer for repositories shared across multiple hosts). See the env table below and the [Troubleshooting](#troubleshooting) section for the migration hint.
 
 Pinned tags let you lock both **helper semver** and **Restic base** (`<semver>-<restic>`).
+
+Build scripts accept a per-run Restic base override with `--base`, for example
+`./build-testing.sh --base 0.18.2`. That is a build-time shortcut for
+`VERSION_RESTIC=0.18.2`; it does **not** bump `VERSION` or rewrite release
+metadata. `--base newest` (alias `latest`) resolves to the concrete stable
+version embedded in `restic/restic:latest` via
+`docker run --rm restic/restic:latest version` before the image tag is computed,
+so a published tag like `<helper>-newest-dev` can never happen. For beta/rc
+builds, use `--base prerelease` (aliases `rc` / `beta`); that resolves through
+the Docker Hub `restic/restic` tags API to the newest published image tag that
+looks like a Restic rc/beta version, then uses that concrete tag in the image
+name.
+Any other non-version value (typo, sentinel, etc.) is rejected with a clear
+error before the build starts. Use
+`./scripts/update-restic-base.sh ./Dockerfile <tag>` when you want the full
+release-metadata update flow for a Restic base bump.
 
 ---
 
@@ -184,7 +201,7 @@ Defaults below match **`Dockerfile`** unless noted. Empty default means unset/bl
 | `BACKUP_CRON` | `0 */6 * * *` | Cron schedule for `/bin/backup`. |
 | `BACKUP_ROOT_DIR` | *(empty)* | If set, appended as backup path(s). If empty and `RESTIC_JOB_ARGS` is empty, `restic backup` runs with **no explicit path** (usually wrong for normal use—set `BACKUP_ROOT_DIR` or pass paths via `RESTIC_JOB_ARGS`). |
 | `RESTIC_JOB_ARGS` | *(empty)* | Extra words passed to `restic backup` (parsed as shell words). Examples: `--exclude-file /config/exclude_files.txt`, `--limit-upload 5000`. |
-| `RESTIC_FORGET_ARGS` | *(empty)* | If set **and** backup exits `0`, runs `restic forget` with these words (parsed as shell words), e.g. `--prune --keep-daily 7`. |
+| `RESTIC_FORGET_ARGS` | *(empty)* | If set **and** backup exits `0`, runs `restic forget` with these words (parsed as shell words), e.g. `--retry-lock=5m --keep-daily 7 --keep-weekly 5 --keep-monthly 12`. Add `--prune` only if you do not run `PRUNE_CRON` separately. |
 
 ### Check job
 
@@ -197,6 +214,7 @@ Defaults below match **`Dockerfile`** unless noted. Empty default means unset/bl
 
 | Variable | Default | Description |
 | --- | --- | --- |
+| `FORGET_CRON` | *(empty)* | If non-empty, schedules a standalone **`/bin/forget`** (via `/bin/locked_run` on its own `/var/run/forget.lock`). When set, `/bin/backup` **skips** its inline post-backup forget so the repository's exclusive forget-lock is only ever taken in this dedicated maintenance window — recommended for repositories shared by multiple hosts (eliminates the exit-11 race entirely). `RESTIC_FORGET_ARGS` is reused verbatim; the worker emits `last-forget.json`, `restic_forget.prom`, mail subject `[OK\|FAIL N] Forget …`, webhook payload and `pre-forget` / `post-forget` hooks like the other workers. Typical value `30 1 * * *` (after the nightly backup window). |
 | `PRUNE_CRON` | *(empty)* | If non-empty, schedules a standalone **`/bin/prune`** (via `/bin/locked_run` on its own `/var/run/prune.lock`). Use this to run the heavy `restic prune` on its own cadence (typically weekly) while `RESTIC_FORGET_ARGS` keeps post-backup forget cheap. Independent of `RESTIC_FORGET_ARGS`; if `--prune` is already part of `RESTIC_FORGET_ARGS` the next standalone prune simply has nothing to do. |
 | `RESTIC_PRUNE_ARGS` | *(empty)* | Extra words passed to `restic prune` (shell-word split), e.g. `--max-unused 10%`, `--max-repack-size 5G`. |
 
@@ -356,7 +374,7 @@ services:
       BACKUP_CRON: "0 2 * * *"
       BACKUP_ROOT_DIR: /data
       RESTIC_JOB_ARGS: "--exclude-file /config/exclude_files.txt --one-file-system"
-      RESTIC_FORGET_ARGS: "--keep-daily 7 --keep-weekly 5 --keep-monthly 12 --keep-yearly 10"
+      RESTIC_FORGET_ARGS: "--retry-lock=5m --keep-daily 7 --keep-weekly 5 --keep-monthly 12 --keep-yearly 10"
 
       # ─── Optional: scheduled integrity check ───────────────────────────────────
       CHECK_CRON: "37 3 * * 0"                 # weekly; leave empty to disable

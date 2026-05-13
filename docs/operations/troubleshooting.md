@@ -149,6 +149,59 @@ into a single command.
     process is gone but the flock is somehow still held, restart the
     container.
 
+??? failure "Backup log shows `⏭ Forget skipped: repository was locked by another host (exit 11)`"
+
+    On a repository shared by multiple hosts, two `restic backup` runs
+    that finish at the same time both try to acquire the exclusive
+    lock that `restic forget` requires. Only one wins; the other
+    returns restic exit `11` ("failed to lock repository") almost
+    immediately. Since 2.4.1 the backup worker treats this as an
+    informational skip:
+
+    - the backup itself still exits `0`,
+    - `last-backup.json` records `forget_exit_code: 11` alongside
+      `exit_code: 0` so monitoring can spot persistent skipping,
+    - **`restic unlock` is intentionally NOT run** on exit `11`
+      regardless of `RESTIC_AUTO_UNLOCK`, because the lock that
+      blocked the run is another host's legitimate exclusive lock.
+
+    Retention is cumulative, so a single skipped forget is harmless —
+    the next backup tick will catch up. Three increasingly thorough
+    ways to avoid the skip:
+
+    1. **Move retention to a dedicated worker via `FORGET_CRON`**
+       (since 2.5.0, the recommended pattern for multi-host repos).
+       When set, `/bin/backup` skips its inline post-backup forget
+       and the standalone `/bin/forget` worker owns the exclusive
+       lock window. The exit-11 race disappears because backups no
+       longer try to take the forget-lock:
+       ```yaml
+       FORGET_CRON: "30 1 * * *"
+       RESTIC_FORGET_ARGS: "--retry-lock=5m --keep-daily 7 --keep-weekly 8 --keep-monthly 12"
+       ```
+       Stagger `FORGET_CRON` between hosts (or run it from a single
+       maintenance-owner container) so the dedicated windows do not
+       converge in turn. Full details in [Forget worker](../workers/forget.md).
+    2. **Add `--retry-lock=DURATION` to `RESTIC_FORGET_ARGS`** (restic
+       ≥ 0.16). Restic waits up to that duration for the lock instead
+       of returning exit `11` — works both for the inline path and
+       inside the dedicated worker:
+       ```yaml
+       RESTIC_FORGET_ARGS: "--retry-lock=5m --keep-daily 7 --keep-weekly 8 --keep-monthly 12"
+       ```
+    3. **Stagger `BACKUP_CRON` between hosts** so the two backup
+       windows do not converge on the same forget moment. For example
+       `5 */4 * * *` on host A vs. `35 */4 * * *` on host B.
+
+    A persistent `forget_exit_code: 11` across many runs (look at
+    `last-backup.json` history or the
+    `restic_backup_last_forget_exit_code` Prometheus gauge — emitted
+    automatically because the value is numeric) means the schedules
+    are colliding every tick — staggering the cron usually fixes it
+    without restic flags.
+
+    See also [Backup worker → Multi-host repositories and exit 11](../workers/backup.md#multi-host-repositories-and-exit-11).
+
 ## Time and timezones
 
 ??? failure "Cron fires at the wrong local time"

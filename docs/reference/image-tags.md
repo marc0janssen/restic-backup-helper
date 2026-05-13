@@ -7,8 +7,8 @@ on Docker Hub.
 ## Tag schema
 
 ```text
-<helper-semver>-<restic-version>          # stable, e.g. 2.4.0-0.18.1
-<helper-semver>-<restic-version>-dev      # testing, e.g. 2.4.0-0.18.1-dev
+<helper-semver>-<restic-version>          # stable, e.g. 2.5.0-0.18.1
+<helper-semver>-<restic-version>-dev      # testing, e.g. 2.5.0-0.18.1-dev
 ```
 
 Two moving aliases also exist:
@@ -30,7 +30,7 @@ Two moving aliases also exist:
 | Tag | Meaning |
 | --- | --- |
 | `latest` | Current stable. |
-| `<semver>-<restic>` | Pinned stable, e.g. `2.4.0-0.18.1`. |
+| `<semver>-<restic>` | Pinned stable, e.g. `2.5.0-0.18.1`. |
 | `develop` | Latest testing build. |
 | `<semver>-<restic>-dev` | Pinned testing image. |
 
@@ -43,7 +43,7 @@ stay consistent.
 ## How to read a tag
 
 ```text
-2.4.0-0.18.1-dev
+2.5.0-0.18.1-dev
 │   │ │   │
 │   │ │   └── -dev suffix → testing train
 │   │ └────── Restic base image tag (FROM restic/restic:0.18.1)
@@ -51,7 +51,7 @@ stay consistent.
 └──────────── helper MAJOR.MINOR (e.g. replicate rename + snapshot-export)
 ```
 
-Concrete example: `2.4.0-0.18.1-dev` is "helper 2.4.0 on top of Restic
+Concrete example: `2.5.0-0.18.1-dev` is "helper 2.4.0 on top of Restic
 0.18.1, testing build".
 
 ## Where each tag comes from
@@ -60,11 +60,22 @@ Concrete example: `2.4.0-0.18.1-dev` is "helper 2.4.0 on top of Restic
 | --- | --- | --- |
 | Manual `./build.sh` | Whatever you have locally | `latest`, `<semver>-<restic>` |
 | Manual `./build-testing.sh` | `develop` | `develop`, `<semver>-<restic>-dev` |
-| Manual `./build-testing-local.sh` | Whatever you have locally | Private registry `:testing` only |
+| Manual `./build-testing-local.sh` | Whatever you have locally | Private registry `:develop` and `:<release>` |
 | CI release on `v*` tag push | The tag's commit | `latest` and pinned stable |
 
 The `build*.sh` scripts read `VERSION` and the `VERSION_RESTIC` env var
-to compute the published tag. Manual hand-built images **must** pass
+to compute the published tag. For one-off base-image testing, pass
+`--base <restic-tag>` to `./build.sh`, `./build-testing.sh` or
+`./build-testing-local.sh`; that CLI flag overrides `VERSION_RESTIC` for
+that build only. `--base newest` (alias `latest`) is resolved to the
+concrete stable version baked into `restic/restic:latest` via
+`docker run --rm restic/restic:latest version` before the image tag is
+computed, so a published tag never carries the literal `newest` or
+`latest`. For beta/rc bases, `--base prerelease` (aliases `rc` /
+`beta`) resolves to the newest Docker Hub `restic/restic` image tag
+that looks like a Restic rc/beta version, then uses that concrete tag
+in the image name. Any other non-version value is rejected up front
+with a clear error. Manual hand-built images **must** pass
 `--build-arg RESTIC_BACKUP_HELPER_RELEASE=…` (same string as the
 versioned image tag), otherwise the value defaults to `unknown` in the
 `Dockerfile` and `RESTIC_BACKUP_HELPER_RELEASE` ends up `unknown` at
@@ -82,7 +93,7 @@ runtime.
 
     ```text
     org.opencontainers.image.title=restic-backup-helper
-    org.opencontainers.image.version=2.4.0-0.18.1
+    org.opencontainers.image.version=2.5.0-0.18.1
     ```
 
     Inspect with `docker inspect --format '{{ .Config.Labels }}' marc0janssen/restic-backup-helper:latest`.
@@ -90,10 +101,10 @@ runtime.
 ## Verifying you got the tag you asked for
 
 ```shell
-docker pull marc0janssen/restic-backup-helper:2.4.0-0.18.1
-docker run --rm marc0janssen/restic-backup-helper:2.4.0-0.18.1 \
+docker pull marc0janssen/restic-backup-helper:2.5.0-0.18.1
+docker run --rm marc0janssen/restic-backup-helper:2.5.0-0.18.1 \
   printenv RESTIC_BACKUP_HELPER_RELEASE
-# → 2.4.0-0.18.1
+# → 2.5.0-0.18.1
 ```
 
 If you see `unknown`, the image was hand-built without the

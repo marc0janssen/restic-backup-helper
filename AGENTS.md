@@ -43,7 +43,7 @@ The image is based on **`restic/restic`** (Alpine). This repository owns applica
 | `app/install_rclone.sh` | Rclone install during image build |
 | `scripts/build-common.sh` | Shared logic for release versioning and Docker Hub builds |
 | `build.sh`, `build-testing.sh` | Stable / dev Docker Hub builds (read optional `build.env` / `build-testing.env`) |
-| `build-testing-local.sh` | Private-registry build; pushes only `:testing` (optional `build-testing-local.env`) |
+| `build-testing-local.sh` | Private-registry build; pushes `:develop` and `:<release>` (optional `build-testing-local.env`) |
 | `scripts/start_restic_helper_agent_compose.sh`, `scripts/docker-compose.yml` | Example/runtime helpers |
 | `config/` | Sample excludes, msmtp, replicate job definitions |
 | **`README.md`** | Primary documentation (GitHub, full detail) |
@@ -73,7 +73,7 @@ Release image tags follow **`${semver}-${RESTIC_VERSION}`** (stable) or **`${sem
 - **MINOR**: new feature, new environment variable, new script hook or materially new behaviour.
 - **MAJOR**: breaking configuration, path, or runtime contract change.
 
-Running **`./build.sh`** or **`./build-testing.sh`** does **not** change `VERSION` or README files: they build and push using the current **`VERSION`** line plus **`VERSION_RESTIC`** from env (stable: `x.y.z-<restic>`, testing: `x.y.z-<restic>-dev`). **`Dockerfile` `FROM restic/restic:`** is still rewritten from **`VERSION_RESTIC`** when you build. Bump **`VERSION`**, **`CHANGELOG.md`**, and README release lines yourself (or use **`./scripts/update-restic-base.sh`** when changing the Restic base tag — that script still bumps the helper patch semver by design).
+Running **`./build.sh`** or **`./build-testing.sh`** does **not** change `VERSION` or README files: they build and push using the current **`VERSION`** line plus **`VERSION_RESTIC`** from env or the CLI **`--base <restic-tag>`** override (stable: `x.y.z-<restic>`, testing: `x.y.z-<restic>-dev`). **`Dockerfile` `FROM restic/restic:`** is still rewritten from **`VERSION_RESTIC`** / **`--base`** when you build. Bump **`VERSION`**, **`CHANGELOG.md`**, and README release lines yourself (or use **`./scripts/update-restic-base.sh`** when changing the Restic base tag — that script still bumps the helper patch semver by design).
 
 ### How versioning becomes visible in git
 
@@ -93,11 +93,11 @@ When you touch user-facing release metadata, keep **`README.md`** and **`README-
 
 - **`build.env`** — optional; loaded by **`./build.sh`** (stable).
 - **`build-testing.env`** — optional; loaded by **`./build-testing.sh`**.
-- **`build-testing-local.env`** — optional; loaded by **`./build-testing-local.sh`** for private registries. That script pushes **only** `<LOCAL_REPO>:testing` (no extra versioned or `:develop` tags). The release string is baked into the image as **`ENV RESTIC_BACKUP_HELPER_RELEASE`** via **`docker build --build-arg`** (no host `.release` file).
+- **`build-testing-local.env`** — optional; loaded by **`./build-testing-local.sh`** for private registries. That script pushes **`<LOCAL_REPO>:develop`** and **`<LOCAL_REPO>:<release>`** (e.g. `…:2.5.0-0.18.1-dev`), matching the tag convention used by **`./build-testing.sh`** for Docker Hub. The release string is baked into the image as **`ENV RESTIC_BACKUP_HELPER_RELEASE`** via **`docker build --build-arg`** (no host `.release` file).
 
 Templates are **`*.env.example`**. Real env files are gitignored; do not commit them.
 
-Precedence is documented in each script: generally **CLI overrides > non-empty exported variables > env file > defaults**.
+Precedence is documented in each script: generally **CLI overrides > non-empty exported variables > env file > defaults**. Build scripts accept **`--base <restic-tag>`** as the CLI override for **`VERSION_RESTIC`** (for example `./build-testing.sh --base 0.18.2`); this is a per-build override and does not update release metadata. `--base` (also `VERSION_RESTIC` from env) is validated as a concrete Restic version like `0.18.1` (optional pre-release suffix allowed); the sentinel value **`newest`** (alias **`latest`**) is resolved to the concrete stable version inside `restic/restic:latest` via `docker run --rm restic/restic:latest version` **before** the image tag, Dockerfile FROM rewrite or build-arg is computed, so a published tag can never contain the literal `newest` / `latest`. For beta/rc bases, **`--base prerelease`** (aliases **`rc`** / **`beta`**) resolves to the newest Docker Hub `restic/restic` image tag that looks like a Restic rc/beta version; the resolved concrete tag is then used everywhere. Bogus values (typos, other strings) hard-fail before the build starts.
 
 Hand-built images must pass **`--build-arg RESTIC_BACKUP_HELPER_RELEASE=…`** (same string as the versioned image tag, e.g. `1.9.0-0.18.1` or `1.9.0-0.18.1-dev`); otherwise the value defaults to `unknown` in the Dockerfile.
 

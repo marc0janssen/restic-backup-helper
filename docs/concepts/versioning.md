@@ -5,8 +5,8 @@ twist that the published tag combines **the helper semver** with **the
 Restic base image version**:
 
 ```text
-<helper-semver>-<restic-version>          # stable, e.g. 2.4.0-0.18.1
-<helper-semver>-<restic-version>-dev      # testing, e.g. 2.4.0-0.18.1-dev
+<helper-semver>-<restic-version>          # stable, e.g. 2.5.0-0.18.1
+<helper-semver>-<restic-version>-dev      # testing, e.g. 2.5.0-0.18.1-dev
 ```
 
 ## What each bump means
@@ -20,7 +20,7 @@ Restic base image version**:
 ## What the tag tells you
 
 ```text
-2.4.0-0.18.1-dev
+2.5.0-0.18.1-dev
 │   │ │   │
 │   │ │   └── -dev suffix → testing train
 │   │ └────── Restic base image tag (FROM restic/restic:0.18.1)
@@ -28,7 +28,7 @@ Restic base image version**:
 └──────────── helper MAJOR.MINOR (operator helper feature line)
 ```
 
-So `2.4.0-0.18.1-dev` is "helper 2.4.0 on top of Restic 0.18.1, testing
+So `2.5.0-0.18.1-dev` is "helper 2.4.0 on top of Restic 0.18.1, testing
 build". Pinning the full tag locks both layers.
 
 ## Why a coupled tag
@@ -51,7 +51,7 @@ Coupling both into the tag makes the support story unambiguous.
 | --- | --- |
 | `VERSION` | The helper semver only (`x.y.z`, no Restic suffix). |
 | `Dockerfile` `FROM restic/restic:<tag>` | The Restic base version pinned at build time. |
-| `build.sh` / `build-testing.sh` | Read `VERSION` and `VERSION_RESTIC` from env to compute the published tag. |
+| `build.sh` / `build-testing.sh` | Read `VERSION` and `VERSION_RESTIC` from env (or CLI `--base <restic-tag>`) to compute the published tag. |
 | `README.md` `release: …` line | Must match `VERSION + Dockerfile FROM`. |
 | `README-containers.md` `release: …` line | Must match the same string (Docker Hub blurb). |
 

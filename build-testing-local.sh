@@ -13,10 +13,16 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 show_help() {
 	cat <<'EOF'
-Usage: build-testing-local.sh [--repo <host:port/name>] [--platform <platforms>]
+Usage: build-testing-local.sh [--repo <host:port/name>] [--platform <platforms>] [--base <restic-tag>]
        build-testing-local.sh --help
 
 Local/private-registry variant of build-testing.sh.
+
+--base accepts a concrete Restic version (e.g. 0.18.1, 0.18.2-rc.1),
+'newest' (alias 'latest') or 'prerelease' (aliases 'rc' / 'beta'). Sentinels
+are resolved before the tag is computed, so the published image tag never
+contains the literal keyword. Note that this script does not patch Dockerfile
+FROM; keep your Dockerfile FROM aligned with --base / VERSION_RESTIC manually.
 
 Builds ./Dockerfile with the same layout as production testing images. Does not
 increment VERSION and does not modify README.md. The image gets release metadata
@@ -29,8 +35,8 @@ Defaults (override with LOCAL_REPO / LOCAL_PLATFORM or CLI):
   repo:     192.168.1.1:5000/restic-backup-helper
   platform: linux/amd64
 
-Precedence (hoog → laag): CLI --repo / --platform → niet-lege export in je shell
-→ build-testing-local.env → defaults in dit script / scripts/build-common.sh.
+Precedence (hoog → laag): CLI --repo / --platform / --base → niet-lege export
+in je shell → build-testing-local.env → defaults in dit script / scripts/build-common.sh.
 
 Environment:
   VERSION_RESTIC   Same as build-testing.sh (default 0.18.1); keep in sync with Dockerfile FROM.
@@ -40,17 +46,16 @@ Environment:
                    so private-registry SBOMs do not overwrite the Docker Hub
                    testing/stable SBOMs (which default to ./sbom/).
 
-Docker tag pushed (only):
-  <LOCAL_REPO>:testing
+Docker tags pushed:
+  <LOCAL_REPO>:develop
+  <LOCAL_REPO>:<release>            e.g. 2.5.0-0.18.1-dev
 
 Examples:
   ./build-testing-local.sh
   ./build-testing-local.sh --repo 192.168.1.10:5000/restic-backup-helper --platform linux/arm64
+  ./build-testing-local.sh --base 0.18.2
+  ./build-testing-local.sh --base prerelease
 EOF
-}
-
-trim_value() {
-	printf '%s' "$1" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//'
 }
 
 case "${1:-}" in
@@ -124,6 +129,18 @@ while [[ "$#" -gt 0 ]]; do
 		PLATFORM_ARG="$(trim_value "${arg#--platform=}")"
 		shift
 		;;
+	--base)
+		if [[ "$#" -lt 2 ]]; then
+			echo "--base requires a value" >&2
+			exit 1
+		fi
+		VERSION_RESTIC="$(trim_value "$2")"
+		shift 2
+		;;
+	--base=*)
+		VERSION_RESTIC="$(trim_value "${arg#--base=}")"
+		shift
+		;;
 	-*)
 		show_help >&2
 		exit 1
@@ -144,12 +161,18 @@ if [[ -z "${PLATFORM_ARG}" ]]; then
 	echo "--platform / LOCAL_PLATFORM must not be empty" >&2
 	exit 1
 fi
+if [[ -z "${VERSION_RESTIC}" ]]; then
+	echo "--base / VERSION_RESTIC must not be empty" >&2
+	exit 1
+fi
+
+require_commands
+finalize_restic_base_tag
 
 echo "[build] Build gebruikt registry/tag-basis: ${LOCAL_REPO_ARG}"
 echo "[build] Build gebruikt --platform: ${PLATFORM_ARG}"
 echo "[build] Build gebruikt VERSION_RESTIC: ${VERSION_RESTIC}"
 
-require_commands
 cd_repo_root
 
 if [[ ! -f "${VERSION_FILE}" ]]; then
@@ -175,11 +198,11 @@ export SBOM_DIR="${SBOM_DIR:-${REPO_ROOT}/sbom/local}"
 
 docker buildx build --no-cache --platform "${PLATFORM_ARG}" --push \
 	--build-arg "RESTIC_BACKUP_HELPER_RELEASE=${RELEASE}" \
-	-t "${LOCAL_REPO_ARG}:testing" \
+	-t "${LOCAL_REPO_ARG}:develop" \
 	-t "${LOCAL_REPO_ARG}:${RELEASE}" \
 	-f ./Dockerfile .
 
 emit_sbom "${LOCAL_REPO_ARG}:${RELEASE}"
 
 echo ""
-echo "Pushed ${LOCAL_REPO_ARG}:testing  (RESTIC_BACKUP_HELPER_RELEASE=${RELEASE})"
+echo "Pushed ${LOCAL_REPO_ARG}:develop and ${LOCAL_REPO_ARG}:${RELEASE} (RESTIC_BACKUP_HELPER_RELEASE=${RELEASE})"

@@ -46,12 +46,17 @@ services:
       BACKUP_CRON: ${BACKUP_CRON:-0 2 * * *}
       BACKUP_ROOT_DIR: ${BACKUP_ROOT_DIR:-/data}
       RESTIC_JOB_ARGS: ${RESTIC_JOB_ARGS:---exclude-file /config/exclude_files.txt}
-      RESTIC_FORGET_ARGS: ${RESTIC_FORGET_ARGS:---keep-daily 7 --keep-weekly 5 --keep-monthly 12 --keep-yearly 10}
+      RESTIC_FORGET_ARGS: ${RESTIC_FORGET_ARGS:---retry-lock=5m --keep-daily 7 --keep-weekly 5 --keep-monthly 12 --keep-yearly 10}
 
       # Optional check job
       CHECK_CRON: ${CHECK_CRON:-37 3 * * 0}
       RESTIC_CHECK_ARGS: ${RESTIC_CHECK_ARGS:-}
 
+      # Optional standalone forget worker. When set, /bin/backup skips
+      # its inline post-backup forget so the exclusive forget-lock is
+      # only ever taken by this dedicated window — recommended for
+      # repositories shared by multiple hosts.
+      FORGET_CRON: ${FORGET_CRON:-}
       # Optional standalone prune job
       PRUNE_CRON: ${PRUNE_CRON:-0 4 * * 0}
       RESTIC_PRUNE_ARGS: ${RESTIC_PRUNE_ARGS:---max-unused 10%}

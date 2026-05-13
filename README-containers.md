@@ -13,24 +13,25 @@ Scheduled [Restic](https://restic.net) backups, optional `restic check`, optiona
 
 ## Release
 
-release: 2.4.0-0.18.1
+release: 2.5.0-0.18.1
 
 **Stable**
 
 ```shell
 docker pull marc0janssen/restic-backup-helper:latest
-docker pull marc0janssen/restic-backup-helper:2.4.0-0.18.1
+docker pull marc0janssen/restic-backup-helper:2.5.0-0.18.1
 ```
 
 **Development (experimental)**
 
 ```shell
 docker pull marc0janssen/restic-backup-helper:develop
-docker pull marc0janssen/restic-backup-helper:2.4.0-0.18.1-dev
+docker pull marc0janssen/restic-backup-helper:2.5.0-0.18.1-dev
 ```
 
 > **Upgrading?**
 >
+> - **2.4.0 → 2.5.0:** multi-host retention hardening. New standalone `/bin/forget` worker scheduled via `FORGET_CRON` (own JSON/Prometheus/mail/webhook/hooks like `/bin/prune`); when set, `/bin/backup` skips its inline forget so the exclusive lock is only taken in the dedicated window — eliminates the exit-11 race. Inline post-backup forget exit 11 is also downgraded to `⏭ Forget skipped …` (backup `exit_code` stays `0`); the forget result is recorded separately as `forget_exit_code` in `last-backup.json` and as a `restic_backup_last_forget_exit_code` Prometheus gauge. `restic unlock` is **never** auto-run on exit 11 regardless of `RESTIC_AUTO_UNLOCK` (the lock we lost is another host's legitimate lock). Drop-in: `FORGET_CRON` empty (= default) keeps legacy behaviour. Adding `--retry-lock=DURATION` to `RESTIC_FORGET_ARGS` is recommended either way.
 > - **2.3.x → 2.4.0:** additive. New `/bin/mount-snapshot` helper wraps `restic mount` (FUSE) read-only under `/fusemount` (container-internal by design, never collides with `/bin/restore` output or host bind-mounts), scoped to this container's host/tag by default, with safe target validation, opt-in `--allow-other`, repeatable `--path`, an explicit `--repo-wide` override and an `EXIT` trap so SIGINT / SIGTERM / crash always unmounts cleanly. FUSE still requires `--cap-add SYS_ADMIN --device /dev/fuse` and, on hosts that ship AppArmor's `docker-default` profile, `--security-opt apparmor=unconfined`.
 > - **2.2.x → 2.3.0:** additive. New `/bin/forget-preview` helper runs `restic forget --dry-run` with `RESTIC_FORGET_ARGS`, host/tag-scoped by default and repository-wide only with `--repo-wide`.
 > - **2.2.1 → 2.2.2:** docs/patch. Adds a Material for MkDocs documentation site (hosted at <https://marc0janssen.github.io/restic-backup-helper/>) plus a GitHub Pages deploy workflow. No runtime change.
@@ -52,7 +53,7 @@ docker pull marc0janssen/restic-backup-helper:2.4.0-0.18.1-dev
 | Tag | Meaning |
 | --- | --- |
 | `latest` | Current stable |
-| `<semver>-<restic>` | Pinned stable (helper version + Restic base), e.g. `2.4.0-0.18.1` |
+| `<semver>-<restic>` | Pinned stable (helper version + Restic base), e.g. `2.5.0-0.18.1` |
 | `develop` | Latest testing build |
 | `<semver>-<restic>-dev` | Pinned testing image |
 
@@ -98,7 +99,7 @@ Startup (`/entry.sh`) can verify/init the repo when `RESTIC_CHECK_REPOSITORY_STA
 
 **Defaults from the image (see GitHub README for full table):** `RESTIC_CACHE_DIR=/.cache/restic`, `RESTIC_CHECK_REPOSITORY_STATUS=ON`, `RCLONE_CONFIG=/config/rclone.conf`, `REPLICATE_JOB_FILE=/config/replicate_jobs.txt`, `REPLICATE_VERBOSE=ON`, `ROTATE_LOG_CRON=0 0 * * 6`, `CRON_LOG_MAX_SIZE=1048576`, `MAX_CRON_LOG_ARCHIVES=5`, `TZ=Europe/Amsterdam`.
 
-**Forget policy:** set `RESTIC_FORGET_ARGS` (example: `--prune --keep-daily 7`) to run `restic forget` after a successful backup. Run `/bin/forget-preview` first to preview the policy safely (`--dry-run`, host/tag-scoped by default).
+**Forget policy:** set `RESTIC_FORGET_ARGS` (example: `--retry-lock=5m --keep-daily 7 --keep-weekly 5 --keep-monthly 12`) to run `restic forget` after a successful backup. Add `--prune` only if you do not run `PRUNE_CRON` separately. Run `/bin/forget-preview` first to preview the policy safely (`--dry-run`, host/tag-scoped by default).
 
 **Mail:** `MAILX_RCPT` + mounted **`/etc/msmtprc`**; `MAILX_ON_ERROR=ON` limits backup/check mail to failures. Replicate mails only when errors occurred.
 

@@ -153,6 +153,7 @@ nav:
   - Workers:
       - Backup: workers/backup.md
       - Check: workers/check.md
+      - Forget: workers/forget.md
       - Prune: workers/prune.md
       - Replicate: workers/replicate.md
       - Log rotation: workers/rotate-log.md
