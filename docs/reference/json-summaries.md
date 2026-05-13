@@ -12,7 +12,7 @@ scrape never sees a partial document.
 
 | Field | Type | Description |
 | --- | --- | --- |
-| `job` | string | One of `backup`, `check`, `prune`, `replicate`, `restore`, `snapshot-export`, `forget-preview`, `mount-snapshot`. |
+| `job` | string | One of `backup`, `check`, `prune`, `forget`, `replicate`, `restore`, `snapshot-export`, `forget-preview`, `mount-snapshot`, `unlock`, `sources-report`, `init-repo`, `notify-test`. |
 | `hostname` | string | Container hostname. Set explicitly in Compose / Kubernetes for stable labels. |
 | `release` | string | `${VERSION}-${restic_base}` baked at build time, e.g. `2.11.0-0.18.1`. |
 | `started_at` | string | ISO 8601 in container `TZ`. |

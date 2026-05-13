@@ -33,17 +33,24 @@ each run.
 ${METRICS_DIR}/
 ├── restic_backup.prom
 ├── restic_check.prom
+├── restic_forget.prom              # only when FORGET_CRON is set
 ├── restic_prune.prom
 ├── restic_replicate.prom
 ├── restic_restore.prom
 ├── restic_snapshot_export.prom
-└── restic_forget_preview.prom
+├── restic_forget_preview.prom
+├── restic_mount_snapshot.prom
+├── restic_unlock.prom               # only when /bin/unlock has been run
+├── restic_sources_report.prom       # only when /bin/sources-report has been run
+├── restic_init_repo.prom            # only when /bin/init-repo has been run
+└── restic_notify_test.prom          # only when /bin/notify-test has been run
 ```
 
 ## Always-emitted gauges
 
-Per worker `<job>` ∈ `backup`, `check`, `prune`, `replicate`, `restore`,
-`snapshot_export`, `forget_preview`:
+Per worker `<job>` ∈ `backup`, `check`, `forget`, `prune`, `replicate`,
+`restore`, `snapshot_export`, `forget_preview`, `mount_snapshot`,
+`unlock`, `sources_report`, `init_repo`, `notify_test`:
 
 | Metric | Meaning |
 | --- | --- |

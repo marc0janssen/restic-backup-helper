@@ -33,7 +33,7 @@ ${METRICS_DIR}/
 
 For each `<job>` ∈ `backup`, `check`, `forget`, `prune`, `replicate`,
 `restore`, `snapshot_export`, `forget_preview`, `mount_snapshot`,
-`unlock`:
+`unlock`, `sources_report`, `init_repo`, `notify_test`:
 
 | Metric | Type | Description |
 | --- | --- | --- |

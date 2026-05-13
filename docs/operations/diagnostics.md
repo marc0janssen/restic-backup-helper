@@ -65,7 +65,7 @@ flowchart LR
 | **Repository probe** | Non-mutating `restic cat config`. Exit 10 is reported as "repository missing/not initialized"; doctor never initializes it. The probe output is masked before printing. |
 | **Replicate** | Effective `REPLICATE_*` values and validation of `REPLICATE_JOB_FILE` rows (`SOURCE;DESTINATION[;MODE[;EXTRA_ARGS]]`) with endpoints masked. |
 | **Hooks** | Each known hook path is listed with executable status (`executable`, `not executable`, `not found`). |
-| **Recent JSON summaries** | The latest `last-{backup,check,prune,replicate,restore,snapshot-export,forget-preview,mount-snapshot,unlock}.json` content if present. |
+| **Recent JSON summaries** | The latest `last-{backup,check,prune,forget,replicate,restore,snapshot-export,forget-preview,mount-snapshot,unlock,sources-report,init-repo,notify-test}.json` content if present. |
 | **Recent cron log** | Last 40 lines of `/var/log/cron.log`. |
 | **Summary** | `warnings: N`, `errors: N`. Exit non-zero only on errors. |
 
@@ -194,6 +194,8 @@ hooks/pre-check.sh:   not found
 hooks/post-check.sh:  not found
 hooks/pre-prune.sh:   not found
 hooks/post-prune.sh:  not found
+hooks/pre-forget.sh:  not found
+hooks/post-forget.sh: not found
 hooks/pre-replicate.sh: not found
 hooks/post-replicate.sh: not found
 hooks/pre-restore.sh: not found
@@ -206,6 +208,12 @@ hooks/pre-mount-snapshot.sh: not found
 hooks/post-mount-snapshot.sh: not found
 hooks/pre-unlock.sh: not found
 hooks/post-unlock.sh: not found
+hooks/pre-sources-report.sh: not found
+hooks/post-sources-report.sh: not found
+hooks/pre-init-repo.sh: not found
+hooks/post-init-repo.sh: not found
+hooks/pre-notify-test.sh: not found
+hooks/post-notify-test.sh: not found
 
 == Recent JSON summaries ==
 last-backup.json:
