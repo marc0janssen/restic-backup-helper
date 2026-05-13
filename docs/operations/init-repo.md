@@ -245,7 +245,7 @@ In addition to the common fields (`job`, `hostname`, `release`,
 
 ## See also
 
-- [Repository probe and auto-init](../workers/entry.md#repository-probe-and-auto-init)
+- [Lifecycle of a container](../concepts/architecture.md#lifecycle-of-a-container)
   — what the entrypoint does at container startup; this helper is
   its operator-driven counterpart.
 - [Unlock](unlock.md) — same operator-driven pattern, for repository
