@@ -2,6 +2,14 @@
 
 ## Restic Backup Helper
 
+### 2.14.2-0.18.1 (2026-05-14)
+
+Patch release: documentation only.
+
+#### Documentation
+
+- New **[Repository locks](https://marc0janssen.github.io/restic-backup-helper/operations/repository-locks.html)** operations guide: when Restic uses exclusive vs non-exclusive locks, stale vs legitimate locks, links to upstream troubleshooting, and a preventive checklist aligned with this image (`RESTIC_AUTO_UNLOCK`, `FORGET_CRON`, `--retry-lock`, `/bin/locked_run`, `/bin/unlock`, scheduling prune/check on one owner, graceful shutdown, metrics). Wired into MkDocs nav, home page, [`unlock`](https://marc0janssen.github.io/restic-backup-helper/operations/unlock.html), [troubleshooting](https://marc0janssen.github.io/restic-backup-helper/operations/troubleshooting.html), [environment variables](https://marc0janssen.github.io/restic-backup-helper/configuration/environment-variables.html), and the GitHub README troubleshooting table.
+
 ### 2.14.1-0.18.1 (2026-05-13)
 
 Patch release: **`app/status.sh`** is reformatted with `shfmt` so

@@ -122,6 +122,9 @@ into a single command.
 
 ## Locking and overlapping ticks
 
+Conceptual background (exclusive vs non-exclusive locks, stale vs legitimate
+holders, preventive scheduling): [Repository locks](repository-locks.md).
+
 ??? failure "Restic reports `unable to create lock in backend: repository is already locked`"
 
     List the locks first and confirm whose they are before clearing:

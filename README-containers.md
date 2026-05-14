@@ -13,20 +13,20 @@ Scheduled [Restic](https://restic.net) backups, optional `restic check`, optiona
 
 ## Release
 
-release: 2.14.1-0.18.1
+release: 2.14.2-0.18.1
 
 **Stable**
 
 ```shell
 docker pull marc0janssen/restic-backup-helper:latest
-docker pull marc0janssen/restic-backup-helper:2.14.1-0.18.1
+docker pull marc0janssen/restic-backup-helper:2.14.2-0.18.1
 ```
 
 **Development (experimental)**
 
 ```shell
 docker pull marc0janssen/restic-backup-helper:develop
-docker pull marc0janssen/restic-backup-helper:2.14.1-0.18.1-dev
+docker pull marc0janssen/restic-backup-helper:2.14.2-0.18.1-dev
 ```
 
 > **Upgrading?**
@@ -61,7 +61,7 @@ docker pull marc0janssen/restic-backup-helper:2.14.1-0.18.1-dev
 | Tag | Meaning |
 | --- | --- |
 | `latest` | Current stable |
-| `<semver>-<restic>` | Pinned stable (helper version + Restic base), e.g. `2.14.1-0.18.1` |
+| `<semver>-<restic>` | Pinned stable (helper version + Restic base), e.g. `2.14.2-0.18.1` |
 | `develop` | Latest testing build |
 | `<semver>-<restic>-dev` | Pinned testing image |
 
