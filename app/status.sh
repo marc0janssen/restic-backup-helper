@@ -56,8 +56,7 @@ case "${1:-}" in
 	usage
 	exit 0
 	;;
-"")
-	;;
+"") ;;
 *)
 	echo "❌ Unknown argument: $1" >&2
 	echo "Run /bin/status --help for usage." >&2

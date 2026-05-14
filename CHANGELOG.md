@@ -2,6 +2,12 @@
 
 ## Restic Backup Helper
 
+### 2.14.1-0.18.1 (2026-05-13)
+
+Patch release: **`app/status.sh`** is reformatted with `shfmt` so
+`./scripts/ci-quality-checks.sh` passes the `--diff` gate (empty
+`"")` case arm in the `case` statement). No behaviour change.
+
 ### 2.14.0-0.18.1 (2026-05-13)
 
 This release adds **`/bin/status`** (alias **`/bin/health-summary`**),

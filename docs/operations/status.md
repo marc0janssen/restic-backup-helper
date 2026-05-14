@@ -36,7 +36,7 @@ Example text output:
 
 ```text
 restic-backup-helper status: OK
-release:            2.14.0-0.18.1
+release:            2.14.1-0.18.1
 hostname:           backup-node
 time:               2026-05-13 Wed 23:25:00 CEST
 repository:         rclone:jottacloud:backups

@@ -207,7 +207,7 @@ intended for init-container readiness probes and CI gates.
 {
   "schema": "restic-backup-helper.config-check/1",
   "command": "config-check",
-  "release": "2.14.0-0.18.1",
+  "release": "2.14.1-0.18.1",
   "hostname": "backup-node",
   "generated_at": "2026-05-13T22:07:08+0200",
   "generated_epoch": 1747166828,
@@ -250,7 +250,7 @@ findings.
 {
   "schema": "restic-backup-helper.doctor/1",
   "command": "doctor",
-  "release": "2.14.0-0.18.1",
+  "release": "2.14.1-0.18.1",
   "hostname": "backup-node",
   "generated_at": "2026-05-13T22:07:08+0200",
   "generated_epoch": 1747166828,
@@ -359,7 +359,7 @@ secrets into them — use a `RESTIC_PASSWORD_FILE` and
 
 ```text
 == Runtime ==
-release:            2.14.0-0.18.1
+release:            2.14.1-0.18.1
 hostname:           backup-node
 date:               2026-05-11 Mon 21:13:42 +0200
 timezone:           Europe/Amsterdam
@@ -432,7 +432,7 @@ hooks/post-restore-test.sh: not found
 
 == Recent JSON summaries ==
 last-backup.json:
-{"job":"backup","hostname":"backup-node","release":"2.14.0-0.18.1","started_at":"2026-05-11T02:00:00+0200","finished_at":"2026-05-11T02:05:12+0200","duration_seconds":312,"exit_code":0,"repository":"rclone:jottacloud:backups","backup_root_dir":"","restic_tag":"backup-node-data","snapshot_id":"a1b2c3d4","files_new":12,"files_changed":4,"files_unmodified":21034,"bytes_added":"1.234 MiB"}
+{"job":"backup","hostname":"backup-node","release":"2.14.1-0.18.1","started_at":"2026-05-11T02:00:00+0200","finished_at":"2026-05-11T02:05:12+0200","duration_seconds":312,"exit_code":0,"repository":"rclone:jottacloud:backups","backup_root_dir":"","restic_tag":"backup-node-data","snapshot_id":"a1b2c3d4","files_new":12,"files_changed":4,"files_unmodified":21034,"bytes_added":"1.234 MiB"}
 ...
 
 == Recent cron log ==
