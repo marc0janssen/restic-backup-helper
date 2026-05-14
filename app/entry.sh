@@ -105,12 +105,9 @@ run_config_check() {
 			cc_add "RCLONE_CONFIG" "ok" "Rclone config is readable (${rc_file})."
 		fi
 	fi
-	replicate_cron="${REPLICATE_CRON:-${SYNC_CRON:-}}"
+	replicate_cron="${REPLICATE_CRON:-}"
 	if [ -n "${replicate_cron}" ]; then
 		sjf="${REPLICATE_JOB_FILE:-/config/replicate_jobs.txt}"
-		if [ -n "${SYNC_JOB_FILE:-}" ] && { [ -z "${REPLICATE_JOB_FILE:-}" ] || [ "${REPLICATE_JOB_FILE:-}" = "/config/replicate_jobs.txt" ]; }; then
-			sjf="${SYNC_JOB_FILE}"
-		fi
 		if [ ! -s "${sjf}" ]; then
 			cc_add "REPLICATE_JOB_FILE" "warn" "REPLICATE_CRON is set but ${sjf} is missing or empty."
 		else
@@ -231,35 +228,6 @@ build_restic_cacert_args
 
 # Releasestring (ingesteld bij image build via build-arg, zie Dockerfile)
 RELEASE="${RESTIC_BACKUP_HELPER_RELEASE:-unknown}"
-
-# Replicate is the replacement name for the older "sync/bisync" surface.
-# Keep legacy SYNC_* env vars working until 3.0.0, but prefer REPLICATE_* for
-# new deployments and for all cron/log labels written by this entrypoint.
-if [ -n "${SYNC_CRON:-}" ] && { [ -z "${REPLICATE_CRON:-}" ] || [ "${REPLICATE_CRON:-}" = "" ]; }; then
-	REPLICATE_CRON="${SYNC_CRON}"
-	export REPLICATE_CRON
-	echo "⚠️ SYNC_CRON is deprecated; rename to REPLICATE_CRON (will be removed in 3.0.0)."
-fi
-if [ -n "${SYNC_JOB_FILE:-}" ] && { [ -z "${REPLICATE_JOB_FILE:-}" ] || [ "${REPLICATE_JOB_FILE:-}" = "/config/replicate_jobs.txt" ]; }; then
-	REPLICATE_JOB_FILE="${SYNC_JOB_FILE}"
-	export REPLICATE_JOB_FILE
-	echo "⚠️ SYNC_JOB_FILE is deprecated; rename to REPLICATE_JOB_FILE (will be removed in 3.0.0)."
-fi
-if [ -n "${SYNC_JOB_ARGS:-}" ] && { [ -z "${REPLICATE_JOB_ARGS:-}" ] || [ "${REPLICATE_JOB_ARGS:-}" = "" ]; }; then
-	REPLICATE_JOB_ARGS="${SYNC_JOB_ARGS}"
-	export REPLICATE_JOB_ARGS
-	echo "⚠️ SYNC_JOB_ARGS is deprecated; rename to REPLICATE_JOB_ARGS (will be removed in 3.0.0)."
-fi
-if [ -n "${SYNC_VERBOSE:-}" ] && { [ -z "${REPLICATE_VERBOSE:-}" ] || [ "${REPLICATE_VERBOSE:-}" = "ON" ]; }; then
-	REPLICATE_VERBOSE="${SYNC_VERBOSE}"
-	export REPLICATE_VERBOSE
-	echo "⚠️ SYNC_VERBOSE is deprecated; rename to REPLICATE_VERBOSE (will be removed in 3.0.0)."
-fi
-if [ -n "${SYNC_BISYNC_CHECK_ACCESS:-}" ] && { [ -z "${REPLICATE_BISYNC_CHECK_ACCESS:-}" ] || [ "${REPLICATE_BISYNC_CHECK_ACCESS:-}" = "OFF" ]; }; then
-	REPLICATE_BISYNC_CHECK_ACCESS="${SYNC_BISYNC_CHECK_ACCESS}"
-	export REPLICATE_BISYNC_CHECK_ACCESS
-	echo "⚠️ SYNC_BISYNC_CHECK_ACCESS is deprecated; rename to REPLICATE_BISYNC_CHECK_ACCESS (will be removed in 3.0.0)."
-fi
 
 echo "🌟 *************************************************"
 echo "🌟 ***           Restic Backup Helper            ***"

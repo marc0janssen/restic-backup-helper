@@ -21,9 +21,6 @@ ${PRUNE_CRON}     /bin/locked_run prune     /bin/prune     >> /var/log/cron.log 
 ${REPLICATE_CRON} /bin/locked_run replicate /bin/replicate >> /var/log/cron.log 2>&1
 ```
 
-The legacy `SYNC_CRON` env var is accepted as an alias for `REPLICATE_CRON`
-until 3.0.0 and logs a deprecation warning when set.
-
 ## Cron expression rules
 
 The image uses the standard five-field busybox cron syntax:

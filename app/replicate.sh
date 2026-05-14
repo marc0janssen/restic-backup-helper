@@ -13,36 +13,13 @@ LAST_LOGFILE="/var/log/replicate-last.log"
 LAST_ERROR_LOGFILE="/var/log/replicate-error-last.log"
 LAST_MAIL_LOGFILE="/var/log/replicate-mail-last.log"
 
-# Map REPLICATE_VERBOSE (or legacy SYNC_VERBOSE) onto the shared LOG_VERBOSE
-# used by /bin/lib.sh's log().
-LOG_VERBOSE="${REPLICATE_VERBOSE:-${SYNC_VERBOSE:-ON}}"
-
 # shellcheck source=lib.sh
 . /bin/lib.sh
 
 RELEASE="${RESTIC_BACKUP_HELPER_RELEASE:-unknown}"
 
-# Clear log files before emitting deprecation warnings so the warnings remain
-# visible in replicate-last.log for the current run.
+# Clear log files before the run banner so operators only see the current tick.
 rm -f "${LAST_LOGFILE}" "${LAST_MAIL_LOGFILE}"
-
-map_legacy_replicate_env() {
-	local legacy="$1"
-	local current="$2"
-	local default_value="$3"
-
-	if [ -n "${!legacy:-}" ] && { [ -z "${!current:-}" ] || [ "${!current:-}" = "${default_value}" ]; }; then
-		printf -v "${current}" '%s' "${!legacy}"
-		declare -gx "${current}"
-		log "⚠️ ${legacy} is deprecated; rename to ${current} (will be removed in 3.0.0)."
-	fi
-}
-
-map_legacy_replicate_env "SYNC_CRON" "REPLICATE_CRON" ""
-map_legacy_replicate_env "SYNC_JOB_FILE" "REPLICATE_JOB_FILE" "/config/replicate_jobs.txt"
-map_legacy_replicate_env "SYNC_JOB_ARGS" "REPLICATE_JOB_ARGS" ""
-map_legacy_replicate_env "SYNC_VERBOSE" "REPLICATE_VERBOSE" "ON"
-map_legacy_replicate_env "SYNC_BISYNC_CHECK_ACCESS" "REPLICATE_BISYNC_CHECK_ACCESS" "OFF"
 
 REPLICATE_JOB_FILE="${REPLICATE_JOB_FILE:-/config/replicate_jobs.txt}"
 REPLICATE_JOB_ARGS="${REPLICATE_JOB_ARGS:-}"
@@ -50,10 +27,6 @@ REPLICATE_CRON="${REPLICATE_CRON:-}"
 REPLICATE_VERBOSE="${REPLICATE_VERBOSE:-ON}"
 REPLICATE_BISYNC_CHECK_ACCESS="${REPLICATE_BISYNC_CHECK_ACCESS:-OFF}"
 LOG_VERBOSE="${REPLICATE_VERBOSE}"
-
-if [ "${0##*/}" = "bisync" ]; then
-	log "⚠️ /bin/bisync is deprecated; use /bin/replicate (compat alias will be removed in 3.0.0)."
-fi
 
 # Check if the file exists and is not empty
 if [ ! -s "${REPLICATE_JOB_FILE:-}" ]; then

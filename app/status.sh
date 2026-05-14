@@ -208,8 +208,6 @@ stale_after_seconds() {
 effective_replicate_cron() {
 	if [ -n "${REPLICATE_CRON:-}" ]; then
 		printf '%s' "${REPLICATE_CRON}"
-	elif [ -n "${SYNC_CRON:-}" ]; then
-		printf '%s' "${SYNC_CRON}"
 	fi
 }
 

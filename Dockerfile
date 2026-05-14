@@ -64,13 +64,6 @@ ENV REPLICATE_JOB_ARGS=""
 ENV REPLICATE_CRON=""
 ENV REPLICATE_VERBOSE="ON"
 ENV REPLICATE_BISYNC_CHECK_ACCESS="OFF"
-# Deprecated compatibility aliases for the old sync/bisync surface; accepted
-# by /entry.sh and /bin/replicate until 3.0.0. Prefer REPLICATE_* above.
-ENV SYNC_JOB_FILE=""
-ENV SYNC_JOB_ARGS=""
-ENV SYNC_CRON=""
-ENV SYNC_VERBOSE=""
-ENV SYNC_BISYNC_CHECK_ACCESS=""
 ENV METRICS_DIR=""
 ENV ROTATE_LOG_CRON="0 0 * * 6"
 ENV CRON_LOG_MAX_SIZE="1048576"
@@ -178,7 +171,6 @@ LABEL org.opencontainers.image.title="restic-backup-helper" \
 	org.opencontainers.image.version="${RESTIC_BACKUP_HELPER_RELEASE}"
 ENV RESTIC_BACKUP_HELPER_RELEASE=${RESTIC_BACKUP_HELPER_RELEASE}
 RUN chmod 755 /entry.sh /bin/backup /bin/check /bin/replicate /bin/rotate_log /bin/prune /bin/forget /bin/doctor /bin/cron-list /bin/snapshot-export /bin/forget-preview /bin/mount-snapshot /bin/unlock /bin/sources-report /bin/init-repo /bin/notify-test /bin/restore /bin/restore-test /bin/status /bin/locked_run \
-	&& ln -s replicate /bin/bisync \
 	&& ln -s status /bin/health-summary
 
 # set sendmail-path

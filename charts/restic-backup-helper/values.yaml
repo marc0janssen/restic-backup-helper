@@ -1,0 +1,153 @@
+# Default values for restic-backup-helper.
+# Set credentials.resticPassword (or credentials.existingSecret) and
+# environment.RESTIC_REPOSITORY before installing.
+
+image:
+  repository: marc0janssen/restic-backup-helper
+  # Pin to a concrete image tag in production (see docs/reference/image-tags.md).
+  tag: "3.1.0-0.18.1"
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+
+nameOverride: ""
+fullnameOverride: ""
+
+# Must stay 1: internal cron and Restic locking assume a single replica.
+replicaCount: 1
+
+podAnnotations: {}
+podLabels: {}
+
+podSecurityContext: {}
+
+# Container security context (capabilities for FUSE / restricted paths).
+securityContext:
+  capabilities:
+    add:
+      - DAC_READ_SEARCH
+      - SYS_ADMIN
+    drop:
+      - ALL
+
+resources: {}
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+hostname: backup-node
+
+# --- Credentials ---
+# Option A: create a Secret from values (set resticPassword at install time).
+# Option B: set existingSecret to a Secret you manage (keys: restic-password,
+# optional msmtprc).
+credentials:
+  create: true
+  existingSecret: ""
+  resticPassword: ""
+  msmtprc: ""
+  # Mount /etc/msmtprc from the Secret subPath msmtprc (disable if your Secret has no msmtprc key).
+  mountMsmtprc: true
+
+# --- Environment (passed to the container; empty strings are omitted) ---
+environment:
+  RESTIC_REPOSITORY: ""
+  RESTIC_REPOSITORY_FILE: ""
+  RESTIC_TAG: daily
+  RESTIC_PASSWORD_FILE: /run/secrets/restic-password
+  RESTIC_CACHE_DIR: /.cache/restic
+  RESTIC_CHECK_REPOSITORY_STATUS: "ON"
+  RESTIC_AUTO_UNLOCK: "OFF"
+  RESTIC_JOB_ARGS: ""
+  RESTIC_FORGET_ARGS: ""
+  RESTIC_CHECK_ARGS: ""
+  RESTIC_PRUNE_ARGS: ""
+  RESTIC_INIT_ARGS: ""
+  RESTIC_CACERT: ""
+  BACKUP_CRON: "0 2 * * *"
+  BACKUP_ROOT_DIR: /data
+  CHECK_CRON: ""
+  FORGET_CRON: ""
+  PRUNE_CRON: ""
+  REPLICATE_CRON: ""
+  ROTATE_LOG_CRON: ""
+  MAILX_RCPT: ""
+  MAILX_ON_ERROR: "OFF"
+  WEBHOOK_URL: ""
+  WEBHOOK_HEADER_AUTH: ""
+  WEBHOOK_TIMEOUT: ""
+  WEBHOOK_ON_ERROR: "OFF"
+  HOOK_TIMEOUT: ""
+  METRICS_DIR: /var/log/textfile_collector
+  TZ: UTC
+  NFS_TARGET: ""
+  RCLONE_CONFIG: ""
+  REPLICATE_JOB_FILE: ""
+  REPLICATE_JOB_ARGS: ""
+  REPLICATE_VERBOSE: ""
+  REPLICATE_BISYNC_CHECK_ACCESS: ""
+
+# Extra env entries (list of {name, value} or valueFrom).
+extraEnv: []
+
+# --- Persistence for /var/log (cron.log, last-*.json, *.prom) ---
+persistence:
+  logs:
+    enabled: true
+    storageClass: ""
+    accessModes:
+      - ReadWriteOnce
+    size: 1Gi
+    annotations: {}
+  # When enabled, use a PVC for /.cache/restic instead of emptyDir.
+  cache:
+    enabled: false
+    storageClass: ""
+    accessModes:
+      - ReadWriteOnce
+    size: 10Gi
+    annotations: {}
+
+# --- Backup source mounted read-only at BACKUP_ROOT_DIR (default /data) ---
+# type: hostPath | pvc | emptyDir (emptyDir is only useful for smoke tests).
+volumeSource:
+  type: hostPath
+  hostPath: /srv/documents
+  hostPathType: Directory
+  claimName: ""
+
+# Optional ConfigMap mounted read-only at /config (e.g. exclude files, rclone).
+configMap:
+  enabled: false
+  data: {}
+
+# Extra volumes and volumeMounts appended to the Pod spec.
+extraVolumes: []
+extraVolumeMounts: []
+
+# --- Probes ---
+probes:
+  liveness:
+    exec:
+      command:
+        - sh
+        - -c
+        - "restic cat config >/dev/null 2>&1 || exit 1"
+    initialDelaySeconds: 60
+    periodSeconds: 900
+    timeoutSeconds: 30
+  readiness:
+    exec:
+      command:
+        - sh
+        - -c
+        - "test -f /var/log/cron.log || exit 1"
+    initialDelaySeconds: 10
+    periodSeconds: 60
+    timeoutSeconds: 5
+
+serviceAccount:
+  create: false
+  annotations: {}
+  name: ""

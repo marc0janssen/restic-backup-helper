@@ -11,8 +11,7 @@ job line is one of:
   deletes do **not** propagate).
 
 The legacy name was "sync"; since 2.0.0 the worker, env vars and logs
-were renamed to "replicate". `/bin/bisync` is a compatibility symlink
-until 3.0.0; see the [`1.18.x → 2.0.0` section of Upgrading](../getting-started/upgrading.md).
+were renamed to "replicate". See the [`1.18.x → 2.0.0` section of Upgrading](../getting-started/upgrading.md) and [`2.x → 3.0.0`](../getting-started/upgrading.md#replicate-30-bridge) (removal of `SYNC_*` and `/bin/bisync`).
 
 ## Variables
 
@@ -24,9 +23,6 @@ until 3.0.0; see the [`1.18.x → 2.0.0` section of Upgrading](../getting-starte
 | `REPLICATE_VERBOSE` | `ON` | When `ON`, also echo to stdout. |
 | `REPLICATE_BISYNC_CHECK_ACCESS` | `OFF` | When `ON`, append `--check-access` to every bisync run and the recovery resync. |
 | `RCLONE_CONFIG` | `/config/rclone.conf` | Rclone configuration file. |
-
-Legacy aliases (`SYNC_*`) are accepted until 3.0.0 with deprecation
-warnings.
 
 ## Job file format
 

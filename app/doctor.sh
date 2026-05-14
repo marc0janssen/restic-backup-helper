@@ -231,33 +231,12 @@ report_command_version() {
 	fi
 }
 
-map_legacy_replicate_env_for_report() {
+replicate_env_for_report() {
 	EFFECTIVE_REPLICATE_CRON="${REPLICATE_CRON:-}"
 	EFFECTIVE_REPLICATE_JOB_FILE="${REPLICATE_JOB_FILE:-/config/replicate_jobs.txt}"
 	EFFECTIVE_REPLICATE_JOB_ARGS="${REPLICATE_JOB_ARGS:-}"
 	EFFECTIVE_REPLICATE_VERBOSE="${REPLICATE_VERBOSE:-ON}"
 	EFFECTIVE_REPLICATE_BISYNC_CHECK_ACCESS="${REPLICATE_BISYNC_CHECK_ACCESS:-OFF}"
-
-	if [ -n "${SYNC_CRON:-}" ] && [ -z "${EFFECTIVE_REPLICATE_CRON}" ]; then
-		EFFECTIVE_REPLICATE_CRON="${SYNC_CRON}"
-		warn "SYNC_CRON is deprecated; effective REPLICATE_CRON comes from SYNC_CRON."
-	fi
-	if [ -n "${SYNC_JOB_FILE:-}" ] && { [ -z "${REPLICATE_JOB_FILE:-}" ] || [ "${REPLICATE_JOB_FILE:-}" = "/config/replicate_jobs.txt" ]; }; then
-		EFFECTIVE_REPLICATE_JOB_FILE="${SYNC_JOB_FILE}"
-		warn "SYNC_JOB_FILE is deprecated; effective REPLICATE_JOB_FILE comes from SYNC_JOB_FILE."
-	fi
-	if [ -n "${SYNC_JOB_ARGS:-}" ] && [ -z "${EFFECTIVE_REPLICATE_JOB_ARGS}" ]; then
-		EFFECTIVE_REPLICATE_JOB_ARGS="${SYNC_JOB_ARGS}"
-		warn "SYNC_JOB_ARGS is deprecated; effective REPLICATE_JOB_ARGS comes from SYNC_JOB_ARGS."
-	fi
-	if [ -n "${SYNC_VERBOSE:-}" ] && { [ -z "${REPLICATE_VERBOSE:-}" ] || [ "${REPLICATE_VERBOSE:-}" = "ON" ]; }; then
-		EFFECTIVE_REPLICATE_VERBOSE="${SYNC_VERBOSE}"
-		warn "SYNC_VERBOSE is deprecated; effective REPLICATE_VERBOSE comes from SYNC_VERBOSE."
-	fi
-	if [ -n "${SYNC_BISYNC_CHECK_ACCESS:-}" ] && { [ -z "${REPLICATE_BISYNC_CHECK_ACCESS:-}" ] || [ "${REPLICATE_BISYNC_CHECK_ACCESS:-}" = "OFF" ]; }; then
-		EFFECTIVE_REPLICATE_BISYNC_CHECK_ACCESS="${SYNC_BISYNC_CHECK_ACCESS}"
-		warn "SYNC_BISYNC_CHECK_ACCESS is deprecated; effective REPLICATE_BISYNC_CHECK_ACCESS comes from SYNC_BISYNC_CHECK_ACCESS."
-	fi
 }
 
 report_replicate_jobs() {
@@ -570,7 +549,7 @@ report_command_version "rclone" rclone version
 report_command_version "bash" bash --version
 
 section "Effective environment"
-map_legacy_replicate_env_for_report
+replicate_env_for_report
 for name in \
 	RESTIC_REPOSITORY RESTIC_REPOSITORY_FILE RESTIC_PASSWORD_FILE RESTIC_PASSWORD RESTIC_TAG RESTIC_CACHE_DIR TMPDIR \
 	RESTIC_CHECK_REPOSITORY_STATUS RESTIC_AUTO_UNLOCK RESTIC_CACERT NFS_TARGET \

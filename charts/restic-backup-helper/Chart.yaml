@@ -1,0 +1,16 @@
+apiVersion: v2
+name: restic-backup-helper
+description: >-
+  Long-running Deployment for marc0janssen/restic-backup-helper (Restic cron
+  inside the container). Mirrors the reference Kubernetes manifest.
+type: application
+version: 1.0.0
+appVersion: "3.1.0"
+kubeVersion: ">=1.22.0-0"
+keywords:
+  - restic
+  - backup
+  - cron
+home: https://github.com/marc0janssen/restic-backup-helper
+sources:
+  - https://github.com/marc0janssen/restic-backup-helper

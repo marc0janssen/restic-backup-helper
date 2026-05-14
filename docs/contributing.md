@@ -33,7 +33,7 @@ before pushing.
 
 Hand-built images **must** pass
 `--build-arg RESTIC_BACKUP_HELPER_RELEASE=…` (same string as the
-versioned image tag, e.g. `2.14.1-0.18.1-dev`) so the `release` field
+versioned image tag, e.g. `3.0.0-0.18.1-dev`) so the `release` field
 in `last-<job>.json` is accurate. The `build-testing.sh` scripts
 handle this automatically.
 

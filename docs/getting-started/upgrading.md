@@ -15,6 +15,37 @@ omitted; see the full [Changelog](../changelog.md) for every release.
 See [Versioning policy](../concepts/versioning.md) for the full semver
 contract.
 
+## 2.x → 3.0.0 :material-alert-octagon:{ title="Breaking" } {#replicate-30-bridge}
+
+The **replicate compatibility bridge** from the 2.0.0 rename is gone.
+
+### What was removed
+
+| Removed in 3.0.0 | Use instead |
+| --- | --- |
+| `SYNC_CRON` | `REPLICATE_CRON` |
+| `SYNC_JOB_FILE` | `REPLICATE_JOB_FILE` |
+| `SYNC_JOB_ARGS` | `REPLICATE_JOB_ARGS` |
+| `SYNC_VERBOSE` | `REPLICATE_VERBOSE` |
+| `SYNC_BISYNC_CHECK_ACCESS` | `REPLICATE_BISYNC_CHECK_ACCESS` |
+| `/bin/bisync` (symlink) | `/bin/replicate` |
+
+The image no longer maps `SYNC_*` at startup, and the Dockerfile no longer
+declares those variables. If you still export only `SYNC_CRON`, replicate
+will **not** schedule until you rename the variable.
+
+### Upgrade checklist
+
+1. **Search/replace** in every manifest: `SYNC_` → `REPLICATE_` (Compose,
+   Kubernetes, Nomad, Ansible, `.env` files, CI secrets).
+2. **Commands and probes** that invoked `/bin/bisync` → `/bin/replicate`.
+3. **Pin a 3.x image tag** (`3.0.0-0.18.1` or newer) and roll out after a
+   config-only change; rolling the image first without renaming env vars
+   will silently disable replicate until `REPLICATE_*` is set.
+
+The rclone job-file **`MODE`** value `bisync` is unchanged — only the
+**shell entrypoint** name `/bin/bisync` is removed.
+
 ## 2.4.0 → 2.5.0
 
 Multi-host retention hardening. Three composing changes, all backwards
@@ -209,7 +240,7 @@ a compatibility bridge until 3.0.0, but plan to migrate on your schedule.
 | Old name | New name |
 | --- | --- |
 | `app/bisync.sh` worker | `app/replicate.sh` |
-| `/bin/bisync` | `/bin/replicate` (with `/bin/bisync` symlink kept until 3.0.0) |
+| `/bin/bisync` | `/bin/replicate` (throughout **2.x** only, a symlink to the same binary; **removed in 3.0.0**) |
 | `/var/run/bisync.lock` | `/var/run/replicate.lock` |
 | `/var/log/sync-last.log` | `/var/log/replicate-last.log` |
 | `/var/log/sync-error-last.log` | `/var/log/replicate-error-last.log` |
@@ -225,17 +256,14 @@ a compatibility bridge until 3.0.0, but plan to migrate on your schedule.
 | `SYNC_VERBOSE` | `REPLICATE_VERBOSE` |
 | `SYNC_BISYNC_CHECK_ACCESS` | `REPLICATE_BISYNC_CHECK_ACCESS` |
 
-### Compatibility bridge
+### Historical note (2.x compatibility bridge)
 
-- `/bin/bisync` is symlinked to `/bin/replicate` until **3.0.0**.
-- All `SYNC_*` env vars are read at startup and mapped to their `REPLICATE_*`
-  counterparts when the new name is unset, with a deprecation warning in
-  `cron.log` so you can see what is still legacy.
-- The rclone per-job MODE value `bisync` is unchanged. Job rows of the form
-  `SOURCE;DESTINATION;bisync`, `SOURCE;DESTINATION;sync` and
-  `SOURCE;DESTINATION;copy` keep working as-is.
+From **2.0.0** through **2.x**, `/bin/bisync` was a symlink to `/bin/replicate`
+and `SYNC_*` env vars were mapped to `REPLICATE_*` at startup with
+deprecation warnings. **3.0.0 removes that bridge** — see
+[2.x → 3.0.0](#replicate-30-bridge) above.
 
-### What you must do
+### What you must do (when upgrading from 1.x)
 
 1. **Migrate the env vars.** Rename `SYNC_*` → `REPLICATE_*` in your
    `docker-compose.yml`, `.env`, Kubernetes manifest. Helpful one-liner:
@@ -260,15 +288,8 @@ a compatibility bridge until 3.0.0, but plan to migrate on your schedule.
    The runtime does not read them anymore; rename to `pre-replicate.sh` /
    `post-replicate.sh`.
 
-The compatibility bridge means you can do these in any order. The old `SYNC_*`
-env var names continue to work, but each emits a deprecation warning into
-`cron.log` until you switch over.
-
-### Removal in 3.0.0
-
-In `3.0.0` (no date set yet), the bridge will be removed: `/bin/bisync`
-symlink, `SYNC_*` env-var mapping and all logs/JSON/Prom names will only
-respond to the `replicate` spelling. Plan the migration on your schedule.
+If you are reading this while already on **3.x**, step 1 is mandatory: `SYNC_*`
+is ignored and `/bin/bisync` does not exist.
 
 ## 1.16.x → 1.17.0
 

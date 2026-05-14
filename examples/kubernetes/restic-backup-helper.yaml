@@ -5,6 +5,8 @@
 # Deployment (single replica, internal cron, no plaintext passwords in env).
 # Apply with: kubectl apply -n backup -f restic-backup-helper.yaml
 #
+# Helm chart (same defaults): charts/restic-backup-helper/ in this repository.
+#
 # Notes:
 #   * Replace <YOUR_*> placeholders before applying.
 #   * The container runs as root because cron, FUSE and NFS workflows require

@@ -28,7 +28,6 @@ flowchart LR
     subgraph Effective env
         E1[Masked RESTIC_*]
         E2[Masked REPLICATE_*]
-        E3[Legacy SYNC_* warnings]
     end
     subgraph Configuration
         C1[RESTIC_PASSWORD_FILE readable]
@@ -70,7 +69,7 @@ flowchart LR
 | Section | Information |
 | --- | --- |
 | **Runtime** | Release, hostname, current time, `TZ`, `restic version`, `rclone version`, `bash --version`. |
-| **Effective environment** | Masked values of `RESTIC_REPOSITORY`, `REPLICATE_JOB_FILE`, mail/webhook URLs, etc. Legacy `SYNC_*` values are shown with a deprecation warning when they still override `REPLICATE_*`. |
+| **Effective environment** | Masked values of `RESTIC_REPOSITORY`, `REPLICATE_JOB_FILE`, mail/webhook URLs, etc. |
 | **Configuration checks** | `RESTIC_PASSWORD_FILE` exists and is readable; `RCLONE_CONFIG` and `RESTIC_CACERT` are readable when set; `BACKUP_ROOT_DIR` exists; `--files-from` and `--exclude-file` paths referenced from `RESTIC_JOB_ARGS` exist; cache / temp / log / metrics directories are writable. |
 | **Repository probe** | Non-mutating `restic cat config`. Exit 10 is reported as "repository missing/not initialized"; doctor never initializes it. The probe output is masked before printing. |
 | **Replicate** | Effective `REPLICATE_*` values and validation of `REPLICATE_JOB_FILE` rows (`SOURCE;DESTINATION[;MODE[;EXTRA_ARGS]]`) with endpoints masked. |
@@ -123,13 +122,13 @@ actual crontab from `/var/spool/cron/crontabs/root`. In one-shot
 `docker run … cron-list` mode, cron has not been rendered yet, so it
 prints an environment-derived preview using the same schedule variables
 as the entrypoint (`BACKUP_CRON`, `CHECK_CRON`, `REPLICATE_CRON`,
-`FORGET_CRON`, `PRUNE_CRON`, `ROTATE_LOG_CRON` and legacy `SYNC_CRON`).
+`FORGET_CRON`, `PRUNE_CRON`, `ROTATE_LOG_CRON`).
 
 ## Exit codes
 
 | Exit | What it means |
 | --- | --- |
-| `0` | No hard errors. There may still be warnings (e.g. legacy `SYNC_*`, missing `MAILX_RCPT` when you expected mail). |
+| `0` | No hard errors. There may still be warnings (e.g. missing `MAILX_RCPT` when you expected mail). |
 | `1` | At least one hard error. Examples: missing repository settings, unreadable required secrets / config, empty `RESTIC_TAG`, no backup paths, failed repository probe. |
 
 ## Machine-readable output (`--json`)

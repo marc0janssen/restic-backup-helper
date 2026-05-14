@@ -1,0 +1,21 @@
+{{- if .Values.persistence.cache.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "restic-backup-helper.fullname" . }}-cache
+  labels:
+    {{- include "restic-backup-helper.labels" . | nindent 4 }}
+  {{- with .Values.persistence.cache.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  accessModes:
+    {{- toYaml .Values.persistence.cache.accessModes | nindent 4 }}
+  resources:
+    requests:
+      storage: {{ .Values.persistence.cache.size | quote }}
+  {{- if .Values.persistence.cache.storageClass }}
+  storageClassName: {{ .Values.persistence.cache.storageClass | quote }}
+  {{- end }}
+{{- end }}

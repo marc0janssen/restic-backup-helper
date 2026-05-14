@@ -1,0 +1,13 @@
+{{- if and .Values.configMap.enabled .Values.configMap.data }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "restic-backup-helper.fullname" . }}-config
+  labels:
+    {{- include "restic-backup-helper.labels" . | nindent 4 }}
+data:
+  {{- range $k, $v := .Values.configMap.data }}
+  {{ $k }}: |
+    {{- $v | nindent 4 }}
+  {{- end }}
+{{- end }}

@@ -83,11 +83,6 @@ for cadence and canary recommendations.
 | `REPLICATE_CRON` | *(empty)* | If non-empty, schedules `/bin/replicate`. |
 | `REPLICATE_VERBOSE` | `ON` | When `ON`, replicate messages also echo to stdout (still always logged to file). |
 | `REPLICATE_BISYNC_CHECK_ACCESS` | `OFF` | When `ON`, appends `--check-access` to the routine `bisync` runs and the recovery `bisync --resync`. Requires the `RCLONE_TEST` marker file on both endpoints. |
-| `SYNC_CRON` :material-alert-octagon:{ title="Deprecated; removed in 3.0.0" } | *(empty)* | **Legacy** alias for `REPLICATE_CRON`. |
-| `SYNC_JOB_FILE` :material-alert-octagon: | *(empty)* | **Legacy** alias for `REPLICATE_JOB_FILE`. |
-| `SYNC_JOB_ARGS` :material-alert-octagon: | *(empty)* | **Legacy** alias for `REPLICATE_JOB_ARGS`. |
-| `SYNC_VERBOSE` :material-alert-octagon: | *(empty)* | **Legacy** alias for `REPLICATE_VERBOSE`. |
-| `SYNC_BISYNC_CHECK_ACCESS` :material-alert-octagon: | *(empty)* | **Legacy** alias for `REPLICATE_BISYNC_CHECK_ACCESS`. |
 
 ## Mail
 

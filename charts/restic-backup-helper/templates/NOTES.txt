@@ -1,0 +1,23 @@
+The **restic-backup-helper** chart is installed.
+
+1. This workload is a **single-replica Deployment** with internal cron (not a
+   Kubernetes CronJob). There is no HTTP Service unless you add one via
+   `extraVolumes` / `extraVolumeMounts`.
+
+2. Verify the Pod:
+
+  kubectl get pods --namespace {{ .Release.Namespace }} -l "app.kubernetes.io/name={{ include "restic-backup-helper.name" . }},app.kubernetes.io/instance={{ .Release.Name }}"
+
+3. Follow logs and run diagnostics:
+
+  kubectl logs -n {{ .Release.Namespace }} deployment/{{ include "restic-backup-helper.fullname" . }} -f
+  kubectl exec -n {{ .Release.Namespace }} deploy/{{ include "restic-backup-helper.fullname" . }} -- /bin/doctor
+
+{{- if .Values.credentials.create }}
+{{- if not .Values.credentials.existingSecret }}
+
+**Secret:** this release created Secret `{{ include "restic-backup-helper.fullname" . }}` from
+`credentials.resticPassword`. Prefer `credentials.existingSecret` and a sealed /
+external secret manager for production.
+{{- end }}
+{{- end }}

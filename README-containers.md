@@ -13,20 +13,20 @@ Scheduled [Restic](https://restic.net) backups, optional `restic check`, optiona
 
 ## Release
 
-release: 2.14.2-0.18.1
+release: 3.1.0-0.18.1
 
 **Stable**
 
 ```shell
 docker pull marc0janssen/restic-backup-helper:latest
-docker pull marc0janssen/restic-backup-helper:2.14.2-0.18.1
+docker pull marc0janssen/restic-backup-helper:3.1.0-0.18.1
 ```
 
 **Development (experimental)**
 
 ```shell
 docker pull marc0janssen/restic-backup-helper:develop
-docker pull marc0janssen/restic-backup-helper:2.14.2-0.18.1-dev
+docker pull marc0janssen/restic-backup-helper:3.1.0-0.18.1-dev
 ```
 
 > **Upgrading?**
@@ -46,11 +46,12 @@ docker pull marc0janssen/restic-backup-helper:2.14.2-0.18.1-dev
 > - **2.2.0 → 2.2.1:** patch. CI-only shellcheck cleanup in `app/snapshot_export.sh` (SC2317/SC2119); no runtime change.
 > - **2.1.x → 2.2.0:** purely additive. New `/bin/snapshot-export` helper restores a selected snapshot or subtree into a temporary workdir and packages it as `.tar.gz` under `/restore` by default. Supports `--id`, `--include`, `--exclude`, `--output`, `--dry-run`, hooks, JSON, webhook, mail and metrics.
 > - **2.0.x → 2.1.0:** purely additive. New `/bin/doctor` read-only diagnostics command for support/triage: masked effective env, path checks, repository probe, replicate job-file validation, hook executable status and recent `/var/log` summaries. `docker run … doctor` runs it without starting cron.
-> - **1.18.x → 2.0.0:** the old "sync/bisync" surface is renamed to **replicate**. Use `/bin/replicate`, `REPLICATE_*` env vars, `/config/replicate_jobs.txt`, `/hooks/pre-replicate.sh` / `/hooks/post-replicate.sh`, `/var/log/last-replicate.json`, `/var/log/replicate-last.log` and `restic_replicate.prom`. Legacy `SYNC_*` env vars and `/bin/bisync` still work with deprecation warnings and will be removed in 3.0.0. Rename any mounted `config/sync_jobs.txt` to `config/replicate_jobs.txt` or set `REPLICATE_JOB_FILE` explicitly. Monitoring and hook paths must be updated.
+> - **2.14.x → 3.0.0:** **Breaking.** Removes legacy **`SYNC_*`** env vars and **`/bin/bisync`** — use **`REPLICATE_*`** and **`/bin/replicate`** only. See GitHub README / [Upgrading](https://marc0janssen.github.io/restic-backup-helper/getting-started/upgrading.html#replicate-30-bridge).
+> - **1.18.x → 2.0.0:** the old "sync/bisync" surface is renamed to **replicate**. Use `/bin/replicate`, `REPLICATE_*` env vars, `/config/replicate_jobs.txt`, `/hooks/pre-replicate.sh` / `/hooks/post-replicate.sh`, `/var/log/last-replicate.json`, `/var/log/replicate-last.log` and `restic_replicate.prom`. Through **2.x** only, legacy `SYNC_*` and `/bin/bisync` were accepted with warnings (**removed in 3.0.0**). Rename any mounted `config/sync_jobs.txt` to `config/replicate_jobs.txt` or set `REPLICATE_JOB_FILE` explicitly. Monitoring and hook paths must be updated.
 > - **1.17.x → 1.18.0:** polish on top of the 1.17.0 `/bin/restore` wrapper. Three operator-visible additions: `--yes` / `-y` runs the wrapper fully non-interactively (skips picker + target + dry-run + Proceed prompts, fills missing answers with cron/CI defaults — useful from inside `docker exec -ti …`); `--verbose` / `-v` now actually streams progress (passes `--verbose=2` to restic for per-file lines AND wraps restic in `script(1)` so the native in-place progress bar renders); interactive mode is TTY-driven only, so modifier flags like `--verbose` and `--force` no longer skip the prompts. Image grows ~6 MB to ship `util-linux` (for `script(1)`). `--include` zero-match now exits `3` instead of silently succeeding. Pure polish, no breaking changes for existing scripted callers.
 > - **1.16.x → 1.17.0:** purely additive. New `/bin/restore` wrapper (interactive on a TTY, flag-driven otherwise) with mail/webhook on by default and `/var/log/last-restore.json` summary; optional `/hooks/{pre,post}-restore.sh`. Refuses to restore into `/data` or a non-empty `--target` unless `--force` (or `--dry-run`). See the GitHub README "Restore (operator-friendly)" section.
 > - **1.15.x → 1.16.0:** purely additive (no env-var rename, no behaviour change). New surfaces: opt-in image SBOM via `SBOM=ON ./build.sh` (requires `syft`); source-tree SBOM uploaded by the release CI; `scripts/docker-compose.yml` ships Compose profiles `metrics` (node-exporter sidecar) and `dev` (mailhog); new multi-job example at `examples/compose/multi-job.yml`; new README "Hardening" section with the `read_only: true` + tmpfs recipe.
-> - **1.14.x → 1.15.0:** purely additive. New opt-in env vars `METRICS_DIR` (Prometheus textfile collector) and `REPLICATE_BISYNC_CHECK_ACCESS` (bisync `--check-access` opt-in; legacy `SYNC_BISYNC_CHECK_ACCESS` accepted until 3.0.0). Mail subjects gain `[OK|FAIL N] Job host · duration · details` prefix. Replicate URL credentials are masked in logs.
+> - **1.14.x → 1.15.0:** purely additive. New opt-in env vars `METRICS_DIR` (Prometheus textfile collector) and `REPLICATE_BISYNC_CHECK_ACCESS` (bisync `--check-access` opt-in; was `SYNC_BISYNC_CHECK_ACCESS` in 1.x only). Mail subjects gain `[OK|FAIL N] Job host · duration · details` prefix. Replicate URL credentials are masked in logs.
 > - **1.13.x → 1.14.0:** explicitly empty `RESTIC_TAG` is now a hard error. Replicate job files accept optional `MODE` / `EXTRA_ARGS` columns. `rclone` is now installed once with SHA256 verification.
 > - **From 1.11.x:** automatic `restic unlock` after backup / check failures is opt-in (`RESTIC_AUTO_UNLOCK=ON`, since 1.12.0). 1.13.0 adds standalone `PRUNE_CRON` + `RESTIC_PRUNE_ARGS`. See the GitHub README env table.
 
@@ -61,7 +62,7 @@ docker pull marc0janssen/restic-backup-helper:2.14.2-0.18.1-dev
 | Tag | Meaning |
 | --- | --- |
 | `latest` | Current stable |
-| `<semver>-<restic>` | Pinned stable (helper version + Restic base), e.g. `2.14.2-0.18.1` |
+| `<semver>-<restic>` | Pinned stable (helper version + Restic base), e.g. `3.1.0-0.18.1` |
 | `develop` | Latest testing build |
 | `<semver>-<restic>-dev` | Pinned testing image |
 

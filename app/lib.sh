@@ -11,9 +11,8 @@
 #   - Consumers may set LAST_ERROR_LOGFILE; copyErrorLog() copies LAST_LOGFILE
 #     to LAST_ERROR_LOGFILE when both are set.
 #   - log() echoes to stdout when LOG_VERBOSE (default ON) is "ON" (case
-#     insensitive). replicate sets LOG_VERBOSE from REPLICATE_VERBOSE (or
-#     legacy SYNC_VERBOSE) so user-facing verbosity keeps its existing
-#     semantics.
+#     insensitive). replicate sets LOG_VERBOSE from REPLICATE_VERBOSE so
+#     verbosity matches the replicate worker defaults.
 #   - errorlog() always echoes to stdout regardless of LOG_VERBOSE.
 #   - Sourcing this file has ONE side effect: resolve_restic_repository_file
 #     runs at the bottom of the file so every helper that sources lib.sh

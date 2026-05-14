@@ -2,6 +2,30 @@
 
 ## Restic Backup Helper
 
+### 3.1.0-0.18.1 (2026-05-14)
+
+#### Added
+
+- **Helm chart** at [`charts/restic-backup-helper/`](charts/restic-backup-helper/): `Deployment` (Recreate, single replica), chart-managed `Secret` or `credentials.existingSecret`, PVC for `/var/log` (optional PVC for `/.cache/restic`), backup source as `hostPath` / `pvc` / `emptyDir`, optional `ConfigMap` mounted at `/config`, liveness/readiness probes and Linux capabilities aligned with [`examples/kubernetes/restic-backup-helper.yaml`](examples/kubernetes/restic-backup-helper.yaml). Documented in the main README, [`docs/deployment/kubernetes.md`](docs/deployment/kubernetes.md) and the chart README.
+
+### 3.0.0-0.18.1 (2026-05-14)
+
+**Major** release: removes the 2.x **replicate compatibility bridge** promised since 2.0.0.
+
+#### Breaking
+
+- **Removed legacy `SYNC_*` environment variables.** Use only `REPLICATE_CRON`, `REPLICATE_JOB_FILE`, `REPLICATE_JOB_ARGS`, `REPLICATE_VERBOSE` and `REPLICATE_BISYNC_CHECK_ACCESS`. `/entry.sh`, `/bin/replicate`, `config-check`, `/bin/cron-list`, `/bin/status` and `/bin/doctor` no longer read or map `SYNC_*`.
+- **Removed `/bin/bisync`.** Cron and operators must invoke **`/bin/replicate`** (same script as before).
+- **Dockerfile:** dropped the baked `ENV SYNC_*` lines and the `ln -s replicate /bin/bisync` install step.
+
+#### Upgrade (from any 2.x)
+
+1. Rename every `SYNC_*` key to its `REPLICATE_*` counterpart in Compose, Kubernetes, systemd, `.env` files and CD pipelines.
+2. Replace any `docker … exec … /bin/bisync` (or cron/command wrappers) with **`/bin/replicate`**.
+3. Re-pull a **`3.0.0-0.18.1`** (or newer 3.x) image tag; do not rely on `SYNC_*` surviving in the environment without effect — replicate will stay disabled until `REPLICATE_CRON` is set.
+
+See [Upgrading → 2.x → 3.0.0](https://marc0janssen.github.io/restic-backup-helper/getting-started/upgrading.html#replicate-30-bridge).
+
 ### 2.14.2-0.18.1 (2026-05-14)
 
 Patch release: documentation only.

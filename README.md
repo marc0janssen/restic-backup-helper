@@ -79,15 +79,16 @@ If this image saves you time, you can [leave a tip on Ko-fi](https://ko-fi.com/m
 
 ## Image tags and release
 
-release: 2.14.2-0.18.1
+release: 3.1.0-0.18.1
 
 | Train | When to use | Example pull |
 | --- | --- | --- |
-| **Stable** | Production | `docker pull marc0janssen/restic-backup-helper:latest` or pinned `marc0janssen/restic-backup-helper:2.14.2-0.18.1` |
-| **Testing** | Pre-release / CI | `docker pull marc0janssen/restic-backup-helper:develop` or `marc0janssen/restic-backup-helper:2.14.2-0.18.1-dev` |
+| **Stable** | Production | `docker pull marc0janssen/restic-backup-helper:latest` or pinned `marc0janssen/restic-backup-helper:3.1.0-0.18.1` |
+| **Testing** | Pre-release / CI | `docker pull marc0janssen/restic-backup-helper:develop` or `marc0janssen/restic-backup-helper:3.1.0-0.18.1-dev` |
 
 > **Upgrading?**
 >
+> - **From 2.14.x → 3.0.0:** **Breaking (semver MAJOR).** Removes the 2.x replicate compatibility bridge: legacy **`SYNC_*`** environment variables and the **`/bin/bisync`** symlink are gone — use **`REPLICATE_*`** and **`/bin/replicate`** only. Cron, entrypoint, `config-check`, `cron-list`, `status` and `doctor` ignore `SYNC_*`. Rename env vars and any commands that still invoke `/bin/bisync`, then roll the image. See **[Upgrading → 2.x → 3.0.0](https://marc0janssen.github.io/restic-backup-helper/getting-started/upgrading.html#replicate-30-bridge)** and the [CHANGELOG](CHANGELOG.md) `3.0.0-0.18.1` entry.
 > - **From 2.13.0 → 2.14.0:** purely additive. New read-only operator helper **`/bin/status`** (alias **`/bin/health-summary`**) gives a fast daily OK/WARN/FAIL summary based only on local state: release metadata, rendered crontab (or env preview), recent `/var/log/last-*.json` files and backup/check/forget/prune/replicate ages + exit codes. It deliberately does **not** run `restic`, `rclone`, hooks, mail, webhooks or a repository probe; use `/bin/doctor` for deeper support diagnostics. `--json` emits stdout-only schema `restic-backup-helper.status/1` and does not write `/var/log/last-status.json`, so asking for status does not mutate run history. No new environment variables.
 > - **From 2.10.1 → 2.11.0:** purely additive. `RESTIC_REPOSITORY_FILE` is now a first-class Restic-native alternative to `RESTIC_REPOSITORY`. When set, the entrypoint reads the first non-blank, non-comment line of the file (with whitespace and trailing CR stripped) and promotes it into `RESTIC_REPOSITORY` before the banner, the `restic cat config` probe, the cron-driven workers and `restic` itself observe the environment. The original `RESTIC_REPOSITORY_FILE` env var is unset after a successful promotion so restic never aborts with `Options --repo and --repository-file are mutually exclusive` (the image bakes a `RESTIC_REPOSITORY=/mnt/restic` default in the Dockerfile, so both used to end up set in the container when operators added `RESTIC_REPOSITORY_FILE`). The "✅ Assuming repository '…' is online…" banner and the `restic cat config` probe now print the masked resolved URL instead of the image default. `config-check` and `/bin/doctor` understand the new env var and surface specific errors (unreadable file vs. blank/comments-only) when promotion fails. No behaviour change when `RESTIC_REPOSITORY_FILE` is unset.
 > - **From 2.10.0 → 2.10.1:** patch release. Prometheus textfile metrics now escape the `hostname` label before writing `restic_<job>.prom` and emit the documented `restic_<job>_last_started_timestamp` gauge, the shared webhook helper documentation now matches its return-code contract, and the docs clarify that `RESTIC_*_ARGS` / `REPLICATE_*_ARGS` values are whitespace-split argument strings, not a full shell parser. Keep paths and argument values free of spaces, or use file-based inputs such as `--files-from`, `--exclude-file` and rclone config files.
@@ -109,8 +110,8 @@ release: 2.14.2-0.18.1
 >   - **`scripts/docker-compose.yml`** now ships two opt-in [Compose profiles](https://docs.docker.com/compose/profiles/): `metrics` (node-exporter sidecar) and `dev` (mailhog SMTP catcher). Existing `docker compose up` invocations keep starting only the main service.
 >   - **Multiple backup jobs** pattern at [`examples/compose/multi-job.yml`](examples/compose/multi-job.yml) for setups that already wanted to back up several datasets on different schedules. See [Multiple backup jobs](#multiple-backup-jobs).
 >   - **Hardening** docs section enumerates capabilities to drop and tmpfs paths needed for `read_only: true` (orchestration-layer tightening; no image change).
-> - **From 1.18.x → 2.0.0:** the old "sync/bisync" surface is renamed to **replicate**. Use `/bin/replicate`, `REPLICATE_*` env vars, `/config/replicate_jobs.txt`, `/hooks/pre-replicate.sh` / `/hooks/post-replicate.sh`, `/var/log/last-replicate.json`, `/var/log/replicate-last.log` and `restic_replicate.prom`. Legacy `SYNC_*` env vars and `/bin/bisync` still work with deprecation warnings and will be removed in 3.0.0. The old `config/sync_jobs.txt` sample is not installed anymore; rename your mounted file or set `REPLICATE_JOB_FILE` explicitly.
-> - **From 1.14.x → 1.15.0:** purely additive. New opt-in env vars: `METRICS_DIR` (Prometheus textfile collector) and `REPLICATE_BISYNC_CHECK_ACCESS` (bisync `--check-access` opt-in; legacy `SYNC_BISYNC_CHECK_ACCESS` still accepted until 3.0.0). Mail subjects gain a richer prefix (`[OK|FAIL N] Backup …`); update any subject-based filter rules. Container logs now mask inline credentials in replicate source/destination URLs.
+> - **From 1.18.x → 2.0.0:** the old "sync/bisync" surface is renamed to **replicate**. Use `/bin/replicate`, `REPLICATE_*` env vars, `/config/replicate_jobs.txt`, `/hooks/pre-replicate.sh` / `/hooks/post-replicate.sh`, `/var/log/last-replicate.json`, `/var/log/replicate-last.log` and `restic_replicate.prom`. Through **2.x** only, legacy `SYNC_*` and `/bin/bisync` were still accepted with deprecation warnings (**removed in 3.0.0**). The old `config/sync_jobs.txt` sample is not installed anymore; rename your mounted file or set `REPLICATE_JOB_FILE` explicitly.
+> - **From 1.14.x → 1.15.0:** purely additive. New opt-in env vars: `METRICS_DIR` (Prometheus textfile collector) and `REPLICATE_BISYNC_CHECK_ACCESS` (bisync `--check-access` opt-in; was also exposed as `SYNC_BISYNC_CHECK_ACCESS` in 1.x only). Mail subjects gain a richer prefix (`[OK|FAIL N] Backup …`); update any subject-based filter rules. Container logs now mask inline credentials in replicate source/destination URLs.
 > - **From 1.13.x → 1.14.0:** `RESTIC_TAG=""` (explicitly empty) is now a hard failure with exit code 2 — set a meaningful tag (e.g. `daily`, `${HOSTNAME}-data`). The Dockerfile still defaults to `automated`, so installs that never set `RESTIC_TAG` are unaffected. Replicate job files gain optional `MODE` / `EXTRA_ARGS` columns; existing two-column lines keep working as bisync.
 > - **From 1.11.x:** Automatic `restic unlock` after backup / check failures is **opt-in** via `RESTIC_AUTO_UNLOCK=ON` (since 1.12.0). The new default leaves the lock alone (safer for repositories shared across multiple hosts). See the env table below and the [Troubleshooting](#troubleshooting) section for the migration hint.
 
@@ -167,12 +168,12 @@ For **FUSE / `restic mount`**, add capabilities and device (see [Manual operatio
 1. **`/entry.sh`** starts at container boot, prints release metadata (`RESTIC_BACKUP_HELPER_RELEASE`), optionally mounts NFS (`NFS_TARGET`), validates or initializes the repository, then writes **root’s crontab** under `/var/spool/cron/crontabs/root` and runs **`crond`**.
 2. **Backup line** (always present): `BACKUP_CRON … /bin/locked_run backup … /bin/backup >> /var/log/cron.log`.
 3. **Check line** (optional): appended only if `CHECK_CRON` is non-empty.
-4. **Replicate line** (optional): appended only if `REPLICATE_CRON` is non-empty (legacy `SYNC_CRON` is still accepted until 3.0.0).
+4. **Replicate line** (optional): appended only if `REPLICATE_CRON` is non-empty.
 5. **Prune line** (optional): appended only if `PRUNE_CRON` is non-empty.
 6. **Rotate line** (always present): `ROTATE_LOG_CRON … /bin/locked_run rotate_log … /bin/rotate_log`.
 6. Default **CMD** tails `/var/log/cron.log` so the container stays foreground-friendly for Compose and logs aggregate cron output.
 
-Worker scripts live at `/bin/backup`, `/bin/check`, `/bin/prune`, `/bin/forget`, `/bin/replicate`, `/bin/restore`, `/bin/snapshot-export`, `/bin/forget-preview`, `/bin/mount-snapshot`, `/bin/unlock`, `/bin/restore-test`, `/bin/status`, `/bin/doctor`, `/bin/cron-list`, `/bin/rotate_log`. `/bin/health-summary` is an alias for `/bin/status`; the deprecated `/bin/bisync` alias points to `/bin/replicate` until 3.0.0. The cron wrapper itself is `/bin/locked_run`.
+Worker scripts live at `/bin/backup`, `/bin/check`, `/bin/prune`, `/bin/forget`, `/bin/replicate`, `/bin/restore`, `/bin/snapshot-export`, `/bin/forget-preview`, `/bin/mount-snapshot`, `/bin/unlock`, `/bin/restore-test`, `/bin/status`, `/bin/doctor`, `/bin/cron-list`, `/bin/rotate_log`. `/bin/health-summary` is an alias for `/bin/status`. The cron wrapper itself is `/bin/locked_run`.
 
 ---
 
@@ -241,11 +242,11 @@ Defaults below match **`Dockerfile`** unless noted. Empty default means unset/bl
 | Variable | Default | Description |
 | --- | --- | --- |
 | `RCLONE_CONFIG` | `/config/rclone.conf` | Path to Rclone configuration. |
-| `REPLICATE_JOB_FILE` | `/config/replicate_jobs.txt` | Job file: `SOURCE;DESTINATION[;MODE[;EXTRA_ARGS]]` per line (comments `#` allowed). See [Optional Rclone replicate jobs](#optional-rclone-replicate-jobs). Legacy `SYNC_JOB_FILE` is accepted until 3.0.0. |
-| `REPLICATE_JOB_ARGS` | *(empty)* | Extra global args passed to every rclone job (whitespace-split; not full shell syntax; `--resync` is stripped from routine runs). Per-job extras can be added via the 4th column of `REPLICATE_JOB_FILE`; keep values free of spaces or move them into rclone config/files. Legacy `SYNC_JOB_ARGS` is accepted until 3.0.0. |
-| `REPLICATE_CRON` | *(empty)* | If non-empty, schedules `/bin/replicate`. Legacy `SYNC_CRON` is accepted until 3.0.0. |
-| `REPLICATE_VERBOSE` | `ON` | When `ON`, replicate messages also echo to stdout (still always logged to file). Legacy `SYNC_VERBOSE` is accepted until 3.0.0. |
-| `REPLICATE_BISYNC_CHECK_ACCESS` | `OFF` | When `ON`, appends `--check-access` to the routine `bisync` runs and the recovery `bisync --resync`. Requires the well-known `RCLONE_TEST` marker file to exist on both endpoints; rclone aborts loudly when it is missing instead of treating one side as "everything deleted". One-way `sync`/`copy` modes are unaffected. Legacy `SYNC_BISYNC_CHECK_ACCESS` is accepted until 3.0.0. See [Optional Rclone replicate jobs](#optional-rclone-replicate-jobs). |
+| `REPLICATE_JOB_FILE` | `/config/replicate_jobs.txt` | Job file: `SOURCE;DESTINATION[;MODE[;EXTRA_ARGS]]` per line (comments `#` allowed). See [Optional Rclone replicate jobs](#optional-rclone-replicate-jobs). |
+| `REPLICATE_JOB_ARGS` | *(empty)* | Extra global args passed to every rclone job (whitespace-split; not full shell syntax; `--resync` is stripped from routine runs). Per-job extras can be added via the 4th column of `REPLICATE_JOB_FILE`; keep values free of spaces or move them into rclone config/files. |
+| `REPLICATE_CRON` | *(empty)* | If non-empty, schedules `/bin/replicate`. |
+| `REPLICATE_VERBOSE` | `ON` | When `ON`, replicate messages also echo to stdout (still always logged to file). |
+| `REPLICATE_BISYNC_CHECK_ACCESS` | `OFF` | When `ON`, appends `--check-access` to the routine `bisync` runs and the recovery `bisync --resync`. Requires the well-known `RCLONE_TEST` marker file to exist on both endpoints; rclone aborts loudly when it is missing instead of treating one side as "everything deleted". One-way `sync`/`copy` modes are unaffected. See [Optional Rclone replicate jobs](#optional-rclone-replicate-jobs). |
 
 ### Mail
 
@@ -475,7 +476,7 @@ docker compose --profile dev up         # + mailhog SMTP catcher
 docker compose --profile metrics --profile dev up   # both
 ```
 
-The main `restic-backup` service has no `profiles:` key, so it is always brought up regardless of which profile (if any) you pick. For Kubernetes a full single-Pod manifest (Deployment + Secret + PVC, FUSE-friendly capabilities, strong liveness probe and pre-wired `METRICS_DIR`) is at [`examples/kubernetes/restic-backup-helper.yaml`](examples/kubernetes/restic-backup-helper.yaml).
+The main `restic-backup` service has no `profiles:` key, so it is always brought up regardless of which profile (if any) you pick. For Kubernetes a full single-Pod manifest (Deployment + Secret + PVC, FUSE-friendly capabilities, strong liveness probe and pre-wired `METRICS_DIR`) is at [`examples/kubernetes/restic-backup-helper.yaml`](examples/kubernetes/restic-backup-helper.yaml). A **Helm** chart with the same defaults lives under [`charts/restic-backup-helper/`](charts/restic-backup-helper/) (see [`charts/restic-backup-helper/README.md`](charts/restic-backup-helper/README.md)).
 
 **Health checks:** choose how hard you want Compose to probe the repository.
 
@@ -569,7 +570,7 @@ Use `swift:container:/path` style URLs and populate the `OS_*` variables.
 
 Schedule with `REPLICATE_CRON`. **Recovery procedure** (copy both directions then `bisync --resync`) only runs for `bisync` failures; `sync` and `copy` failures surface immediately without an automatic destructive recovery — that is intentional because a one-way `sync` failure may already represent the operator's intended state diverging. Mail is sent only when at least one job recorded an unrecoverable error (and `MAILX_RCPT` is set); the same payload is POSTed to `WEBHOOK_URL` when configured. Malformed lines (missing `SOURCE`/`DESTINATION` or unknown `MODE`) count as failed jobs and trigger the same notification path so a typo cannot produce a silently green run.
 
-Legacy `SYNC_*` env vars and `/bin/bisync` remain accepted until 3.0.0 with deprecation warnings, but new deployments should use `REPLICATE_*` and `/bin/replicate`. The old sample name `config/sync_jobs.txt` is not installed anymore; rename it to `config/replicate_jobs.txt` or set `REPLICATE_JOB_FILE` to the path you mount.
+Use **`REPLICATE_*`** and **`/bin/replicate`** only. The old sample name `config/sync_jobs.txt` is not installed anymore; rename it to `config/replicate_jobs.txt` or set `REPLICATE_JOB_FILE` to the path you mount.
 
 #### Bisync recovery hardening
 
@@ -843,7 +844,7 @@ docker run --rm --env-file restic.env marc0janssen/restic-backup-helper:latest h
 What it reports:
 
 - Release, hostname, current time, `TZ`, `restic version`, `rclone version` and shell version.
-- Masked effective environment values, including legacy `SYNC_*` values when they still override `REPLICATE_*`.
+- Masked effective environment values for `RESTIC_*`, `REPLICATE_*`, mail and webhook settings.
 - Required secret/config readability (`RESTIC_PASSWORD_FILE`, `RCLONE_CONFIG` for `rclone:` repositories, `RESTIC_CACERT` when set).
 - Backup path sanity: `BACKUP_ROOT_DIR`, plus `--files-from` and `--exclude-file` references found in `RESTIC_JOB_ARGS`.
 - A non-mutating `restic cat config` repository probe. Exit 10 is reported as "repository missing/not initialized"; doctor never initializes it.
@@ -1265,6 +1266,7 @@ Deactivate with `deactivate` in either shell. The `.venv/` directory and the gen
 - [GitHub Releases](https://github.com/marc0janssen/restic-backup-helper/releases)
 - Sample files under [`config/`](config/)
 - Kubernetes example: [`examples/kubernetes/restic-backup-helper.yaml`](examples/kubernetes/restic-backup-helper.yaml)
+- Helm chart: [`charts/restic-backup-helper/`](charts/restic-backup-helper/)
 - Local dev workflow: [`CONTRIBUTING.md`](CONTRIBUTING.md)
 
 ---

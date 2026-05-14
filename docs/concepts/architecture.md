@@ -73,9 +73,6 @@ repo's `app/` directory at image build time:
 | `/bin/doctor` | `app/doctor.sh` | Operator-driven | Read-only diagnostics. |
 | `/bin/locked_run` | `app/locked_run.sh` | Wraps every cron entry | Per-job `flock`; logs skips. |
 
-The compatibility alias `/bin/bisync` is a symlink to `/bin/replicate` (kept
-until 3.0.0).
-
 ## Locked execution
 
 Every cron entry is wrapped in `/bin/locked_run <name>` which acquires

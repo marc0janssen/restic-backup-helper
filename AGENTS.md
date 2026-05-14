@@ -46,6 +46,7 @@ The image is based on **`restic/restic`** (Alpine). This repository owns applica
 | `build-testing-local.sh` | Private-registry build; pushes `:develop` and `:<release>` (optional `build-testing-local.env`) |
 | `scripts/start_restic_helper_agent_compose.sh`, `scripts/docker-compose.yml` | Example/runtime helpers |
 | `config/` | Sample excludes, msmtp, replicate job definitions |
+| `charts/restic-backup-helper/` | Helm chart for Kubernetes (mirrors `examples/kubernetes/restic-backup-helper.yaml`; chart version vs `appVersion` documented in chart README) |
 | **`README.md`** | Primary documentation (GitHub, full detail) |
 | **`docs/` + `mkdocs.yml`** | Material for MkDocs documentation site; must stay aligned with user-facing behaviour |
 | **`README-containers.md`** | Docker Hub description: short summary, tags, links; **must stay aligned** with release/pull-tag lines that build scripts auto-patch |
@@ -93,7 +94,7 @@ When you touch user-facing release metadata, keep **`README.md`** and **`README-
 
 - **`build.env`** — optional; loaded by **`./build.sh`** (stable).
 - **`build-testing.env`** — optional; loaded by **`./build-testing.sh`**.
-- **`build-testing-local.env`** — optional; loaded by **`./build-testing-local.sh`** for private registries. That script pushes **`<LOCAL_REPO>:develop`** and **`<LOCAL_REPO>:<release>`** (e.g. `…:2.14.1-0.18.1-dev`), matching the tag convention used by **`./build-testing.sh`** for Docker Hub. The release string is baked into the image as **`ENV RESTIC_BACKUP_HELPER_RELEASE`** via **`docker build --build-arg`** (no host `.release` file).
+- **`build-testing-local.env`** — optional; loaded by **`./build-testing-local.sh`** for private registries. That script pushes **`<LOCAL_REPO>:develop`** and **`<LOCAL_REPO>:<release>`** (e.g. `…:3.0.0-0.18.1-dev`), matching the tag convention used by **`./build-testing.sh`** for Docker Hub. The release string is baked into the image as **`ENV RESTIC_BACKUP_HELPER_RELEASE`** via **`docker build --build-arg`** (no host `.release` file).
 
 Templates are **`*.env.example`**. Real env files are gitignored; do not commit them.
 
@@ -121,6 +122,15 @@ If **`shellcheck`** is installed:
 
 ```sh
 shellcheck -x scripts/build-common.sh build-testing-local.sh
+```
+
+If **`helm`** is installed and you changed the chart:
+
+```sh
+helm lint charts/restic-backup-helper
+helm template test charts/restic-backup-helper \
+  --set credentials.resticPassword=dummy \
+  --set environment.RESTIC_REPOSITORY=s3:https://example.invalid/bucket
 ```
 
 ```sh

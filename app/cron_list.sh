@@ -13,16 +13,12 @@ CRONTAB_FILE="/var/spool/cron/crontabs/root"
 effective_replicate_cron() {
 	if [ -n "${REPLICATE_CRON:-}" ]; then
 		printf '%s' "${REPLICATE_CRON}"
-	elif [ -n "${SYNC_CRON:-}" ]; then
-		printf '%s' "${SYNC_CRON}"
 	fi
 }
 
 effective_replicate_job_file() {
 	if [ -n "${REPLICATE_JOB_FILE:-}" ]; then
 		printf '%s' "${REPLICATE_JOB_FILE}"
-	elif [ -n "${SYNC_JOB_FILE:-}" ]; then
-		printf '%s' "${SYNC_JOB_FILE}"
 	else
 		printf '%s' "/config/replicate_jobs.txt"
 	fi
@@ -156,7 +152,7 @@ fi
 print_section "Schedule Summary"
 print_job_summary "backup" "${BACKUP_CRON:-}" "/bin/backup" "Always rendered by entrypoint; BACKUP_CRON should be a 5-field cron expression."
 print_job_summary "check" "${CHECK_CRON:-}" "/bin/check"
-print_job_summary "replicate" "${replicate_cron}" "/bin/replicate" "Job file: $(effective_replicate_job_file). Legacy SYNC_CRON is accepted until 3.0.0."
+print_job_summary "replicate" "${replicate_cron}" "/bin/replicate" "Job file: $(effective_replicate_job_file)."
 print_job_summary "forget" "${FORGET_CRON:-}" "/bin/forget" "When enabled, /bin/backup skips inline restic forget and RESTIC_FORGET_ARGS is reused here."
 print_job_summary "prune" "${PRUNE_CRON:-}" "/bin/prune"
 print_job_summary "rotate_log" "${ROTATE_LOG_CRON:-}" "/bin/rotate_log"

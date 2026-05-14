@@ -51,7 +51,7 @@ stay consistent.
 └──────────── helper MAJOR.MINOR (e.g. replicate rename + snapshot-export)
 ```
 
-Concrete example: `2.14.1-0.18.1-dev` is "helper 2.14.1 on top of Restic
+Concrete example: `2.14.1-0.18.1-dev` is "helper 3.0.0 on top of Restic
 0.18.1, testing build".
 
 ## Where each tag comes from

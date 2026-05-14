@@ -4,6 +4,27 @@ A full single-Pod manifest (Deployment + Secret + PVC, FUSE-friendly
 capabilities, strong liveness probe and pre-wired `METRICS_DIR`) ships
 at [`examples/kubernetes/restic-backup-helper.yaml`](https://github.com/marc0janssen/restic-backup-helper/blob/develop/examples/kubernetes/restic-backup-helper.yaml).
 
+## Helm chart
+
+The same shape is packaged as a Helm chart under
+[`charts/restic-backup-helper/`](https://github.com/marc0janssen/restic-backup-helper/tree/develop/charts/restic-backup-helper)
+(chart `version` is the chart API semver; `appVersion` tracks the helper
+semver family). Install from a git checkout:
+
+```bash
+helm install backup ./charts/restic-backup-helper \
+  --namespace backup --create-namespace \
+  --set-string credentials.resticPassword="$RESTIC_PASSWORD" \
+  --set-string environment.RESTIC_REPOSITORY='s3:https://s3.example.com/bucket/restic' \
+  --set-string environment.RESTIC_TAG=daily
+```
+
+Prefer `credentials.existingSecret` (keys `restic-password`, optional `msmtprc`)
+plus Sealed Secrets / External Secrets for production. See the chart
+[`README.md`](https://github.com/marc0janssen/restic-backup-helper/blob/develop/charts/restic-backup-helper/README.md)
+and `values.yaml` for persistence, `volumeSource`, optional `/config`
+ConfigMap, and `extraEnv`.
+
 This page summarises the production-relevant choices in that manifest
 and the typical adaptations for different cluster shapes.
 

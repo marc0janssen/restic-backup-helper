@@ -13,22 +13,21 @@
 #   * at least one backup source volume matching BACKUP_ROOT_DIR / RESTIC_JOB_ARGS
 #
 # 2.0.0 rename note:
-#   * /bin/bisync became /bin/replicate.
-#   * SYNC_* became REPLICATE_*.
+#   * /bin/bisync became /bin/replicate (the /bin/bisync symlink was removed in 3.0.0).
+#   * SYNC_* became REPLICATE_* (SYNC_* aliases were removed in 3.0.0).
 #   * /config/sync_jobs.txt became /config/replicate_jobs.txt.
 #   * /hooks/pre-sync.sh and /hooks/post-sync.sh became
 #     /hooks/pre-replicate.sh and /hooks/post-replicate.sh.
 #   * /var/log/last-sync.json and /var/log/sync-last.log became
 #     /var/log/last-replicate.json and /var/log/replicate-last.log.
-# Legacy SYNC_* env vars and /bin/bisync are still accepted until 3.0.0 with
-# deprecation warnings, but new deployments should use the names below.
+# New deployments must use REPLICATE_* and /bin/replicate only.
 
 services:
   restic-cloud:
     container_name: restic-cloud
-    image: registry.example.invalid/restic-backup-helper:2.14.1-0.18.1-dev
+    image: registry.example.invalid/restic-backup-helper:3.0.0-0.18.1-dev
     # Alternative for Docker Hub stable images:
-    # image: marc0janssen/restic-backup-helper:2.14.1-0.18.1
+    # image: marc0janssen/restic-backup-helper:3.0.0-0.18.1
     hostname: backup-host
     restart: always
     labels:

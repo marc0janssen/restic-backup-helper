@@ -1,0 +1,147 @@
+{{- if not (or .Values.credentials.existingSecret .Values.credentials.create) }}
+{{- fail "credentials: set credentials.existingSecret (bring-your-own Secret) or credentials.create true with credentials.resticPassword" }}
+{{- end }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "restic-backup-helper.fullname" . }}
+  labels:
+    {{- include "restic-backup-helper.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "restic-backup-helper.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      annotations:
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      labels:
+        {{- include "restic-backup-helper.selectorLabels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "restic-backup-helper.serviceAccountName" . }}
+      hostname: {{ .Values.hostname | quote }}
+      restartPolicy: Always
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: restic
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          env:
+            {{- range $k, $v := .Values.environment }}
+            {{- if ne ($v | toString) "" }}
+            - name: {{ $k }}
+              value: {{ $v | quote }}
+            {{- end }}
+            {{- end }}
+            {{- with .Values.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          volumeMounts:
+            - name: restic-secret
+              mountPath: /run/secrets/restic-password
+              subPath: restic-password
+              readOnly: true
+            {{- if and .Values.credentials.mountMsmtprc (or .Values.credentials.existingSecret (and .Values.credentials.create (not .Values.credentials.existingSecret) .Values.credentials.msmtprc)) }}
+            - name: restic-secret
+              mountPath: /etc/msmtprc
+              subPath: msmtprc
+              readOnly: true
+            {{- end }}
+            - name: cache
+              mountPath: /.cache/restic
+            - name: logs
+              mountPath: /var/log
+            - name: source
+              mountPath: {{ .Values.environment.BACKUP_ROOT_DIR | default "/data" }}
+              readOnly: true
+            {{- if and .Values.configMap.enabled .Values.configMap.data }}
+            - name: app-config
+              mountPath: /config
+              readOnly: true
+            {{- end }}
+            {{- with .Values.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- with .Values.probes.readiness }}
+          readinessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.probes.liveness }}
+          livenessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      volumes:
+        - name: restic-secret
+          secret:
+            secretName: {{ include "restic-backup-helper.secretName" . }}
+            defaultMode: 256
+        {{- if .Values.persistence.cache.enabled }}
+        - name: cache
+          persistentVolumeClaim:
+            claimName: {{ include "restic-backup-helper.fullname" . }}-cache
+        {{- else }}
+        - name: cache
+          emptyDir: {}
+        {{- end }}
+        {{- if .Values.persistence.logs.enabled }}
+        - name: logs
+          persistentVolumeClaim:
+            claimName: {{ include "restic-backup-helper.fullname" . }}-logs
+        {{- else }}
+        - name: logs
+          emptyDir: {}
+        {{- end }}
+        - name: source
+          {{- if eq .Values.volumeSource.type "hostPath" }}
+          hostPath:
+            path: {{ .Values.volumeSource.hostPath | quote }}
+            type: {{ .Values.volumeSource.hostPathType }}
+          {{- else if eq .Values.volumeSource.type "pvc" }}
+          persistentVolumeClaim:
+            claimName: {{ required "volumeSource.claimName is required when volumeSource.type is pvc" .Values.volumeSource.claimName }}
+          {{- else if eq .Values.volumeSource.type "emptyDir" }}
+          emptyDir: {}
+          {{- else }}
+          {{- fail "volumeSource.type must be hostPath, pvc, or emptyDir" }}
+          {{- end }}
+        {{- if and .Values.configMap.enabled .Values.configMap.data }}
+        - name: app-config
+          configMap:
+            name: {{ include "restic-backup-helper.fullname" . }}-config
+        {{- end }}
+        {{- with .Values.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
