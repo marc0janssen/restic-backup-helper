@@ -5,7 +5,7 @@
 image:
   repository: marc0janssen/restic-backup-helper
   # Pin to a concrete image tag in production (see docs/reference/image-tags.md).
-  tag: "3.2.1-0.18.1"
+  tag: "3.2.3-0.18.1"
   pullPolicy: IfNotPresent
 
 imagePullSecrets: []
@@ -66,6 +66,9 @@ environment:
   RESTIC_INIT_ARGS: ""
   RESTIC_CACERT: ""
   BACKUP_CRON: "0 2 * * *"
+  # BACKUP_CRON_MINUTE_STAGGER: "ON"
+  # BACKUP_CRON_STAGGER_ID: ""
+  # BACKUP_CRON_STAGGER_MODULO: "60"
   BACKUP_ROOT_DIR: /data
   CHECK_CRON: ""
   FORGET_CRON: ""

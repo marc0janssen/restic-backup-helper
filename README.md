@@ -80,12 +80,12 @@ If this image saves you time, you can [leave a tip on Ko-fi](https://ko-fi.com/m
 
 ## Image tags and release
 
-release: 3.2.1-0.18.1
+release: 3.2.3-0.18.1
 
 | Train | When to use | Example pull |
 | --- | --- | --- |
-| **Stable** | Production | `docker pull marc0janssen/restic-backup-helper:latest` or pinned `marc0janssen/restic-backup-helper:3.2.1-0.18.1` |
-| **Testing** | Pre-release / CI | `docker pull marc0janssen/restic-backup-helper:develop` or `marc0janssen/restic-backup-helper:3.2.1-0.18.1-dev` |
+| **Stable** | Production | `docker pull marc0janssen/restic-backup-helper:latest` or pinned `marc0janssen/restic-backup-helper:3.2.3-0.18.1` |
+| **Testing** | Pre-release / CI | `docker pull marc0janssen/restic-backup-helper:develop` or `marc0janssen/restic-backup-helper:3.2.3-0.18.1-dev` |
 
 > **Upgrading?**
 >
@@ -822,6 +822,10 @@ Trade-offs:
 - **One container per job** ⇒ lower copy-paste with anchors, clear isolation, easy to disable one job by `docker compose stop restic-media`. Recommended for ≥ 2 jobs.
 - **One container** ⇒ keep the existing single-container Compose example, schedule a single `BACKUP_CRON`, and use `RESTIC_JOB_ARGS="--exclude-file /config/excludes.txt"` plus `BACKUP_ROOT_DIR=/data` covering both datasets via separate bind mounts under `/data/`. Simpler when both datasets follow the same retention and timing.
 - **`PRUNE_CRON` and `CHECK_CRON`**: run them on **exactly one** of the containers (the "owner" container), not all of them. Otherwise N containers would each schedule a heavy `restic prune` against the same repository on the same cadence and trip Restic's repository lock.
+
+### Same repository, multiple hosts (minute stagger)
+
+When several **nodes** (each running this image) point at the **same** repository and use the same nominal `BACKUP_CRON` (e.g. `0 2 * * *`), backups can hit the backend in one wall-clock minute. Set **`BACKUP_CRON_MINUTE_STAGGER=ON`**: at container start `/entry.sh` rewrites the **minute** field to a stable value derived from **`cksum(id) % BACKUP_CRON_STAGGER_MODULO`** (default modulo **60** → minutes `0`..`59`). **`id`** is **`BACKUP_CRON_STAGGER_ID`** when set, otherwise **`HOSTNAME`** (set a per-pod value in Kubernetes if many pods would share one hostname). The rewritten schedule is **`export`ed** as `BACKUP_CRON` before crontab is written so `/bin/status`, `/bin/cron-list` and `/bin/doctor` match what cron runs. The first cron field must be a simple minute **`0`–`59`** or **`*`**; forms like `*/15` are left unchanged with a warning. See the environment-variable table for **`BACKUP_CRON_STAGGER_MODULO`**.
 
 ---
 

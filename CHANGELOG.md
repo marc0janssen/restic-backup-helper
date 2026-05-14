@@ -2,6 +2,18 @@
 
 ## Restic Backup Helper
 
+### 3.2.3-0.18.1 (2026-05-14)
+
+#### Fixed
+
+- **`BACKUP_CRON_MINUTE_STAGGER`:** arithmetic for the minute field used `10#f1` / `10#sc1` (literal) instead of `10#$f1` / `10#$sc1`, causing startup to fail with `value too great for base` when the stagger path ran.
+
+### 3.2.2-0.18.1 (2026-05-14)
+
+#### Added
+
+- **`BACKUP_CRON_MINUTE_STAGGER`:** when set to **`ON`**, `/entry.sh` rewrites the first field of `BACKUP_CRON` at container start using a stable `cksum(id) % modulo` minute (`id` = `BACKUP_CRON_STAGGER_ID` or `HOSTNAME`, modulo = `BACKUP_CRON_STAGGER_MODULO`, default `60`). Re-exports `BACKUP_CRON` before crontab is written so `/bin/status`, `/bin/cron-list` and `/bin/doctor` match the effective schedule. Only simple minutes `0`–`59` or `*` are supported; `config-check` warns on unsupported combinations.
+
 ### 3.2.1-0.18.1 (2026-05-14)
 
 #### Changed

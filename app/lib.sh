@@ -623,6 +623,69 @@ write_metrics_for_job() {
 	} >"${tmp}" && mv -f "${tmp}" "${target}"
 }
 
+# Spread multi-host backup load: replace BACKUP_CRON's minute field at container
+# start when BACKUP_CRON_MINUTE_STAGGER=ON. The first field must be a simple
+# minute 0-59 or '*' (pick one stable minute). Lists, ranges and */n are left
+# unchanged with a stderr warning.
+#
+# Stable id: BACKUP_CRON_STAGGER_ID when non-empty, else HOSTNAME. Minute :=
+# POSIX cksum(id) mod BACKUP_CRON_STAGGER_MODULO (default 60 → 0..59).
+rewrite_backup_cron_minute_stagger() {
+	local expr="${1:-}"
+	local stagger="${BACKUP_CRON_MINUTE_STAGGER:-}"
+	local modulo_raw="${BACKUP_CRON_STAGGER_MODULO:-60}"
+	local modulo id h minute f1 f2 f3 f4 f5 leftover new_expr
+
+	case "${stagger}" in
+	ON) ;;
+	*) printf '%s' "${expr}"; return 0 ;;
+	esac
+
+	if [ -z "${expr}" ]; then
+		printf '%s' "${expr}"
+		return 0
+	fi
+
+	read -r f1 f2 f3 f4 f5 leftover <<<"${expr}"
+	if [ -n "${leftover}" ]; then
+		echo "⚠️  BACKUP_CRON_MINUTE_STAGGER=ON: BACKUP_CRON is not exactly 5 fields; leaving unchanged: ${expr}" >&2
+		printf '%s' "${expr}"
+		return 0
+	fi
+	if [ -z "${f5}" ]; then
+		echo "⚠️  BACKUP_CRON_MINUTE_STAGGER=ON: BACKUP_CRON has fewer than 5 fields; leaving unchanged: ${expr}" >&2
+		printf '%s' "${expr}"
+		return 0
+	fi
+
+	if [ "${f1}" = "*" ]; then
+		:
+	elif [[ "${f1}" =~ ^[0-9]+$ ]] && [ "$((10#$f1))" -le 59 ]; then
+		:
+	else
+		echo "⚠️  BACKUP_CRON_MINUTE_STAGGER=ON: minute field '${f1}' is not '*' or a decimal 0-59; leaving unchanged: ${expr}" >&2
+		printf '%s' "${expr}"
+		return 0
+	fi
+
+	case "${modulo_raw}" in
+	'' | *[!0-9]*) modulo=60 ;;
+	*) modulo="${modulo_raw}" ;;
+	esac
+	if [ "${modulo}" -lt 1 ] || [ "${modulo}" -gt 60 ]; then
+		echo "⚠️  BACKUP_CRON_STAGGER_MODULO must be 1-60; using 60." >&2
+		modulo=60
+	fi
+
+	id="${BACKUP_CRON_STAGGER_ID:-${HOSTNAME:-unknown}}"
+	h="$(printf '%s' "${id}" | cksum | awk '{print $1}')"
+	minute=$((h % modulo))
+
+	new_expr="${minute} ${f2} ${f3} ${f4} ${f5}"
+	echo "⏰ BACKUP_CRON_MINUTE_STAGGER=ON: id='${id}' (BACKUP_CRON_STAGGER_ID or HOSTNAME), cksum=${h}, minute=${minute} (mod ${modulo}), '${expr}' -> '${new_expr}'" >&2
+	printf '%s' "${new_expr}"
+}
+
 # Resolve RESTIC_REPOSITORY_FILE into RESTIC_REPOSITORY so every consumer
 # (entrypoint banner, repository probe, cron-driven workers and restic itself)
 # observes a single string. Mirrors restic's native RESTIC_PASSWORD_FILE

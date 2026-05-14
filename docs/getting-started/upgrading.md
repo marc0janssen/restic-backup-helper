@@ -15,6 +15,15 @@ omitted; see the full [Changelog](../changelog.md) for every release.
 See [Versioning policy](../concepts/versioning.md) for the full semver
 contract.
 
+## 3.2.0 → 3.2.2
+
+Optional **`BACKUP_CRON_MINUTE_STAGGER=ON`** spreads backup start times across
+hosts that share one repository: `/entry.sh` rewrites the **minute** field at
+container start from `cksum(id) % BACKUP_CRON_STAGGER_MODULO` (`id` =
+`BACKUP_CRON_STAGGER_ID` or `HOSTNAME`) and re-exports `BACKUP_CRON`. Default
+is off; no change unless you opt in. See
+[Environment variables](../configuration/environment-variables.md).
+
 ## 3.1.0 → 3.2.0
 
 Additive release with safer operational defaults.

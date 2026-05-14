@@ -118,6 +118,20 @@ run_config_check() {
 		cc_add "RESTIC_CACERT" "fail" "RESTIC_CACERT is set but file is not readable: ${RESTIC_CACERT}"
 	fi
 
+	if [ "${BACKUP_CRON_MINUTE_STAGGER:-}" = "ON" ]; then
+		if [ -z "${BACKUP_CRON:-}" ]; then
+			cc_add "BACKUP_CRON_MINUTE_STAGGER" "warn" "BACKUP_CRON_MINUTE_STAGGER=ON but BACKUP_CRON is empty (no minute to rewrite)."
+		else
+			local sc1 sc5 screst
+			read -r sc1 _ _ _ sc5 screst <<<"${BACKUP_CRON}"
+			if [ -n "${screst}" ] || [ -z "${sc5}" ]; then
+				cc_add "BACKUP_CRON_MINUTE_STAGGER" "warn" "BACKUP_CRON_MINUTE_STAGGER=ON requires BACKUP_CRON to be exactly 5 cron fields; stagger will be skipped at startup."
+			elif [ "${sc1}" != "*" ] && { [[ ! "${sc1}" =~ ^[0-9]+$ ]] || [ "$((10#$sc1))" -gt 59 ]; }; then
+				cc_add "BACKUP_CRON_MINUTE_STAGGER" "warn" "BACKUP_CRON_MINUTE_STAGGER=ON requires the minute field to be '*' or 0-59 (got '${sc1}'); stagger will be skipped at startup."
+			fi
+		fi
+	fi
+
 	if [ "${mode}" = "json" ]; then
 		emit_config_check_json "${err}" "${fails}" "${warns}"
 	elif [ "${err}" -eq 0 ]; then
@@ -301,6 +315,11 @@ if [ "${RESTIC_CHECK_REPOSITORY_STATUS:-}" == "ON" ]; then
 	esac
 else
 	echo "✅ Assuming repository '${MASKED_REPO}' is online..."
+fi
+
+if [ "${BACKUP_CRON_MINUTE_STAGGER:-}" = "ON" ]; then
+	BACKUP_CRON="$(rewrite_backup_cron_minute_stagger "${BACKUP_CRON:-}")"
+	export BACKUP_CRON
 fi
 
 echo "⏰ Setting up backup cron job with expression: ${BACKUP_CRON:-}"
