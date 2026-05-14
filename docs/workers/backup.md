@@ -119,6 +119,10 @@ the current host/tag scope by default. See
 
 ### Multi-host repositories and exit 11
 
+See [Repository locks](../operations/repository-locks.md) for when Restic
+uses exclusive locks, how that differs from stale locks, and a preventive
+checklist beyond forget alone.
+
 `restic forget` needs an **exclusive** repository lock. Two hosts that
 finish their `backup` phase at roughly the same time will both attempt
 forget; only one acquires the lock, the other returns exit code `11`

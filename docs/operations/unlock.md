@@ -6,6 +6,9 @@ have not auto-cleared repository locks since 1.12.0): when a job fails
 because the repository is locked, the helper logs a hint and lets *you*
 decide whether the lock is stale or legitimate before clearing it.
 
+See also the conceptual guide [Repository locks](repository-locks.md) (when
+Restic creates locks, stale vs legitimate, preventive checklist).
+
 `/bin/unlock` is the operator-driven companion: once you have confirmed
 the lock is stale (the holding container is gone, the host is rebooted,
 no concurrent backup or check is in flight), run this helper to remove
@@ -151,6 +154,8 @@ release / repository / timing fields):
 
 ## See also
 
+- [Repository locks](repository-locks.md) — exclusive vs non-exclusive locks,
+  stale vs legitimate holders, scheduling and shutdown practices.
 - [Backup worker → multi-host repositories and exit 11](../workers/backup.md) — explains
   the auto-unlock default and the multi-host race that `RESTIC_AUTO_UNLOCK=OFF` protects against.
 - [Forget worker](../workers/forget.md) — same exit-11 soft-skip semantics; recommends

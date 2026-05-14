@@ -164,6 +164,7 @@ nav:
       - Forget preview: operations/forget-preview.md
       - Mount snapshot: operations/mount-snapshot.md
       - Unlock: operations/unlock.md
+      - Repository locks: operations/repository-locks.md
       - Sources report: operations/sources-report.md
       - Init repo: operations/init-repo.md
       - Notify test: operations/notify-test.md

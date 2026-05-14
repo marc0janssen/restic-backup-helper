@@ -102,6 +102,8 @@ webhook notifications**, **Prometheus textfile metrics** and
 
     [:octicons-arrow-right-24: Unlock](operations/unlock.md)
 
+    [:octicons-arrow-right-24: Repository locks (concept guide)](operations/repository-locks.md)
+
 - :material-clipboard-text-search-outline: __Sources report__
 
     ---
@@ -230,7 +232,7 @@ The shortest "it backs up every night and yells when it breaks" setup:
 !!! tip "Pin your tags"
 
     Tagged images use the schema `<helper-semver>-<restic-version>`, e.g.
-    `2.14.1-0.18.1`. Pinning both protects you from surprise upstream
+    `2.14.2-0.18.1`. Pinning both protects you from surprise upstream
     behaviour changes. See [Image tags](reference/image-tags.md).
 
 ---
