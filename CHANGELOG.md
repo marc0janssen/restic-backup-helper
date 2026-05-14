@@ -2,6 +2,28 @@
 
 ## Restic Backup Helper
 
+### 3.2.1-0.18.1 (2026-05-14)
+
+#### Changed
+
+- **`/bin/support-bundle`:** the written `.tar.gz` is now `chmod 755` when the filesystem permits it (was `600`), so host-side copies from a volume bind-mount are readable without an extra `chmod` when your UID maps cleanly.
+
+### 3.2.0-0.18.1 (2026-05-14)
+
+#### Added
+
+- **`/bin/support-bundle`** redacted diagnostics archive for support handoff. Captures `status --json`, `doctor --json`, `config-check --json`, `cron-list`, tool versions, recent `last-*.json` files and redacted log tails into `/var/log/support-bundle-<timestamp>.tar.gz` (or `--output`). Includes `--include-full-logs` for deliberate full-log bundles.
+
+#### Changed
+
+- **Per-run JSON contract:** `render_last_run_json` now emits the documented `started_epoch` and `finished_epoch` integer fields alongside `started_at`, `finished_at` and `duration_seconds`. Smoke tests assert the fields on worker JSON.
+- **Compose / Kubernetes liveness probes:** examples and the Helm chart now use a local liveness probe (`test -f /var/log/cron.log && pidof crond`) instead of `restic cat config`. Repository reachability remains appropriate for readiness or external monitoring, but transient remote outages should not restart an otherwise healthy cron scheduler.
+- **Secret templates:** tracked `config/rclone.conf` and `config/msmtprc` were replaced by `config/rclone.conf.example` and `config/msmtprc.example`; real local files are now gitignored.
+
+#### Fixed
+
+- Architecture docs now describe the actual entrypoint lifecycle: `/entry.sh` starts `crond` in the background and then execs the foreground `CMD` (`tail -fn0 /var/log/cron.log` by default), instead of claiming `crond -f` becomes PID 1.
+
 ### 3.1.0-0.18.1 (2026-05-14)
 
 #### Added

@@ -134,6 +134,8 @@ render_last_run_json() {
 	printf '  "release": "%s",\n' "$(json_escape "${release}")"
 	printf '  "started_at": "%s",\n' "$(json_escape "${started}")"
 	printf '  "finished_at": "%s",\n' "$(json_escape "${finished}")"
+	printf '  "started_epoch": %d,\n' "${start_epoch}"
+	printf '  "finished_epoch": %d,\n' "${end_epoch}"
 	printf '  "duration_seconds": %d,\n' "${duration}"
 	# Optional string extras. Numbers should be passed as strings; consumers
 	# can coerce. Keeps the renderer dependency-free.

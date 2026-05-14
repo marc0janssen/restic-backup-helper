@@ -125,7 +125,8 @@ run_version_metadata_guard() {
 
 run_yamllint() {
 	yaml_tmp="$(mktemp)"
-	git ls-files | grep -E '\.(yml|yaml)$' | grep -v '^\.nzbgetvpn-reference/' >"${yaml_tmp}" || true
+	# Helm files under charts/*/templates/ are Go-templated YAML; yamllint cannot parse them.
+	git ls-files | grep -E '\.(yml|yaml)$' | grep -v '^\.nzbgetvpn-reference/' | grep -v '^charts/.*/templates/' >"${yaml_tmp}" || true
 
 	if [ ! -s "${yaml_tmp}" ]; then
 		log_info "No YAML files matched for yamllint"

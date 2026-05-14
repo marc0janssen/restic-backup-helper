@@ -65,8 +65,9 @@ environment:
 
 Notes:
 
-- busybox `crond` respects `TZ` from the process environment, which the
-  entrypoint exports before exec'ing `crond -f`.
+- busybox `crond` respects `TZ` from the process environment. The
+  entrypoint starts `crond` after the environment is resolved and then
+  execs the foreground `CMD` (`tail -fn0 /var/log/cron.log` by default).
 - Restic itself does not care about `TZ`; snapshot timestamps are stored
   in UTC and displayed in the operator's locale.
 - Mail subjects, `last-*.json` `started_at`/`finished_at` and webhook

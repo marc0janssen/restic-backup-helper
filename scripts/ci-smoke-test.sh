@@ -181,6 +181,8 @@ import json, sys
 d = json.load(sys.stdin)
 assert d["job"] == "sources-report", d
 assert d["exit_code"] == 0, d
+assert isinstance(d.get("started_epoch"), int), d
+assert isinstance(d.get("finished_epoch"), int), d
 assert int(d.get("sources_count", 0)) >= 1, d
 assert int(d.get("total_files", 0)) >= 1, d
 print("[smoke] sources-report JSON ok: sources_count={} total_files={} total_bytes={}".format(
@@ -344,6 +346,11 @@ assert not file_checks, file_checks
 print("[smoke] RESTIC_REPOSITORY_FILE resolution ok: {}".format(repo_checks[0]["message"]))
 '
 
+	log_info "Running support-bundle (redacted local diagnostics archive)"
+	docker compose -f ci/docker-compose.smoke.yml exec -T "${service}" /bin/support-bundle --output /var/log/smoke-support-bundle.tar.gz
+	docker compose -f ci/docker-compose.smoke.yml exec -T "${service}" \
+		sh -c 'test -s /var/log/smoke-support-bundle.tar.gz && tar -tzf /var/log/smoke-support-bundle.tar.gz | grep -q "./status-json.txt"'
+
 	log_info "Triggering cron.log rotation path"
 	docker compose -f ci/docker-compose.smoke.yml exec -T "${service}" \
 		sh -c 'printf x >> /var/log/cron.log'
@@ -353,7 +360,7 @@ print("[smoke] RESTIC_REPOSITORY_FILE resolution ok: {}".format(repo_checks[0]["
 	docker compose -f ci/docker-compose.smoke.yml exec -T "${service}" \
 		sh -c 'ls /var/log/cron_log_*.tar.gz >/dev/null'
 
-	log_info "Smoke test passed (backup, check, replicate, rotate_log, hooks, forget policy, cron-list, status --json, sources-report, forget-preview, init-repo --dry-run, notify-test --dry-run, restore --dry-run, snapshot-export --dry-run, config-check --json, doctor --json, RESTIC_REPOSITORY_FILE precedence)"
+	log_info "Smoke test passed (backup, check, replicate, rotate_log, hooks, forget policy, cron-list, status --json, sources-report, forget-preview, init-repo --dry-run, notify-test --dry-run, restore --dry-run, snapshot-export --dry-run, support-bundle, config-check --json, doctor --json, RESTIC_REPOSITORY_FILE precedence)"
 }
 
 main "$@"

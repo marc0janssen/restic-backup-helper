@@ -1,7 +1,7 @@
 # Kubernetes
 
 A full single-Pod manifest (Deployment + Secret + PVC, FUSE-friendly
-capabilities, strong liveness probe and pre-wired `METRICS_DIR`) ships
+capabilities, local liveness probe and pre-wired `METRICS_DIR`) ships
 at [`examples/kubernetes/restic-backup-helper.yaml`](https://github.com/marc0janssen/restic-backup-helper/blob/develop/examples/kubernetes/restic-backup-helper.yaml).
 
 ## Helm chart
@@ -136,10 +136,10 @@ spec:
               command:
                 - /bin/sh
                 - -c
-                - restic cat config >/dev/null 2>&1 || exit 1
+                - test -f /var/log/cron.log && pidof crond >/dev/null
             initialDelaySeconds: 60
-            periodSeconds: 900
-            timeoutSeconds: 30
+            periodSeconds: 60
+            timeoutSeconds: 5
           volumeMounts:
             - name: restic-password
               mountPath: /run/secrets

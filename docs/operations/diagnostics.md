@@ -17,6 +17,9 @@ operation.
 moments. It prints the container timezone, current time, the rendered
 crontab and a readable schedule summary without touching the repository.
 
+`/bin/support-bundle` packages these diagnostics into a redacted `.tar.gz`
+archive for support handoff. See [Support bundle](support-bundle.md).
+
 ## What it reports
 
 ```mermaid
@@ -107,7 +110,7 @@ docker run --rm \
   doctor
 ```
 
-The `status`, `health-summary` and `doctor` entrypoint subcommands
+The `status`, `health-summary`, `doctor` and `support-bundle` entrypoint subcommands
 short-circuit cron startup and exec the matching helper directly.
 
 For cron schedules:

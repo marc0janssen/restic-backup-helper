@@ -165,16 +165,18 @@ spec:
             - name: source
               mountPath: /data
               readOnly: true
-          # Strong probe — fails when credentials or repo reachability break.
+          # Local liveness probe. Keep remote repository reachability in
+          # monitoring/readiness instead of restarting a healthy cron container
+          # during transient S3/DNS/TLS/auth outages.
           livenessProbe:
             exec:
               command:
                 - sh
                 - -c
-                - "restic cat config >/dev/null 2>&1 || exit 1"
+                - "test -f /var/log/cron.log && pidof crond >/dev/null"
             initialDelaySeconds: 60
-            periodSeconds: 900
-            timeoutSeconds: 30
+            periodSeconds: 60
+            timeoutSeconds: 5
           readinessProbe:
             exec:
               command:

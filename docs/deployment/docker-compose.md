@@ -91,7 +91,7 @@ services:
     volumes:
       - /etc/localtime:/etc/localtime:ro
       - ./config:/config:ro
-      - ./config/msmtprc:/etc/msmtprc:ro
+      - ./config/msmtprc:/etc/msmtprc:ro  # create from config/msmtprc.example
       - ./hooks:/hooks:ro
       - backup-logs:/var/log
       - restic-cache:/.cache/restic
@@ -101,9 +101,9 @@ services:
       # - ~/.ssh:/root/.ssh:ro                # sftp: backends only
 
     healthcheck:
-      test: ["CMD-SHELL", "restic cat config >/dev/null 2>&1 || exit 1"]
-      interval: 15m
-      timeout: 30s
+      test: ["CMD-SHELL", "test -f /var/log/cron.log && pidof crond >/dev/null"]
+      interval: 1m
+      timeout: 5s
       start_period: 1m
       start_interval: 10s
 
@@ -140,20 +140,21 @@ always brought up regardless of which profile (if any) you pick.
 
 ## Healthchecks
 
-=== "Weak (binary only)"
+=== "Local liveness"
 
     ```yaml
     healthcheck:
-      test: ["CMD", "restic", "version"]
-      interval: 5m
-      timeout: 10s
+      test: ["CMD-SHELL", "test -f /var/log/cron.log && pidof crond >/dev/null"]
+      interval: 1m
+      timeout: 5s
       retries: 3
     ```
 
-    Confirms restic is callable. Does not verify repository
-    reachability.
+    Confirms the scheduler is alive and the aggregate cron log exists.
+    Recommended for liveness because transient remote outages should not
+    restart the cron container.
 
-=== "Strong (repo reachability)"
+=== "Remote readiness"
 
     ```yaml
     healthcheck:
@@ -163,8 +164,9 @@ always brought up regardless of which profile (if any) you pick.
       start_period: 1m
     ```
 
-    Same probe the entrypoint uses on boot. Fails when credentials or
-    repository reachability break.
+    Fails when credentials or repository reachability break. Use as an
+    external monitor, readiness probe or explicit healthcheck only when
+    you really want orchestration to react to remote outages.
 
 === "End-to-end read"
 

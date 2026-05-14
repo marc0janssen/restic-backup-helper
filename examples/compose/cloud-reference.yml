@@ -53,11 +53,12 @@ services:
       - apparmor:unconfined
 
     healthcheck:
-      # Strong probe: fails when credentials, rclone.conf or repository
-      # reachability break.
-      test: ["CMD-SHELL", "restic cat config >/dev/null 2>&1 || exit 1"]
-      interval: 15m
-      timeout: 30s
+      # Local liveness probe. Keep remote repository reachability in
+      # monitoring/readiness instead of restarting this cron container during
+      # transient S3/DNS/TLS/auth outages.
+      test: ["CMD-SHELL", "test -f /var/log/cron.log && pidof crond >/dev/null"]
+      interval: 1m
+      timeout: 5s
       start_period: 2m
       start_interval: 10s
 

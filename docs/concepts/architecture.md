@@ -21,7 +21,8 @@ flowchart TD
         E -->|exit 10| E10[restic init]
         E -->|other| EX[Abort: log stderr]
         E10 --> F[Write /var/spool/cron/crontabs/root]
-        F --> G[exec crond -f]
+        F --> G[start crond in background]
+        G --> G1[exec CMD tail cron.log]
     end
     G --> H[crond fires]
     H --> I[/bin/locked_run job /bin/job/]
@@ -49,10 +50,12 @@ The entrypoint is **`/entry.sh`**. On container boot it:
    stderr and aborts startup — that prevents transient TLS/network/auth
    failures from silently re-initialising a healthy remote.
 4. Writes the rendered crontab to `/var/spool/cron/crontabs/root`.
-5. Execs `crond -f` so the container's PID 1 is the cron daemon.
+5. Starts `crond` in the background.
+6. Execs the container `CMD` (default: `tail -fn0 /var/log/cron.log`) as
+   PID 1 so Compose / Kubernetes logs follow the aggregate cron log.
 
-The default `CMD` is `tail -fn0 /var/log/cron.log` so the container stays
-foreground-friendly for Compose / Kubernetes log scrapers.
+This means `crond` is the scheduler process, while the foreground process is
+the log tail unless you override `CMD`.
 
 ## Worker scripts
 
@@ -71,6 +74,7 @@ repo's `app/` directory at image build time:
 | `/bin/forget-preview` | `app/forget_preview.sh` | Operator-driven | `restic forget --dry-run` retention preview. |
 | `/bin/mount-snapshot` | `app/mount_snapshot.sh` | Operator-driven | `restic mount` (FUSE) with safe target validation and clean unmount. |
 | `/bin/doctor` | `app/doctor.sh` | Operator-driven | Read-only diagnostics. |
+| `/bin/support-bundle` | `app/support_bundle.sh` | Operator-driven | Redacted diagnostics tarball for support handoff. |
 | `/bin/locked_run` | `app/locked_run.sh` | Wraps every cron entry | Per-job `flock`; logs skips. |
 
 ## Locked execution

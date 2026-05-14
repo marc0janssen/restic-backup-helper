@@ -105,7 +105,7 @@ Pick whichever combination you actually monitor:
       MAILX_RCPT: ops@example.com
       MAILX_ON_ERROR: "ON"
     volumes:
-      - ./config/msmtprc:/etc/msmtprc:ro
+      - ./config/msmtprc:/etc/msmtprc:ro  # create from config/msmtprc.example
     ```
 
     Mail subjects look like

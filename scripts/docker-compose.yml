@@ -102,17 +102,18 @@ services:
       - restic_password
 
     healthcheck:
-      # Strong probe: fails when credentials or repository reachability break.
-      test: ["CMD-SHELL", "restic cat config >/dev/null 2>&1 || exit 1"]
-      interval: 15m
-      timeout: 30s
+      # Local liveness probe: keep remote repository reachability in monitoring
+      # instead of restarting a healthy cron container during transient outages.
+      test: ["CMD-SHELL", "test -f /var/log/cron.log && pidof crond >/dev/null"]
+      interval: 1m
+      timeout: 5s
       start_period: 1m
       start_interval: 10s
 
     volumes:
       - /etc/localtime:/etc/localtime:ro
       - ./config:/config:ro
-      - ./config/msmtprc:/etc/msmtprc:ro
+      - ./config/msmtprc:/etc/msmtprc:ro # create from config/msmtprc.example
       - ./hooks:/hooks:ro
       - backup-logs:/var/log
       - restic-cache:/.cache/restic

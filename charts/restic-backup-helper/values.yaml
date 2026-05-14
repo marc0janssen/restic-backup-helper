@@ -5,7 +5,7 @@
 image:
   repository: marc0janssen/restic-backup-helper
   # Pin to a concrete image tag in production (see docs/reference/image-tags.md).
-  tag: "3.1.0-0.18.1"
+  tag: "3.2.1-0.18.1"
   pullPolicy: IfNotPresent
 
 imagePullSecrets: []
@@ -133,10 +133,10 @@ probes:
       command:
         - sh
         - -c
-        - "restic cat config >/dev/null 2>&1 || exit 1"
+        - "test -f /var/log/cron.log && pidof crond >/dev/null"
     initialDelaySeconds: 60
-    periodSeconds: 900
-    timeoutSeconds: 30
+    periodSeconds: 60
+    timeoutSeconds: 5
   readiness:
     exec:
       command:

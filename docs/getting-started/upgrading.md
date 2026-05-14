@@ -15,6 +15,26 @@ omitted; see the full [Changelog](../changelog.md) for every release.
 See [Versioning policy](../concepts/versioning.md) for the full semver
 contract.
 
+## 3.1.0 → 3.2.0
+
+Additive release with safer operational defaults.
+
+- New `/bin/support-bundle` creates a redacted diagnostics tarball for
+  support handoff.
+- Worker `last-*.json` files now include the documented integer
+  `started_epoch` and `finished_epoch` fields.
+- Compose, Kubernetes examples and the Helm chart now use a local liveness
+  probe (`test -f /var/log/cron.log && pidof crond >/dev/null`) instead of
+  `restic cat config`. Keep repository reachability checks in readiness or
+  external monitoring when you want alerts for remote outages.
+- Tracked `config/rclone.conf` and `config/msmtprc` are now
+  `config/rclone.conf.example` and `config/msmtprc.example`; real local
+  files are gitignored.
+
+Existing deployments keep working. If you used the repository's tracked
+sample config files as writable local files, copy the new `.example` template
+to the old local filename and keep your real file untracked.
+
 ## 2.x → 3.0.0 :material-alert-octagon:{ title="Breaking" } {#replicate-30-bridge}
 
 The **replicate compatibility bridge** from the 2.0.0 rename is gone.

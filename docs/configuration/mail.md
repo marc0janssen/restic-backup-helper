@@ -12,8 +12,12 @@ environment:
   MAILX_RCPT: ops@example.com
   MAILX_ON_ERROR: "ON"           # OFF (default) = mail every run
 volumes:
-  - ./config/msmtprc:/etc/msmtprc:ro
+  - ./config/msmtprc:/etc/msmtprc:ro   # create from config/msmtprc.example
 ```
+
+The repository ships `config/msmtprc.example` only. Copy it to your local
+`config/msmtprc`, fill in real SMTP settings, keep it untracked, and mount
+that local file.
 
 | Variable | Default | Description |
 | --- | --- | --- |

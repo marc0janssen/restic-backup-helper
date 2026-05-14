@@ -41,11 +41,11 @@ x-restic-base: &restic_base
   secrets:
     - restic_password
 
-  # Strong probe — fails when credentials or repository reachability break.
+  # Local liveness probe; keep repository reachability in monitoring.
   healthcheck:
-    test: ["CMD-SHELL", "restic cat config >/dev/null 2>&1 || exit 1"]
-    interval: 15m
-    timeout: 30s
+    test: ["CMD-SHELL", "test -f /var/log/cron.log && pidof crond >/dev/null"]
+    interval: 1m
+    timeout: 5s
     start_period: 1m
     start_interval: 10s
 

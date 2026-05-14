@@ -171,6 +171,7 @@ nav:
       - Restore test (DR rehearsal): operations/restore-test.md
       - Status / health summary: operations/status.md
       - Diagnostics (doctor): operations/diagnostics.md
+      - Support bundle: operations/support-bundle.md
       - Troubleshooting: operations/troubleshooting.md
   - Deployment:
       - Docker run: deployment/docker.md

@@ -41,16 +41,17 @@ If this image saves you time, you can [leave a tip on Ko-fi](https://ko-fi.com/m
 18. [Hardening (read-only root, capabilities, non-root)](#hardening-read-only-root-capabilities-non-root)
 19. [Multiple backup jobs](#multiple-backup-jobs)
 20. [Operator diagnostics](#operator-diagnostics)
-21. [Snapshot export](#snapshot-export)
-22. [Forget preview](#forget-preview)
-23. [Mount snapshot](#mount-snapshot)
-24. [Manual operations](#manual-operations)
-25. [Restore (operator-friendly)](#restore-operator-friendly)
-26. [Security](#security)
-27. [Troubleshooting](#troubleshooting)
-28. [Contributing](#contributing)
-29. [Documentation site (Material for MkDocs)](#documentation-site-material-for-mkdocs)
-30. [Further reading](#further-reading)
+21. [Support bundle](#support-bundle)
+22. [Snapshot export](#snapshot-export)
+23. [Forget preview](#forget-preview)
+24. [Mount snapshot](#mount-snapshot)
+25. [Manual operations](#manual-operations)
+26. [Restore (operator-friendly)](#restore-operator-friendly)
+27. [Security](#security)
+28. [Troubleshooting](#troubleshooting)
+29. [Contributing](#contributing)
+30. [Documentation site (Material for MkDocs)](#documentation-site-material-for-mkdocs)
+31. [Further reading](#further-reading)
 
 ---
 
@@ -62,7 +63,7 @@ If this image saves you time, you can [leave a tip on Ko-fi](https://ko-fi.com/m
 - **Scheduled Rclone replication** via `/bin/replicate` when `REPLICATE_CRON` and a valid `REPLICATE_JOB_FILE` are configured. Jobs can run rclone `bisync` (default), `sync` or `copy`.
 - **Repository probe on startup**: when `RESTIC_CHECK_REPOSITORY_STATUS=ON`, the entrypoint probes with `restic cat config` and only auto-runs `restic init` when the probe exits **10** (repository does not exist). Other non-zero exits (wrong password, network, DNS, TLS, auth) log restic stderr and abort startup so a transient failure cannot accidentally re-init a healthy remote.
 - **Configuration check**: run `docker run … config-check` with the same env as production to validate credentials, backup paths, `RCLONE_CONFIG` and `RESTIC_CACERT` readability without starting cron (CI-friendly).
-- **Operator diagnostics**: run `/bin/status` (or `/bin/health-summary`) for a fast daily OK/WARN/FAIL view based only on local state: release, rendered crontab, recent `last-*.json` files and backup/check/prune/replicate ages. Run `/bin/doctor` for a deeper read-only support bundle: masked effective env, config/path checks, repository probe, replicate job-file validation, hook executable status and recent `/var/log` summaries. Run `/bin/cron-list` to print the rendered crontab, timezone and schedule summary.
+- **Operator diagnostics**: run `/bin/status` (or `/bin/health-summary`) for a fast daily OK/WARN/FAIL view based only on local state: release, rendered crontab, recent `last-*.json` files and backup/check/prune/replicate ages. Run `/bin/doctor` for deeper read-only diagnostics: masked effective env, config/path checks, repository probe, replicate job-file validation, hook executable status and recent `/var/log` summaries. Run `/bin/cron-list` to print the rendered crontab, timezone and schedule summary. Run `/bin/support-bundle` to package redacted diagnostics into a tarball for support handoff.
 - **Snapshot export**: run `/bin/snapshot-export` to restore a snapshot/subtree into a temporary work directory and package it as a `.tar.gz` archive under `/restore` (or `--output`) for offline transfer / support handoff.
 - **Forget preview**: run `/bin/forget-preview` to preview `RESTIC_FORGET_ARGS` with `restic forget --dry-run`, host/tag-scoped by default and repository-wide only with `--repo-wide`.
 - **Mount snapshot**: run `/bin/mount-snapshot` to expose every matching snapshot read-only over FUSE under `/fusemount` (`<target>/snapshots/latest` for the newest one), with safe target validation, opt-in `--allow-other`, repeatable `--path` and an `EXIT` trap that always unmounts cleanly on Ctrl+C / SIGTERM / crash.
@@ -71,7 +72,7 @@ If this image saves you time, you can [leave a tip on Ko-fi](https://ko-fi.com/m
 - **Init repo**: run `/bin/init-repo` for an audited `restic init` once you have decided where the new repository should live. Pairs with `RESTIC_CHECK_REPOSITORY_STATUS=OFF` (entrypoint auto-init probe disabled, the recommended posture on shared remotes). `--dry-run` runs the same `restic cat config` probe and prints the planned command + verdict without mutation; without `--dry-run` a typed `init` confirmation (or `--yes` for CI) is required. Extra restic-init flags come from `RESTIC_INIT_ARGS` or `--`-passthrough; idempotent (exits `3` when the repo already exists).
 - **Notify test**: run `/bin/notify-test` to send clearly-labelled test mail and/or webhook payloads through the same `notify_mail` / `notify_webhook` helpers used by real jobs. Useful after editing `msmtprc`, rotating SMTP passwords, changing `MAILX_RCPT`, `WEBHOOK_URL`, auth headers or timeouts. Supports `--mail`, `--webhook`, `--all`, `--dry-run`, `--subject` and `--message`; delivery failures affect this helper's exit code so CI can catch notification drift.
 - **Concurrency**: each job is wrapped in **`/bin/locked_run`** which acquires a dedicated `flock` and, on contention, logs `⏭ <job> skipped: previous run still active` to `/var/log/cron.log` instead of failing silently.
-- **Observability**: each run writes `/var/log/last-{backup,check,prune,replicate,restore,snapshot-export,forget-preview,mount-snapshot,unlock,sources-report,init-repo,notify-test,restore-test}.json` and, when `WEBHOOK_URL` is set, POSTs the same JSON document to your monitoring endpoint (healthchecks.io, Slack, Discord, Gotify, ntfy, …). `/bin/status --json` emits a one-shot local health summary on stdout without writing a new state file.
+- **Observability**: each run writes `/var/log/last-{backup,check,prune,replicate,restore,snapshot-export,forget-preview,mount-snapshot,unlock,sources-report,init-repo,notify-test,restore-test}.json` with `started_at` / `finished_at` and matching `started_epoch` / `finished_epoch` fields. When `WEBHOOK_URL` is set, the same JSON document is POSTed to your monitoring endpoint (healthchecks.io, Slack, Discord, Gotify, ntfy, …). `/bin/status --json` emits a one-shot local health summary on stdout without writing a new state file.
 - **Hooks**: optional `/hooks/{pre,post}-{backup,check,prune,replicate,restore,snapshot-export,forget-preview,mount-snapshot,unlock,sources-report,init-repo,notify-test}.sh` scripts run before/after each job, with consistent start/exit-code/duration logging and an optional `HOOK_TIMEOUT`.
 - **Based on** [`restic/restic`](https://hub.docker.com/r/restic/restic) Alpine image; Restic version follows the `FROM restic/restic:<tag>` line in this repo’s `Dockerfile`.
 
@@ -79,15 +80,16 @@ If this image saves you time, you can [leave a tip on Ko-fi](https://ko-fi.com/m
 
 ## Image tags and release
 
-release: 3.1.0-0.18.1
+release: 3.2.1-0.18.1
 
 | Train | When to use | Example pull |
 | --- | --- | --- |
-| **Stable** | Production | `docker pull marc0janssen/restic-backup-helper:latest` or pinned `marc0janssen/restic-backup-helper:3.1.0-0.18.1` |
-| **Testing** | Pre-release / CI | `docker pull marc0janssen/restic-backup-helper:develop` or `marc0janssen/restic-backup-helper:3.1.0-0.18.1-dev` |
+| **Stable** | Production | `docker pull marc0janssen/restic-backup-helper:latest` or pinned `marc0janssen/restic-backup-helper:3.2.1-0.18.1` |
+| **Testing** | Pre-release / CI | `docker pull marc0janssen/restic-backup-helper:develop` or `marc0janssen/restic-backup-helper:3.2.1-0.18.1-dev` |
 
 > **Upgrading?**
 >
+> - **From 3.1.0 → 3.2.0:** additive plus safer defaults. New **`/bin/support-bundle`** creates a redacted diagnostics tarball for support handoff. All worker `last-*.json` documents now include the documented integer `started_epoch` and `finished_epoch` fields. Compose, Kubernetes examples and the Helm chart use a local liveness probe (`cron.log` + `crond`) instead of `restic cat config`, so transient remote outages do not restart a healthy scheduler; keep repository reachability checks in readiness or monitoring. Tracked `config/rclone.conf` and `config/msmtprc` were replaced by `.example` templates and real local files are gitignored.
 > - **From 2.14.x → 3.0.0:** **Breaking (semver MAJOR).** Removes the 2.x replicate compatibility bridge: legacy **`SYNC_*`** environment variables and the **`/bin/bisync`** symlink are gone — use **`REPLICATE_*`** and **`/bin/replicate`** only. Cron, entrypoint, `config-check`, `cron-list`, `status` and `doctor` ignore `SYNC_*`. Rename env vars and any commands that still invoke `/bin/bisync`, then roll the image. See **[Upgrading → 2.x → 3.0.0](https://marc0janssen.github.io/restic-backup-helper/getting-started/upgrading.html#replicate-30-bridge)** and the [CHANGELOG](CHANGELOG.md) `3.0.0-0.18.1` entry.
 > - **From 2.13.0 → 2.14.0:** purely additive. New read-only operator helper **`/bin/status`** (alias **`/bin/health-summary`**) gives a fast daily OK/WARN/FAIL summary based only on local state: release metadata, rendered crontab (or env preview), recent `/var/log/last-*.json` files and backup/check/forget/prune/replicate ages + exit codes. It deliberately does **not** run `restic`, `rclone`, hooks, mail, webhooks or a repository probe; use `/bin/doctor` for deeper support diagnostics. `--json` emits stdout-only schema `restic-backup-helper.status/1` and does not write `/var/log/last-status.json`, so asking for status does not mutate run history. No new environment variables.
 > - **From 2.10.1 → 2.11.0:** purely additive. `RESTIC_REPOSITORY_FILE` is now a first-class Restic-native alternative to `RESTIC_REPOSITORY`. When set, the entrypoint reads the first non-blank, non-comment line of the file (with whitespace and trailing CR stripped) and promotes it into `RESTIC_REPOSITORY` before the banner, the `restic cat config` probe, the cron-driven workers and `restic` itself observe the environment. The original `RESTIC_REPOSITORY_FILE` env var is unset after a successful promotion so restic never aborts with `Options --repo and --repository-file are mutually exclusive` (the image bakes a `RESTIC_REPOSITORY=/mnt/restic` default in the Dockerfile, so both used to end up set in the container when operators added `RESTIC_REPOSITORY_FILE`). The "✅ Assuming repository '…' is online…" banner and the `restic cat config` probe now print the masked resolved URL instead of the image default. `config-check` and `/bin/doctor` understand the new env var and surface specific errors (unreadable file vs. blank/comments-only) when promotion fails. No behaviour change when `RESTIC_REPOSITORY_FILE` is unset.
@@ -165,15 +167,15 @@ For **FUSE / `restic mount`**, add capabilities and device (see [Manual operatio
 
 ## How it works
 
-1. **`/entry.sh`** starts at container boot, prints release metadata (`RESTIC_BACKUP_HELPER_RELEASE`), optionally mounts NFS (`NFS_TARGET`), validates or initializes the repository, then writes **root’s crontab** under `/var/spool/cron/crontabs/root` and runs **`crond`**.
+1. **`/entry.sh`** starts at container boot, prints release metadata (`RESTIC_BACKUP_HELPER_RELEASE`), optionally mounts NFS (`NFS_TARGET`), validates or initializes the repository, then writes **root’s crontab** under `/var/spool/cron/crontabs/root` and starts **`crond`** in the background.
 2. **Backup line** (always present): `BACKUP_CRON … /bin/locked_run backup … /bin/backup >> /var/log/cron.log`.
 3. **Check line** (optional): appended only if `CHECK_CRON` is non-empty.
 4. **Replicate line** (optional): appended only if `REPLICATE_CRON` is non-empty.
 5. **Prune line** (optional): appended only if `PRUNE_CRON` is non-empty.
 6. **Rotate line** (always present): `ROTATE_LOG_CRON … /bin/locked_run rotate_log … /bin/rotate_log`.
-6. Default **CMD** tails `/var/log/cron.log` so the container stays foreground-friendly for Compose and logs aggregate cron output.
+7. Default **CMD** tails `/var/log/cron.log` as PID 1 so the container stays foreground-friendly for Compose and logs aggregate cron output.
 
-Worker scripts live at `/bin/backup`, `/bin/check`, `/bin/prune`, `/bin/forget`, `/bin/replicate`, `/bin/restore`, `/bin/snapshot-export`, `/bin/forget-preview`, `/bin/mount-snapshot`, `/bin/unlock`, `/bin/restore-test`, `/bin/status`, `/bin/doctor`, `/bin/cron-list`, `/bin/rotate_log`. `/bin/health-summary` is an alias for `/bin/status`. The cron wrapper itself is `/bin/locked_run`.
+Worker scripts live at `/bin/backup`, `/bin/check`, `/bin/prune`, `/bin/forget`, `/bin/replicate`, `/bin/restore`, `/bin/snapshot-export`, `/bin/forget-preview`, `/bin/mount-snapshot`, `/bin/unlock`, `/bin/restore-test`, `/bin/status`, `/bin/doctor`, `/bin/cron-list`, `/bin/support-bundle`, `/bin/rotate_log`. `/bin/health-summary` is an alias for `/bin/status`. The cron wrapper itself is `/bin/locked_run`.
 
 ---
 
@@ -433,8 +435,8 @@ services:
 
     volumes:
       - /etc/localtime:/etc/localtime:ro
-      - ./config:/config:ro                    # rclone.conf, exclude lists, replicate_jobs.txt, ca-bundle.pem
-      - ./config/msmtprc:/etc/msmtprc:ro       # only needed when MAILX_RCPT is set
+      - ./config:/config:ro                    # local rclone.conf, exclude lists, replicate_jobs.txt, ca-bundle.pem
+      - ./config/msmtprc:/etc/msmtprc:ro       # create from config/msmtprc.example; only needed when MAILX_RCPT is set
       - ./hooks:/hooks:ro                      # only needed when you ship hook scripts
       - backup-logs:/var/log                   # persists last-*.json, cron.log, archives
       - restic-cache:/.cache/restic            # speeds up subsequent backups
@@ -444,10 +446,11 @@ services:
       # - ~/.ssh:/root/.ssh:ro                 # only needed for sftp: repositories
 
     healthcheck:
-      # Strong probe — fails when credentials or repo reachability break.
-      test: ["CMD-SHELL", "restic cat config >/dev/null 2>&1 || exit 1"]
-      interval: 15m
-      timeout: 30s
+      # Local liveness probe. Keep remote repository reachability in monitoring
+      # instead of restarting a healthy cron container during transient outages.
+      test: ["CMD-SHELL", "test -f /var/log/cron.log && pidof crond >/dev/null"]
+      interval: 1m
+      timeout: 5s
       start_period: 1m
       start_interval: 10s
 
@@ -476,21 +479,21 @@ docker compose --profile dev up         # + mailhog SMTP catcher
 docker compose --profile metrics --profile dev up   # both
 ```
 
-The main `restic-backup` service has no `profiles:` key, so it is always brought up regardless of which profile (if any) you pick. For Kubernetes a full single-Pod manifest (Deployment + Secret + PVC, FUSE-friendly capabilities, strong liveness probe and pre-wired `METRICS_DIR`) is at [`examples/kubernetes/restic-backup-helper.yaml`](examples/kubernetes/restic-backup-helper.yaml). A **Helm** chart with the same defaults lives under [`charts/restic-backup-helper/`](charts/restic-backup-helper/) (see [`charts/restic-backup-helper/README.md`](charts/restic-backup-helper/README.md)).
+The main `restic-backup` service has no `profiles:` key, so it is always brought up regardless of which profile (if any) you pick. For Kubernetes a full single-Pod manifest (Deployment + Secret + PVC, FUSE-friendly capabilities, local liveness probe and pre-wired `METRICS_DIR`) is at [`examples/kubernetes/restic-backup-helper.yaml`](examples/kubernetes/restic-backup-helper.yaml). A **Helm** chart with the same defaults lives under [`charts/restic-backup-helper/`](charts/restic-backup-helper/) (see [`charts/restic-backup-helper/README.md`](charts/restic-backup-helper/README.md)).
 
-**Health checks:** choose how hard you want Compose to probe the repository.
+**Health checks:** keep container liveness local and put repository reachability in monitoring.
 
-- **Weak** — only verifies the Restic binary (no repository access):
+- **Local liveness** — verifies `crond` is alive and `cron.log` exists; this is the recommended Compose/Kubernetes liveness probe because a transient object-store/DNS/TLS/auth outage should not restart an otherwise healthy scheduler:
 
 ```yaml
 healthcheck:
-  test: ["CMD", "restic", "version"]
-  interval: 5m
-  timeout: 10s
+  test: ["CMD-SHELL", "test -f /var/log/cron.log && pidof crond >/dev/null"]
+  interval: 1m
+  timeout: 5s
   retries: 3
 ```
 
-- **Strong** — fails if credentials or repository reachability break (uses `RESTIC_*` env inside the container; same as the reference stack above):
+- **Remote readiness / monitoring** — fails if credentials or repository reachability break. Use this as a readiness probe, external monitor or explicit healthcheck only when you really want orchestration to react to remote outages:
 
 ```yaml
 healthcheck:
@@ -869,6 +872,27 @@ docker run --rm --env-file restic.env marc0janssen/restic-backup-helper:latest c
 ```
 
 It prints `TZ`, current container time, the rendered crontab from `/var/spool/cron/crontabs/root` when present (or an environment-derived preview before cron starts), plus a readable summary for `backup`, `check`, `replicate`, `forget`, `prune` and `rotate_log`.
+
+---
+
+## Support bundle
+
+`/bin/support-bundle` creates a redacted tarball for support handoff without
+running backups, restores, hooks, mail or webhooks. It captures local
+diagnostics only: `status --json`, `doctor --json`, `config-check --json`,
+`cron-list`, tool versions, recent `last-*.json` files and redacted log tails.
+
+```shell
+docker exec restic-backup-helper /bin/support-bundle
+docker exec restic-backup-helper /bin/support-bundle --output /var/log/support.tar.gz
+```
+
+The default output path is `/var/log/support-bundle-<timestamp>.tar.gz` and
+the archive is written mode `0755` when the filesystem allows it. The helper
+masks common URL credentials, webhook paths, passwords, tokens and auth
+headers, but logs can still contain filenames, hook output and operational
+paths. Use `--include-full-logs` only when you are comfortable sharing full
+redacted logs instead of the default 200-line tails.
 
 ---
 

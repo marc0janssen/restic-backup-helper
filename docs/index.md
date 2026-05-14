@@ -145,13 +145,14 @@ webhook notifications**, **Prometheus textfile metrics** and
     ---
 
     `/bin/status` (`/bin/health-summary`) gives a fast daily
-    OK/WARN/FAIL summary from local state only. `/bin/doctor` prints a
-    deeper read-only support bundle; `/bin/cron-list` answers "what
-    will run and when?" with timezone, rendered crontab and schedule
-    summary.
+    OK/WARN/FAIL summary from local state only. `/bin/doctor` prints
+    deeper read-only diagnostics; `/bin/cron-list` answers "what will
+    run and when?" and `/bin/support-bundle` creates a redacted
+    diagnostics archive for support handoff.
 
     [:octicons-arrow-right-24: Status](operations/status.md)
     [:octicons-arrow-right-24: Diagnostics](operations/diagnostics.md)
+    [:octicons-arrow-right-24: Support bundle](operations/support-bundle.md)
 
 - :material-chart-line: __Observability__
 

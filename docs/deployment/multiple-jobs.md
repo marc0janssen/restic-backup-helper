@@ -51,9 +51,9 @@ x-restic-base: &restic_base
     - ./config/msmtprc:/etc/msmtprc:ro
     - restic-cache:/.cache/restic
   healthcheck:
-    test: ["CMD-SHELL", "restic cat config >/dev/null 2>&1 || exit 1"]
-    interval: 30m
-    timeout: 30s
+    test: ["CMD-SHELL", "test -f /var/log/cron.log && pidof crond >/dev/null"]
+    interval: 1m
+    timeout: 5s
     start_period: 1m
 
 services:

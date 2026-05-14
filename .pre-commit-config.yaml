@@ -15,7 +15,7 @@ repos:
       - id: check-merge-conflict
       - id: check-yaml
         args: [--allow-multiple-documents]
-        exclude: ^(scripts/docker-compose\.yml|examples/.*\.ya?ml)$
+        exclude: ^(scripts/docker-compose\.yml|examples/.*\.ya?ml|charts/.*/templates/.*\.ya?ml)$
         # ^ Compose files use $VAR style that PyYAML happily parses but the
         # `:?` modifier is non-standard YAML to some validators. The CI YAML
         # check uses yamllint instead, which handles these gracefully.
@@ -38,7 +38,7 @@ repos:
     rev: v3.10.0-2
     hooks:
       - id: shfmt
-        args: ["-d"] # show diff, do not auto-fix
+        args: ["-d"]  # show diff, do not auto-fix
 
   # Dockerfile
   - repo: https://github.com/hadolint/hadolint
@@ -52,7 +52,7 @@ repos:
     hooks:
       - id: yamllint
         args: ["--strict"]
-        exclude: ^(scripts/docker-compose\.yml|examples/.*\.ya?ml)$
+        exclude: ^(scripts/docker-compose\.yml|examples/.*\.ya?ml|charts/.*/templates/.*\.ya?ml)$
 
   # GitHub Actions workflows
   - repo: https://github.com/rhysd/actionlint

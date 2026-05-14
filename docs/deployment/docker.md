@@ -91,20 +91,20 @@ never run against an empty `/mnt/restic`.
 
 ## Healthchecks
 
-Pick how hard you want Docker to probe the repository:
+Keep container liveness local and put repository reachability in monitoring:
 
-=== "Weak (verifies binary only)"
+=== "Local liveness"
 
     ```shell
     docker run -d \
-      --health-cmd 'restic version' \
-      --health-interval 5m \
-      --health-timeout 10s \
+      --health-cmd 'test -f /var/log/cron.log && pidof crond >/dev/null' \
+      --health-interval 1m \
+      --health-timeout 5s \
       --health-retries 3 \
       … marc0janssen/restic-backup-helper:latest
     ```
 
-=== "Strong (verifies repo reachability)"
+=== "Remote readiness"
 
     ```shell
     docker run -d \
@@ -115,8 +115,9 @@ Pick how hard you want Docker to probe the repository:
       … marc0janssen/restic-backup-helper:latest
     ```
 
-The strong probe fails when credentials or repository reachability
-break — same probe the entrypoint uses on boot.
+The remote probe fails when credentials or repository reachability break.
+Use it for readiness or external monitoring when you want orchestration or
+alerts to react to remote outages.
 
 ## What to read next
 

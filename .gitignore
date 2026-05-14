@@ -6,6 +6,8 @@ old/
 build-testing-local.env
 build.env
 build-testing.env
+config/rclone.conf
+config/msmtprc
 sbom/
 site/
 .cache/

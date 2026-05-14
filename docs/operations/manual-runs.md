@@ -142,6 +142,7 @@ Recognised entrypoint subcommands:
 | `config-check` | Validate env and critical paths; exits `0` or `1`. Does not run backups. |
 | `doctor` or `/bin/doctor` | Read-only diagnostics bundle. Does not run backups. |
 | `cron-list` or `/bin/cron-list` | Print timezone, rendered crontab (or env preview) and readable schedule summary. |
+| `support-bundle` or `/bin/support-bundle` | Pass remaining args to `/bin/support-bundle`. Creates a redacted diagnostics tarball. |
 | `snapshot-export` or `/bin/snapshot-export` | Pass remaining args to `/bin/snapshot-export`. |
 | `forget-preview` or `/bin/forget-preview` | Pass remaining args to `/bin/forget-preview`; always uses `restic forget --dry-run`. |
 | `mount-snapshot` or `/bin/mount-snapshot` | Pass remaining args to `/bin/mount-snapshot`; blocks until you unmount (Ctrl+C / SIGTERM). |

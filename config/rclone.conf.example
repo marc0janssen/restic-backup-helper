@@ -2,18 +2,18 @@
 type = jottacloud
 configVersion = 1
 client_id = jottacli
-client_secret = 
+client_secret =
 tokenURL = https://id.jottacloud.com/auth/realms/jottacloud/protocol/openid-connect/token
-token = 
-device = 
-mountpoint = 
+token =
+device =
+mountpoint =
 
 [jottasync]
 type = jottacloud
 configVersion = 1
 client_id = jottacli
-client_secret = 
+client_secret =
 tokenURL = https://id.jottacloud.com/auth/realms/jottacloud/protocol/openid-connect/token
-token = 
+token =
 device = Jotta
 mountpoint = Sync

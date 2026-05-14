@@ -40,6 +40,7 @@ helm install backup ./charts/restic-backup-helper \
 | Logs / cache | `persistence.logs`, `persistence.cache` |
 | Data to back up | `volumeSource` (`hostPath`, `pvc`, `emptyDir`) |
 | Files under `/config` | `configMap.enabled`, `configMap.data` |
+| Probes | `probes.liveness`, `probes.readiness` (default liveness is local scheduler health: `cron.log` + `crond`) |
 
 See `values.yaml` for defaults and comments.
 

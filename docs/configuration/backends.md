@@ -110,7 +110,7 @@ environment:
   RESTIC_REPOSITORY: "rclone:jottacloud:backups"
   RCLONE_CONFIG: /config/rclone.conf
 volumes:
-  - ./config:/config       # writable: rclone may refresh tokens
+  - ./config:/config       # create rclone.conf from config/rclone.conf.example; writable for token refresh
 ```
 
 The walkthrough for Jottacloud lives at

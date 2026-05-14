@@ -184,6 +184,10 @@ if [ "${1:-}" = "status" ] || [ "${1:-}" = "/bin/status" ] || [ "${1:-}" = "heal
 	shift
 	exec /bin/status "$@"
 fi
+if [ "${1:-}" = "support-bundle" ] || [ "${1:-}" = "/bin/support-bundle" ]; then
+	shift
+	exec /bin/support-bundle "$@"
+fi
 if [ "${1:-}" = "snapshot-export" ] || [ "${1:-}" = "/bin/snapshot-export" ]; then
 	shift
 	exec /bin/snapshot-export "$@"
