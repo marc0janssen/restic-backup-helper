@@ -1,4 +1,4 @@
-FROM restic/restic:0.18.1
+FROM restic/restic:0.19.1
 
 # rclone is intentionally NOT installed via apk; install_rclone.sh fetches a
 # checksum-verified upstream binary so the image always ships a current,

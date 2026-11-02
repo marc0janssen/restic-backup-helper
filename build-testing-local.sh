@@ -40,7 +40,7 @@ Precedence (hoog → laag): CLI --repo / --platform / --base → niet-lege expor
 in je shell → build-testing-local.env → defaults in dit script / scripts/build-common.sh.
 
 Environment:
-  VERSION_RESTIC   Same as build-testing.sh (default 0.18.1). The build patches
+  VERSION_RESTIC   Same as build-testing.sh (default 0.19.1). The build patches
                    Dockerfile FROM to match this value, so they never drift.
   SBOM             Set to ON to generate SPDX + CycloneDX SBOMs of the pushed
                    image via syft (requires syft on PATH). Default: off.
@@ -99,7 +99,7 @@ fi
 [[ -n "${_o_VERSION_RESTIC}" ]] && VERSION_RESTIC="${_o_VERSION_RESTIC}"
 
 # build-common.sh zet hier geen VERSION_RESTIC-default meer vóór env; vul aan als alles nog leeg is.
-VERSION_RESTIC="${VERSION_RESTIC:-0.18.1}"
+VERSION_RESTIC="${VERSION_RESTIC:-0.19.1}"
 
 LOCAL_REPO_ARG="${LOCAL_REPO:-192.168.1.1:5000/restic-backup-helper}"
 PLATFORM_ARG="${LOCAL_PLATFORM:-linux/amd64}"
