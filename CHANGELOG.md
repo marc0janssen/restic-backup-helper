@@ -2,6 +2,13 @@
 
 ## Restic Backup Helper
 
+### 2.14.3-0.20.0 (2026-11-23)
+
+#### Changed
+
+- Bump Docker base image to `restic/restic:0.20.0`.
+
+
 ### 2.14.2-0.18.1 (2026-05-14)
 
 Patch release: documentation only.

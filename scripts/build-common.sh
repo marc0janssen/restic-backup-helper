@@ -64,7 +64,7 @@ apply_optional_env_file() {
 
 	DOCKER_IMAGE_REPO="${DOCKER_IMAGE_REPO:-marc0janssen/restic-backup-helper}"
 	BUILD_PLATFORM="${BUILD_PLATFORM:-linux/amd64,linux/arm64}"
-	VERSION_RESTIC="${VERSION_RESTIC:-0.18.1}"
+	VERSION_RESTIC="${VERSION_RESTIC:-0.20.0}"
 }
 
 trim_value() {
